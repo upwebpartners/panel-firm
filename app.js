@@ -8,6 +8,12 @@
   seed.records = seed.records.map(r => ({ ...r, Id: r.Id || C.stableId(r), Etap: r.Etap || 'Nowy' }));
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
+  const SORT_STORE = 'pracownia.sort';
+  let sorting = { field: 'updated', direction: 'desc' };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SORT_STORE) || 'null');
+    if (saved && Object.hasOwn(C.sortFields, saved.field) && ['asc', 'desc'].includes(saved.direction)) sorting = { field: saved.field, direction: saved.direction };
+  } catch { /* Invalid preferences never block access to company data. */ }
   let local = { patches: {}, added: [], imported: null, meta: null, info: null };
   let storageOK = true, storageError = '', browserStore;
   try { browserStore = new BrowserStore(localStorage, STORE); const stored = browserStore.load(); if (stored) local = stored; }
@@ -223,7 +229,7 @@
   }
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
-    return records.filter(r => {
+    const visible = records.filter(r => {
       if (!stage && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
       if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
       if (stage === 'Odrzucony' && M.state(r) !== 'wykreslona') return false;
@@ -231,10 +237,20 @@
       if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
       return !query || C.norm([r.Firma, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
-    }).sort((a, b) => C.priority(a) - C.priority(b) || a.Firma.localeCompare(b.Firma, I18n.language()));
+    });
+    return C.sortRecords(visible, { ...sorting, locale: I18n.language() });
+  }
+  function renderSorting() {
+    const labels = ['updated', 'added', 'called'].includes(sorting.field) ? ['Od najstarszych', 'Od najnowszych'] :
+      sorting.field === 'due' ? ['Od najbliższego terminu', 'Od najdalszego terminu'] :
+      sorting.field === 'status' ? ['Od pierwszego etapu', 'Od ostatniego etapu'] :
+      sorting.field === 'priority' ? ['Od najwyższego priorytetu', 'Od najniższego priorytetu'] : ['A → Z', 'Z → A'];
+    $('sortField').value = sorting.field;
+    $('sortDirection').innerHTML = labels.map((label, index) => '<option value="' + (index ? 'desc' : 'asc') + '">' + esc(t(label)) + '</option>').join('');
+    $('sortDirection').value = sorting.direction;
   }
   function render() {
-    refreshIndustries(); connectionUI();
+    refreshIndustries(); renderSorting(); connectionUI();
     const visible = filteredRecords();
     $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + records.length + ' firm');
     if (!visible.length) {
@@ -291,6 +307,7 @@
           <strong class="firm-name">${esc(record.Firma)}</strong>
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
+          <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
         </td>
         <td>${statusButton(record)}</td>
         <td>${contactHTML(record)}</td>
@@ -693,6 +710,18 @@
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage === 'Odrzucony' ? 'Wykreślone' : stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
   for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+  for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
+    if (id === 'sortField') {
+      const field = $('sortField').value;
+      if (!Object.hasOwn(C.sortFields, field)) return;
+      sorting = { field, direction: ['updated', 'added', 'called'].includes(field) ? 'desc' : 'asc' };
+    } else {
+      if (!['asc', 'desc'].includes($('sortDirection').value)) return;
+      sorting.direction = $('sortDirection').value;
+    }
+    try { localStorage.setItem(SORT_STORE, JSON.stringify(sorting)); } catch {}
+    render();
+  });
   $('addClient').onclick = () => openForm();
   $('clientsContent').addEventListener('click', event => {
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }

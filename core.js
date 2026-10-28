@@ -112,6 +112,27 @@
     const n = norm(r.Branza);
     return n.includes('detail') ? 'Detailing' : n.includes('remont') || n.includes('wnetrz') ? 'Remonty' : n.includes('klim') || n.includes('instalac') || n.includes('wentyl') ? 'Instalacje' : r.Branza || 'Inna branża';
   }
+  const sortFields = { updated: 'Modyfikacja', added: 'Dodano', status: 'Etap', name: 'Firma', industry: 'Branza', city: 'Miejscowosc', priority: 'Priorytet roboczy', due: 'Termin', called: 'Dzwoniono' };
+  function sortRecords(records, { field = 'updated', direction = 'desc', locale = 'pl' } = {}) {
+    if (!Object.hasOwn(sortFields, field)) field = 'updated';
+    const sign = direction === 'asc' ? 1 : -1;
+    const collator = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' });
+    const value = record => {
+      const raw = String(record[sortFields[field]] ?? '').trim();
+      if (!raw) return null;
+      if (['updated', 'added', 'due', 'called'].includes(field)) { const at = Date.parse(raw); return Number.isFinite(at) ? at : null; }
+      if (field === 'status') { const index = stages.indexOf(raw); return index >= 0 ? index : null; }
+      if (field === 'priority') { const rank = priority(record); return rank === 99 ? null : rank; }
+      return field === 'industry' ? industry(record) : raw;
+    };
+    return records.map(record => ({ record, value: value(record) })).sort((a, b) => {
+      // Unknown dates and other missing values stay last in either direction.
+      if (a.value === null && b.value !== null) return 1;
+      if (b.value === null && a.value !== null) return -1;
+      const compared = a.value === null ? 0 : typeof a.value === 'number' ? a.value - b.value : collator.compare(a.value, b.value);
+      return sign * compared || collator.compare(a.record.Firma || '', b.record.Firma || '') || collator.compare(a.record.Id || '', b.record.Id || '');
+    }).map(item => item.record);
+  }
   const callColumns = ['Dzwoniono', 'Dzwonil', 'Liczba_polaczen', 'Historia_polaczen'];
   const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
   const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
@@ -169,5 +190,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);
