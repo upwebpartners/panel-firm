@@ -200,6 +200,21 @@
       <div class="connect-body"><label for="excludeReason">Powód (opcjonalnie)</label><textarea id="excludeReason" rows="3"></textarea><p class="small-copy">Firma zostanie na liście wykreślonych. Można ją przywrócić.</p><div id="excludeError" class="form-error" role="alert" hidden></div></div>
       <div class="dialog-footer"><button type="button" id="cancelExclude" class="button">Anuluj</button><button type="submit" id="saveExclude" class="button primary">Wykreśl</button></div>
     </form></dialog>
+    <dialog id="callDialog" class="connect-dialog" aria-labelledby="callTitle">
+      <form id="callForm">
+        <div class="dialog-heading">
+          <div><h2 id="callTitle">Zapisz rozmowę</h2><p id="callCompanyName" data-content></p></div>
+          <button type="button" id="closeCall" class="icon-button" aria-label="Zamknij">×</button>
+        </div>
+        <div class="connect-body call-form-body">
+          <div class="drawer-field"><label for="callOutcome">Wynik rozmowy *</label><select id="callOutcome" required></select></div>
+          <div class="drawer-field"><label for="callNotes">Przebieg rozmowy</label><textarea id="callNotes" rows="6" maxlength="30000" placeholder="Z kim rozmawialiście? Co ustaliliście i jaki jest następny krok?"></textarea></div>
+          <p class="small-copy">Zapis obejmuje datę, autora, wynik i opis. Etap firmy zmienisz osobno.</p>
+          <div id="callError" class="form-error" role="alert" hidden></div>
+        </div>
+        <div class="dialog-footer"><span id="callSaveHint"></span><div><button type="button" id="cancelCall" class="button">Anuluj</button><button type="submit" id="saveCall" class="button primary">Zapisz rozmowę</button></div></div>
+      </form>
+    </dialog>
     <dialog id="statusDialog" class="status-dialog">
       <form id="statusForm">
         <div class="dialog-heading">

@@ -31,6 +31,7 @@
   let draftId = null;
   const pendingCalls = new Map();
   const callsInProgress = new Set();
+  let callOriginal = null, callSaving = false;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const icon = name => '<svg aria-hidden="true"><use href="#i-' + name + '"/></svg>';
   const val = (record, name) => record[F[name]] || '';
@@ -128,23 +129,67 @@
     }
     render();
   }
-  async function registerPhone(id) {
-    const record = byId(id); if (!record || busy || callsInProgress.has(id)) return;
+  function callOutcomeHTML(event) {
+    if (!event?.outcome) return '';
+    const tone = ['positive', 'followup', 'positive', 'neutral', 'negative', 'neutral'][C.callOutcomes.indexOf(event.outcome)] || 'neutral';
+    return `<span class="call-outcome ${tone}">${esc(t(event.outcome))}</span>`;
+  }
+  function renderCallOptions(value = '') {
+    $('callOutcome').innerHTML = '<option value="">' + esc(t('Wybierz wynik')) + '</option>' + C.callOutcomes.map(outcome => `<option value="${esc(outcome)}">${esc(t(outcome))}</option>`).join('');
+    $('callOutcome').value = value;
+  }
+  function callControls() {
+    const pending = callOriginal && pendingCalls.has(callOriginal.Id);
+    $('callOutcome').disabled = callSaving || !!pending;
+    $('callNotes').readOnly = callSaving || !!pending;
+    for (const id of ['saveCall', 'closeCall', 'cancelCall']) $(id).disabled = callSaving;
+  }
+  function registerPhone(id) {
+    const record = byId(id); if (!record || busy || callSaving || !requireProfile()) return;
     const history = displayCallHistory(record);
     const pending = pendingCalls.get(id);
     if (pending && history.some(e => e.id === pending.eventId)) { pendingCalls.delete(id); toast('Ten telefon jest już zapisany we wspólnej bazie.'); return; }
-    if (!pending && history.length && !ask('Ostatni zapis telefonu: ' + dateTime(record.Dzwoniono) + ' (' + (record.Dzwonil || t('brak autora')) + '). Zapisać kolejny wykonany telefon teraz?')) return;
+    callOriginal = pending?.original || { ...record };
+    $('callCompanyName').textContent = record.Firma;
+    renderCallOptions(pending?.details.outcome || '');
+    $('callNotes').value = pending?.details.notes || '';
+    $('callError').hidden = !pending;
+    $('callError').textContent = pending ? t('Dane rozmowy zachowano. Ponów zapis, aby uniknąć zdublowania telefonu.') : '';
+    $('callSaveHint').textContent = t(connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
+    callControls(); $('callDialog').showModal();
+    $(pending ? 'saveCall' : 'callOutcome').focus();
+  }
+  function closeCall() {
+    if (callSaving) return;
+    if (($('callOutcome').value || $('callNotes').value.trim()) && !ask('Zamknąć okno bez zapisywania rozmowy?')) return;
+    $('callDialog').close();
+  }
+  async function submitCall(event) {
+    event.preventDefault();
+    if (!callOriginal || callSaving || busy) return;
+    const id = callOriginal.Id, pending = pendingCalls.get(id);
+    const details = pending?.details || { outcome: $('callOutcome').value, notes: $('callNotes').value.trim() };
+    if (!C.callOutcomes.includes(details.outcome)) {
+      $('callError').textContent = t('Wybierz wynik rozmowy przed zapisem.'); $('callError').hidden = false; $('callOutcome').focus(); return;
+    }
+    callSaving = true;
     callsInProgress.add(id);
+    callControls(); $('callError').hidden = true;
     try {
       const author = await ensureAuthor();
-      const operation = pending || { original: { ...record }, eventId: C.uid() };
-      if (!pending) operation.patch = C.callPatch(record, author, new Date().toISOString(), operation.eventId);
+      const operation = pending || { original: callOriginal, eventId: C.uid(), details };
+      if (!pending) operation.patch = C.callPatch(callOriginal, author, new Date().toISOString(), operation.eventId, details);
       pendingCalls.set(id, operation);
       await saveChange(id, operation.patch, operation.original); pendingCalls.delete(id);
+      $('callDialog').close();
       if (selected === id) openClient(id, true);
-      toast('Zapisano wykonany telefon, datę i autora.');
-    } catch (error) { toast(error.message, true); }
-    finally { callsInProgress.delete(id); }
+      toast('Zapisano rozmowę z wynikiem i opisem.');
+    } catch (error) {
+      // Local-only failures cannot have written remotely; allow correcting the draft.
+      if (!github && !connected) pendingCalls.delete(id);
+      $('callError').textContent = I18n.message(error.message) + (pendingCalls.has(id) ? ' ' + t('Dane rozmowy zachowano. Ponów zapis, aby uniknąć zdublowania telefonu.') : '');
+      $('callError').hidden = false;
+    } finally { callSaving = false; callsInProgress.delete(id); callControls(); }
   }
   async function importCSV(file) {
     if (!file) return;
@@ -321,6 +366,7 @@
           ${record.Dzwoniono
             ? `<small class="called-label">${esc(dateTime(record.Dzwoniono))}<br>${esc(record.Dzwonil || '')}</small>`
             : `<small class="muted">${esc(t('Jeszcze nie dzwoniono'))}</small>`}
+          ${callOutcomeHTML(displayCallHistory(record).at(-1))}
         </td>
       </tr>
     `).join('');
@@ -417,6 +463,13 @@
             <textarea id="actionNotes" rows="8">${esc(record.Notatki)}</textarea>
           </div>
           <button type="button" class="button primary save-actions" id="saveActions">${esc(t('Zapisz'))}</button>
+          <section class="call-history" aria-labelledby="callHistoryTitle">
+            <div class="call-history-heading"><h3 id="callHistoryTitle">${esc(t('Historia rozmów'))}</h3><span class="muted">${esc(record.Liczba_polaczen || history.length)}</span></div>
+            ${history.map((event, index) => `<details class="call-entry"${index === 0 ? ' open' : ''}>
+              <summary><span class="call-entry-meta"><time datetime="${esc(event.at)}">${esc(dateTime(event.at))}</time><span>${esc(event.by)}</span></span>${callOutcomeHTML(event) || `<span class="muted">${esc(t('Nie zapisano wyniku'))}</span>`}</summary>
+              <div class="call-entry-body"><p data-content>${esc(event.notes || t('Brak opisu rozmowy.'))}</p>${event.count > 1 ? `<small class="muted">${esc(t('Liczba telefonów w starszym wpisie'))}: ${event.count}</small>` : ''}</div>
+            </details>`).join('') || `<p class="call-history-empty">${esc(t('Tutaj pojawią się wyniki i ustalenia zapisanych rozmów.'))}</p>`}
+          </section>
           <div class="drawer-field">
             <label for="actionNext">${esc(t('Następny krok'))}</label>
             <textarea id="actionNext" rows="4">${esc(record['Nastepny krok'])}</textarea>
@@ -431,8 +484,6 @@
               <label for="actionConsent">${esc(t('Uzgodniony kontakt — data i zakres'))}</label>
               <textarea id="actionConsent" rows="3">${esc(record['Zgoda data i zakres'])}</textarea>
             </div>
-            <h3>${esc(t('Historia telefonów'))}</h3>
-            ${history.map(event => `<p>${esc(dateTime(event.at))} · ${esc(event.by)}</p>`).join('') || '<p class="muted">—</p>'}
           </details>
         </div>
       </div>
@@ -768,6 +819,10 @@
   $('closeStatus').onclick = () => { if (!statusSaving) $('statusDialog').close(); };
   $('statusDialog').addEventListener('cancel', event => { if (statusSaving) event.preventDefault(); });
   $('statusDialog').addEventListener('close', () => { statusOriginal = null; });
+  $('callForm').addEventListener('submit', submitCall);
+  $('closeCall').onclick = closeCall; $('cancelCall').onclick = closeCall;
+  $('callDialog').addEventListener('cancel', event => { event.preventDefault(); closeCall(); });
+  $('callDialog').addEventListener('close', () => { callOriginal = null; });
   document.addEventListener('crm:beforetab', event => { if (busy || githubBusy) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
   $('clientForm').addEventListener('submit', submitForm);
   function closeForm() {
@@ -801,13 +856,13 @@
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
-    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
-    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open) closeDrawer();
-    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
+    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
+    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open) closeDrawer();
+    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
 
   });
   window.addEventListener('beforeunload', event => {
-    if (busy || githubBusy || actionDirty() || $('editDialog').open || (!storageOK && records.length)) { event.preventDefault(); event.returnValue = ''; }
+    if (busy || githubBusy || actionDirty() || $('editDialog').open || $('callDialog').open || (!storageOK && records.length)) { event.preventDefault(); event.returnValue = ''; }
   });
   window.addEventListener('storage', event => {
     if (event.key !== STORE && event.key !== null) return;
@@ -815,6 +870,6 @@
     connectionUI();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
-  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); });
+  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); });
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();

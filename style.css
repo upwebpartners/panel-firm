@@ -694,6 +694,42 @@ main {
 .last-call strong {
   font-weight:400;
 }
+.call-form-body select { width:100%; }
+.call-form-body textarea { min-height:140px; }
+.call-outcome {
+  display:inline-block;
+  padding:3px 8px;
+  border:1px solid var(--border);
+  border-radius:4px;
+  background:var(--subtle);
+  color:var(--text);
+  font-size:11px;
+  font-weight:700;
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+.client-table .call-outcome { margin-top:6px; }
+.call-outcome.positive { color:#12653e; background:#e6f4ec; border-color:#acd4bc; }
+.call-outcome.followup { color:#775110; background:#fff4da; border-color:#e6cc91; }
+.call-outcome.negative { color:#963f3f; background:#faeaea; border-color:#e1b4b4; }
+[data-theme="dark"] .call-outcome.positive { color:#a3e3bd; background:#193b2c; border-color:#38644a; }
+[data-theme="dark"] .call-outcome.followup { color:#f2d396; background:#3e321c; border-color:#6d5933; }
+[data-theme="dark"] .call-outcome.negative { color:#f0b0b0; background:#422828; border-color:#754747; }
+.call-history { border-top:1px solid var(--border); padding-top:14px; margin-bottom:20px; }
+.call-history-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.call-history-heading h3 { font-size:14px; }
+.call-history-heading>span { font-size:12px; }
+.call-entry { border:1px solid var(--border); border-radius:4px; margin-bottom:8px; overflow:hidden; }
+.call-entry summary { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; background:var(--subtle); cursor:pointer; list-style:none; }
+.call-entry summary::-webkit-details-marker { display:none; }
+.call-entry summary::after { content:'+'; color:var(--muted); flex-shrink:0; }
+.call-entry[open] summary::after { content:'−'; }
+.call-entry-meta { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-right:auto; }
+.call-entry-meta>span { font-size:11px; color:var(--muted); }
+.call-entry-body { padding:12px; font-size:13px; line-height:1.65; }
+.call-entry-body p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.call-entry-body small { display:block; margin-top:8px; }
+.call-history-empty { color:var(--muted); font-size:12px; line-height:1.6; }
 .drawer-field {
   margin-bottom:12px;
 }

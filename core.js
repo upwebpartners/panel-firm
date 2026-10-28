@@ -11,6 +11,7 @@
     editor: 'Edytowal', called: 'Dzwoniono', caller: 'Dzwonil', calls: 'Historia_polaczen'
   };
   const stages = ['Nowy', 'Do sprawdzenia', 'Rozmowa', 'Oferta', 'W realizacji', 'Pozyskany', 'Odrzucony', 'Archiwum'];
+  const callOutcomes = ['Zainteresowany', 'Do ponownego kontaktu', 'Prosi o ofertę', 'Brak odpowiedzi', 'Brak zainteresowania', 'Inny wynik'];
   function parseCSV(text) {
     text = String(text).replace(/^\uFEFF/, '');
     let headerQuoted = false, commas = 0, semicolons = 0;
@@ -146,14 +147,14 @@
     }
     let items;
     try { items = JSON.parse(record.Historia_polaczen); } catch { throw new Error('Nieprawidłowa historia telefonów w CSV. Popraw pole Historia_polaczen, zanim zapiszesz zmiany.'); }
-    if (!Array.isArray(items) || items.some(e => !e || typeof e.id !== 'string' || !e.id || typeof e.at !== 'string' || !Number.isFinite(Date.parse(e.at)) || typeof e.by !== 'string' || (e.count !== undefined && (!Number.isInteger(e.count) || e.count <= 0)))) throw new Error('Historia telefonów ma nieprawidłowy format.');
+    if (!Array.isArray(items) || items.some(e => !e || typeof e.id !== 'string' || !e.id || typeof e.at !== 'string' || !Number.isFinite(Date.parse(e.at)) || typeof e.by !== 'string' || (e.count !== undefined && (!Number.isInteger(e.count) || e.count <= 0)) || ['outcome', 'notes'].some(key => e[key] !== undefined && typeof e[key] !== 'string'))) throw new Error('Historia telefonów ma nieprawidłowy format.');
     return unionCalls([], items);
   }
   function unionCalls(a, b) {
     const calls = new Map();
     for (const item of [...a, ...b]) {
       const existing = calls.get(item.id);
-      if (existing && (existing.at !== item.at || existing.by !== item.by || (existing.count ?? 1) !== (item.count ?? 1))) throw new Error('Historia telefonów zawiera sprzeczne zdarzenia z tym samym identyfikatorem.');
+      if (existing && (existing.at !== item.at || existing.by !== item.by || (existing.count ?? 1) !== (item.count ?? 1) || (existing.outcome || '') !== (item.outcome || '') || (existing.notes || '') !== (item.notes || ''))) throw new Error('Historia telefonów zawiera sprzeczne zdarzenia z tym samym identyfikatorem.');
       if (!existing) calls.set(item.id, item);
     }
     return [...calls.values()].sort((x, y) => Date.parse(x.at) - Date.parse(y.at) || x.id.localeCompare(y.id));
@@ -162,8 +163,13 @@
     const ordered = unionCalls([], history), last = ordered.at(-1);
     return { Historia_polaczen: JSON.stringify(ordered), Dzwoniono: last?.at || '', Dzwonil: last?.by || '', Liczba_polaczen: String(ordered.reduce((n, e) => n + (Number.isInteger(e.count) && e.count > 0 ? e.count : 1), 0)) };
   }
-  function callPatch(record, by, at = new Date().toISOString(), id = uid()) {
-    return callSummary(unionCalls(callHistory(record), [{ id, at, by }]));
+  function callPatch(record, by, at = new Date().toISOString(), id = uid(), details = {}) {
+    const event = { id, at, by };
+    for (const key of ['outcome', 'notes']) if (details[key] !== undefined) {
+      if (typeof details[key] !== 'string') throw new Error('Historia telefonów ma nieprawidłowy format.');
+      event[key] = details[key].trim();
+    }
+    return callSummary(unionCalls(callHistory(record), [event]));
   }
   function fileMeta(records) {
     let at = '', by = '';
@@ -192,5 +198,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, callOutcomes, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);
