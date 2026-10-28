@@ -1,0 +1,18 @@
+# Lokalne dane klientów i konfiguracja
+/klienci.csv
+.env
+.env.*
+!.env.example
+
+# Pliki środowiska i edytorów
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Pliki tymczasowe narzędzi
+__pycache__/
+*.py[cod]
+node_modules/
