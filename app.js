@@ -353,18 +353,19 @@
   }
 
   function priorityOptions(value, compact = false) {
-    return [{ value: '', label: compact ? '—' : 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label))}</option>`).join('');
+    return [{ value: '', label: compact ? 'LVL —' : 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label) + (!compact && item.description ? ' — ' + t(item.description) : ''))}</option>`).join('');
   }
   function pinButton(record) {
     const pinned = C.isPinned(record), label = t(pinned ? 'Odepnij' : 'Przypnij');
     return `<button type="button" class="button pin-button${pinned ? ' pinned' : ''}" data-pin="${esc(record.Id)}" aria-pressed="${pinned}" aria-label="${esc(label)}" title="${esc(label)}">${icon('pin')}</button>`;
   }
   function priorityControl(record) {
-    const value = C.priorityValue(record);
-    return `<div class="priority-control ${esc(value || 'none')}">${icon('priority')}<select class="priority-select" data-priority="${esc(record.Id)}" aria-label="${esc(t('Priorytet'))}" title="${esc(t('Priorytet'))}">${priorityOptions(value, true)}</select></div>`;
+    const value = C.priorityValue(record), level = C.priorities.find(item => item.value === value);
+    const hint = t('Priorytet') + ': ' + (level ? level.label + ' — ' + t(level.description) : t('Nie ustawiono'));
+    return `<div class="priority-control ${esc(value || 'none')}"><select class="priority-select" data-priority="${esc(record.Id)}" aria-label="${esc(t('Priorytet'))}" title="${esc(hint)}">${priorityOptions(value, true)}</select></div>`;
   }
   function statusControls(record) {
-    return `<div class="company-state"><div class="status-line">${statusButton(record)}${pinButton(record)}</div>${priorityControl(record)}</div>`;
+    return `<div class="status-line">${statusButton(record)}${pinButton(record)}</div>`;
   }
   async function updatePriority(id, patch, control) {
     const record = byId(id);
@@ -400,7 +401,7 @@
     const rows = items.map(record => `
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
         <td>
-          <strong class="firm-name">${esc(record.Firma)}</strong>
+          <div class="firm-heading"><strong class="firm-name">${esc(record.Firma)}</strong>${priorityControl(record)}</div>
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
@@ -458,10 +459,10 @@
     const index = browseIds.indexOf(id), sources = (record.Zrodla || record.Strona || '').split(/\s*\|\s*|\n/).map(C.safeURL).filter(Boolean);
     const history = displayCallHistory(record).slice().reverse();
     $('drawer').innerHTML = `
-      <div class="company-toolbar">
+      <div class="company-toolbar${C.isPinned(record) ? ' pinned-toolbar' : ''}">
         <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
         <div class="company-heading">
-          <h2 id="drawerTitle" data-content>${esc(heading)}</h2>
+          <div class="company-heading-row"><h2 id="drawerTitle" data-content>${esc(heading)}</h2>${priorityControl(record)}</div>
           ${pendingName && preview?.name ? googleAttribution : ''}
           <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
         </div>

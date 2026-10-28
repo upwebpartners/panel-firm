@@ -15,7 +15,7 @@
   const retiredColumns = ['Proponowana poprawa', 'Ocena potrzeby zmiany'];
   const cleanHeaders = headers => headers.filter(key => !retiredColumns.includes(key));
   const cleanRecord = record => Object.fromEntries(Object.entries(record).filter(([key]) => !retiredColumns.includes(key)));
-  const priorities = [{ value: 'wysoki', label: 'Wysoki' }, { value: 'średni', label: 'Średni' }, { value: 'niski', label: 'Niski' }];
+  const priorities = [{ value: 'wysoki', label: 'LVL 1', description: 'Najważniejszy' }, { value: 'średni', label: 'LVL 2', description: 'Średni priorytet' }, { value: 'niski', label: 'LVL 3', description: 'Najmniej ważny' }];
   function parseCSV(text) {
     text = String(text).replace(/^\uFEFF/, '');
     let headerQuoted = false, commas = 0, semicolons = 0;
@@ -116,6 +116,8 @@
   function priority(r) {
     const raw = String(r[fields.priority] || '').trim(), index = priorities.findIndex(item => item.value === raw);
     if (index >= 0) return index + 1;
+    const level = /^lvl\s*([1-3])$/i.exec(raw);
+    if (level) return Number(level[1]);
     // Older CSVs used 1–2 (high), 3–4 (medium), 5–6 (low), sometimes with a note.
     const old = /^([1-6])(?:\s|$)/.exec(raw);
     return old ? Math.ceil(Number(old[1]) / 2) : 99;
