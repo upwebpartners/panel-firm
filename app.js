@@ -428,7 +428,7 @@
         <td class="status-cell">${statusControls(record)}</td>
         <td class="priority-cell">${priorityControl(record)}</td>
         <td>${contactHTML(record)}</td>
-        <td><span class="cell-text company-notes" data-content title="${esc(record.Notatki || '')}">${esc(record.Notatki || '—')}</span></td>
+        <td><span class="company-notes" data-content>${esc(record.Notatki || '—')}</span></td>
         <td>
           <span class="cell-text">${esc(record['Nastepny krok'] || '—')}</span>
           ${record.Termin ? `<span class="due${record.Termin < today() ? ' overdue' : ''}">${esc(prettyDate(record.Termin))}</span>` : ''}

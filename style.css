@@ -373,7 +373,7 @@ main {
   border-spacing:0;
   table-layout:fixed;
   width:100%;
-  min-width:1250px;
+  min-width:1180px;
   font-size:13px;
 }
 .client-table th {
@@ -388,24 +388,24 @@ main {
   box-shadow:0 1px 0 var(--border);
 }
 .client-table th:nth-child(1) {
-  width:19%;
+  width:190px;
 }
 .client-table th:nth-child(2) {
-  width:15%;
+  width:172px;
 }
 .client-table th:nth-child(3) {
-  width:8%;
+  width:84px;
 }
 .client-table th:nth-child(4) {
-  width:15%;
+  width:180px;
 }
 .client-table th:nth-child(5) {
-  width:18%;
+  width:auto;
 }
 .client-table th:nth-child(6) {
-  width:15%;
+  width:150px;
 }
-.client-table th:nth-child(7) { width:10%; }
+.client-table th:nth-child(7) { width:140px; }
 .client-table td {
   padding:11px 10px;
   vertical-align:top;
@@ -441,6 +441,8 @@ main {
   font-size:12px;
 }
 .status-line { display:flex; align-items:center; gap:3px; }
+.client-table .status-trigger { gap:6px; padding:4px 5px; }
+.client-table .status-cell,.client-table .priority-cell { padding-left:8px; padding-right:8px; }
 .pin-button { width:28px; height:28px; min-height:28px; padding:5px; border:0; background:transparent; box-shadow:none; color:var(--muted); flex-shrink:0; }
 .pin-button svg { width:16px; height:16px; }
 .pin-button:hover { color:var(--text); background:var(--hover); }
@@ -460,8 +462,10 @@ main {
   line-height:1.5;
 }
 .company-notes {
+  display:block;
   white-space:pre-wrap;
-  -webkit-line-clamp:4;
+  overflow-wrap:anywhere;
+  line-height:1.6;
 }
 .contact-lines {
   display:flex;
