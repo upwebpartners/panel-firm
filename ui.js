@@ -11,7 +11,9 @@
     const label = t(theme === 'dark' ? 'Włącz tryb jasny' : 'Włącz tryb ciemny');
     $('themeToggle').setAttribute('aria-label', label); $('themeToggle').title = label;
     $('themeToggle').innerHTML = '<svg aria-hidden="true"><use href="#i-' + (theme === 'dark' ? 'sun' : 'moon') + '"/></svg>';
-    $('languageSelect').value = I18n.language();
+    const languageAction = t(I18n.language() === 'pl' ? 'Przełącz na angielski' : 'Przełącz na polski');
+    $('languageToggle').textContent = I18n.language().toUpperCase();
+    $('languageToggle').setAttribute('aria-label', languageAction); $('languageToggle').title = languageAction;
   }
   function showTab(value, focus = false) {
     const next = value === 'map' ? 'map' : 'companies';
@@ -29,7 +31,7 @@
     return true;
   }
   $('themeToggle').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('atlas.theme', theme); } catch {} appearance(); });
-  $('languageSelect').addEventListener('change', () => I18n.setLanguage($('languageSelect').value));
+  $('languageToggle').addEventListener('click', () => I18n.setLanguage(I18n.language() === 'pl' ? 'en' : 'pl'));
   document.querySelectorAll('[data-main-tab]').forEach(button => {
     button.addEventListener('click', () => showTab(button.dataset.mainTab));
     button.addEventListener('keydown', event => {

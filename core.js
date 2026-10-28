@@ -49,6 +49,7 @@
     const records = lines.map((values, i) => {
       if (values.length !== headers.length) throw new Error('Niewłaściwa liczba kolumn w wierszu ' + (i + 2) + '.');
       const record = Object.fromEntries(headers.map((key, j) => [key, values[j]]));
+      if (record.Firma.trim() === '[Nazwa firmy]' || record.Notatki?.trim() === '[Twoje notatki i ustalenia]') throw new Error('Wypełnij lub usuń pola przykładowe szablonu przed importem.');
       record.Id ||= stableId(record);
       record.Etap ||= 'Nowy';
       return record;
@@ -184,6 +185,7 @@
       const patch = {};
       for (const [key, value] of Object.entries(row)) if (!workflowColumns.includes(key) && value !== '' && String(match[key] || '') !== value) patch[key] = value;
       for (const key of ['Dodal', 'Dodano', 'Google_place_id']) if (!match[key] && row[key]) patch[key] = row[key];
+      if (!String(match.Notatki || '').trim() && typeof row.Notatki === 'string' && row.Notatki.trim()) patch.Notatki = row.Notatki;
       const mergedHistory = unionCalls(callHistory(match), callHistory(row));
       if (JSON.stringify(mergedHistory) !== JSON.stringify(callHistory(match))) Object.assign(patch, callSummary(mergedHistory));
       if (Object.keys(patch).length) { patches[match.Id] = { ...(patches[match.Id] || {}), ...patch }; const index = seen.findIndex(r => r.Id === match.Id); seen[index] = { ...match, ...patch }; }

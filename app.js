@@ -311,7 +311,7 @@
         </td>
         <td>${statusButton(record)}</td>
         <td>${contactHTML(record)}</td>
-        <td><span class="cell-text">${esc(record['Sprawdzony problem'] || '—')}</span></td>
+        <td><span class="cell-text company-notes" data-content title="${esc(record.Notatki || '')}">${esc(record.Notatki || '—')}</span></td>
         <td>
           <span class="cell-text">${esc(record['Nastepny krok'] || '—')}</span>
           ${record.Termin ? `<span class="due${record.Termin < today() ? ' overdue' : ''}">${esc(prettyDate(record.Termin))}</span>` : ''}
@@ -330,7 +330,7 @@
           <th>${esc(t('Firma'))}</th>
           <th>${esc(t('Status'))}</th>
           <th>${esc(t('Kontakt'))}</th>
-          <th>${esc(t('Co poprawić'))}</th>
+          <th>${esc(t('Notatki'))}</th>
           <th>${esc(t('Następny krok'))}</th>
           <th>${esc(t('Wykonany telefon'))}</th>
         </tr></thead>
@@ -413,7 +413,7 @@
             ${esc(record.Dzwoniono ? dateTime(record.Dzwoniono) + ' · ' + (record.Dzwonil || '') : t('Jeszcze nie dzwoniono'))}
           </div>
           <div class="drawer-field">
-            <label for="actionNotes">${esc(t('Notatki z rozmowy'))}</label>
+            <label for="actionNotes">${esc(t('Notatki'))}</label>
             <textarea id="actionNotes" rows="8">${esc(record.Notatki)}</textarea>
           </div>
           <button type="button" class="button primary save-actions" id="saveActions">${esc(t('Zapisz'))}</button>

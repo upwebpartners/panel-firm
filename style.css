@@ -209,6 +209,14 @@ small,.small-copy {
   min-height:30px;
   width:30px;
 }
+.appearance-controls .language-toggle {
+  height:30px;
+  min-height:30px;
+  min-width:42px;
+  padding:3px 6px;
+  font-size:12px;
+  font-weight:700;
+}
 main {
   height:calc(100% - var(--header));
 }
@@ -429,6 +437,10 @@ main {
   -webkit-box-orient:vertical;
   overflow:hidden;
   line-height:1.5;
+}
+.company-notes {
+  white-space:pre-wrap;
+  -webkit-line-clamp:4;
 }
 .contact-lines {
   display:flex;

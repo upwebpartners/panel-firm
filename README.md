@@ -6,4 +6,6 @@ Strona korzysta ze zwykłych plików index.html, style.css i modułów JavaScrip
 
 Otwórz stronę i wybierz Wczytaj CSV. Dane pozostają w Twojej przeglądarce, dopóki nie połączysz zewnętrznej bazy. Repozytorium nie zawiera listy firm ani notatek.
 
+Plik szablon-klientow.csv zawiera przykładowe pola [Nazwa firmy] i [Twoje notatki i ustalenia]. Zastąp je swoimi danymi albo wyczyść przed importem. To przykład do uzupełnienia, nie wpis firmy.
+
 Publikacja: GitHub Pages, gałąź main, katalog główny (/).
