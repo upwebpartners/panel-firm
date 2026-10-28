@@ -5,11 +5,12 @@
   const C = CRMCore, F = C.fields, $ = id => document.getElementById(id);
   const t = I18n.t, ask = value => confirm(I18n.message(value));
   const seed = JSON.parse($('initial-data').textContent);
-  seed.records = seed.records.map(r => ({ ...r, Id: r.Id || C.stableId(r), Etap: r.Etap || 'Nowy' }));
+  seed.records = seed.records.map(r => ({ ...C.cleanRecord(r), Id: r.Id || C.stableId(r), Etap: r.Etap || 'Nowy' }));
+  seed.headers = C.cleanHeaders(seed.headers);
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const SORT_STORE = 'pracownia.sort';
-  let sorting = { field: 'updated', direction: 'desc' };
+  let sorting = { field: 'priority', direction: 'asc' };
   try {
     const saved = JSON.parse(localStorage.getItem(SORT_STORE) || 'null');
     if (saved && Object.hasOwn(C.sortFields, saved.field) && ['asc', 'desc'].includes(saved.direction)) sorting = { field: saved.field, direction: saved.direction };
@@ -18,6 +19,7 @@
   let storageOK = true, storageError = '', browserStore;
   try { browserStore = new BrowserStore(localStorage, STORE); const stored = browserStore.load(); if (stored) local = stored; }
   catch (error) { storageOK = false; storageError = error.message; }
+  local = { ...local, patches: Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, C.cleanRecord(patch)])), added: local.added.map(C.cleanRecord), imported: local.imported?.map(C.cleanRecord) || null, ...(local.headers ? { headers: C.cleanHeaders(local.headers) } : {}) };
   let base = local.imported || seed.records;
   let headers = local.headers || [...new Set([...seed.headers, ...base.flatMap(Object.keys), ...local.added.flatMap(Object.keys)])];
   let records = C.overlay(base, local.patches, local.added);
@@ -31,6 +33,7 @@
   let draftId = null;
   const pendingCalls = new Map();
   const callsInProgress = new Set();
+  const priorityInProgress = new Set();
   let callOriginal = null, callSaving = false;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const icon = name => '<svg aria-hidden="true"><use href="#i-' + name + '"/></svg>';
@@ -283,6 +286,8 @@
       if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
       if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
+      if ($('priorityFilter').value && C.priorityValue(r) !== ($('priorityFilter').value === 'none' ? '' : $('priorityFilter').value)) return false;
+      if ($('pinFilter').value === 'pinned' && !C.isPinned(r) || $('pinFilter').value === 'unpinned' && C.isPinned(r)) return false;
       return !query || C.norm([r.Firma, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
     });
     return C.sortRecords(visible, { ...sorting, locale: I18n.language() });
@@ -347,16 +352,54 @@
     </button>`;
   }
 
+  function priorityOptions(value) {
+    return [{ value: '', label: 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label))}</option>`).join('');
+  }
+  function priorityControls(record) {
+    const value = C.priorityValue(record), pinned = C.isPinned(record);
+    return `<div class="priority-controls"><label><span>${esc(t('Priorytet'))}</span><select class="priority-select ${esc(value || 'none')}" data-priority="${esc(record.Id)}">${priorityOptions(value)}</select></label><button type="button" class="button pin-button${pinned ? ' pinned' : ''}" data-pin="${esc(record.Id)}" aria-pressed="${pinned}">${esc(t(pinned ? 'Odepnij' : 'Przypnij'))}</button></div>`;
+  }
+  async function updatePriority(id, patch, control) {
+    const record = byId(id);
+    const restore = () => { if (control?.tagName === 'SELECT') control.value = record ? C.priorityValue(record) : ''; };
+    if (!record || busy || priorityInProgress.has(id)) { restore(); return; }
+    if (!requireProfile()) { restore(); return; }
+    if (Object.entries(patch).every(([key, value]) => String(record[key] || '') === value)) return;
+    const focused = document.activeElement === control;
+    priorityInProgress.add(id); if (control) control.disabled = true;
+    try {
+      await saveChange(id, patch, { ...record });
+      if (selected === id) openClient(id, true);
+      if (focused) {
+        const key = control.dataset.pin ? 'pin' : 'priority', container = selected === id ? $('drawer') : $('clientsContent');
+        const replacement = [...container.querySelectorAll('[data-' + key + ']')].find(element => element.dataset[key] === id);
+        (replacement || $('search')).focus();
+      }
+      toast('Zapisano priorytet i przypięcie.');
+    } catch (error) { restore(); toast(error.message, true); }
+    finally { priorityInProgress.delete(id); if (control) control.disabled = false; }
+  }
+  function changePriority(event) {
+    const control = event.target.closest('[data-priority]');
+    if (!control || !['', ...C.priorities.map(item => item.value)].includes(control.value)) return;
+    return updatePriority(control.dataset.priority, { [F.priority]: control.value }, control);
+  }
+  function togglePin(control) {
+    const record = byId(control.dataset.pin); if (!record) return;
+    return updatePriority(record.Id, { Przypieta: C.isPinned(record) ? '' : 'tak' }, control);
+  }
+
   function renderTable(items) {
     const rows = items.map(record => `
-      <tr class="client-row" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
+      <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
         <td>
           <strong class="firm-name">${esc(record.Firma)}</strong>
+          ${C.isPinned(record) ? `<span class="pinned-label">${esc(t('Przypięta'))}</span>` : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
         </td>
-        <td>${statusButton(record)}</td>
+        <td>${statusButton(record)}${priorityControls(record)}</td>
         <td>${contactHTML(record)}</td>
         <td><span class="cell-text company-notes" data-content title="${esc(record.Notatki || '')}">${esc(record.Notatki || '—')}</span></td>
         <td>
@@ -376,7 +419,7 @@
       <table class="client-table">
         <thead><tr>
           <th>${esc(t('Firma'))}</th>
-          <th>${esc(t('Status'))}</th>
+          <th>${esc(t('Status i priorytet'))}</th>
           <th>${esc(t('Kontakt'))}</th>
           <th>${esc(t('Notatki'))}</th>
           <th>${esc(t('Następny krok'))}</th>
@@ -439,8 +482,6 @@
           <div class="analysis-grid">
             ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'])}
             ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
-            ${detailBlock('Proponowane usprawnienie', record['Proponowana poprawa'])}
-            ${detailBlock('Czy potrzebna jest nowa strona?', record['Ocena potrzeby zmiany'])}
             <details class="analysis-details"><summary>${esc(t('Źródła i pozostałe dane'))}</summary><div class="analysis-grid">
             <section class="detail-block wide">
               <h3>${esc(t('Źródła'))}${record['Data sprawdzenia zrodel'] ? ' · ' + esc(prettyDate(record['Data sprawdzenia zrodel'])) : ''}</h3>
@@ -456,6 +497,17 @@
           </div>
         </div>
         <div class="company-actions">
+          ${priorityControls(record)}
+          <section class="next-step-fields">
+            <div class="drawer-field">
+              <label for="actionNext">${esc(t('Następny krok'))}</label>
+              <textarea id="actionNext" rows="3" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea>
+            </div>
+            <div class="drawer-field">
+              <label for="actionDue">${esc(t('Termin działania'))}</label>
+              <input id="actionDue" type="date" value="${esc(record.Termin)}">
+            </div>
+          </section>
           <div class="last-call">
             <strong>${esc(t('Ostatni zapisany telefon'))}:</strong>
             ${esc(record.Dzwoniono ? dateTime(record.Dzwoniono) + ' · ' + (record.Dzwonil || '') : t('Jeszcze nie dzwoniono'))}
@@ -472,14 +524,6 @@
               ${event.notes?.trim() || event.count > 1 ? `<div class="call-entry-body">${event.notes?.trim() ? `<p data-content>${esc(event.notes)}</p>` : ''}${event.count > 1 ? `<small class="muted">${esc(t('Liczba telefonów w starszym wpisie'))}: ${event.count}</small>` : ''}</div>` : ''}
             </details>`).join('') || `<p class="call-history-empty">${esc(t('Tutaj pojawią się wyniki i ustalenia zapisanych rozmów.'))}</p>`}
           </section>
-          <div class="drawer-field">
-            <label for="actionNext">${esc(t('Następny krok'))}</label>
-            <textarea id="actionNext" rows="4">${esc(record['Nastepny krok'])}</textarea>
-          </div>
-          <div class="drawer-field">
-            <label for="actionDue">${esc(t('Termin działania'))}</label>
-            <input id="actionDue" type="date" value="${esc(record.Termin)}">
-          </div>
           <details class="secondary-fields">
             <summary>${esc(t('Historia i uzgodnienia'))}</summary>
             <div class="drawer-field">
@@ -535,12 +579,10 @@
     ['name', 'Nazwa firmy *', 'text', 'Pełna nazwa firmy', true], ['url', 'Strona internetowa', 'url', 'https://…', true],
     ['industry', 'Branża', 'text', 'np. Detailing'], ['city', 'Miejscowość', 'text', 'np. Pruszcz Gdański'],
     ['phone', 'Telefon', 'text', 'Publiczny numer firmy'], ['email', 'E-mail', 'text', 'Adres kontaktowy'],
-    ['stage', 'Etap współpracy', 'stage'], ['priority', 'Priorytet roboczy', 'priority'],
+    ['stage', 'Etap współpracy', 'stage'], ['priority', 'Priorytet', 'priority'],
     ['next', 'Następny krok', 'textarea', 'Co konkretnie warto zrobić?', true], ['due', 'Termin działania', 'date'], ['price', 'Ustalona wycena', 'text', 'Uzupełnij po przygotowaniu oferty'],
     ['issue', 'Zaobserwowany problem', 'textarea', 'Tylko sprawdzone obserwacje; zaznacz niepewność.', true],
-    ['assessment', 'Czy potrzebna jest nowa strona?', 'textarea', 'Nowa strona, konkretne poprawki czy najpierw sprawdzenie?', true],
     ['argument', 'Argument do rozmowy', 'textarea', 'Dlaczego ta zmiana może pomóc firmie?', true],
-    ['offer', 'Proponowane usprawnienie', 'textarea', 'Konkretny zakres propozycji', true],
     ['sources', 'Źródła', 'textarea', 'Adresy stron oddziel pionową kreską | lub nową linią.', true],
     ['checked', 'Data sprawdzenia źródeł', 'date'], ['scope', 'Zakres weryfikacji', 'textarea', 'Co sprawdzono, a co wymaga potwierdzenia?', true],
     ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true]
@@ -558,7 +600,7 @@
       let input;
       if (type === 'textarea') input = '<textarea name="' + key + '" id="f-' + key + '" placeholder="' + esc(t(placeholder)) + '" maxlength="30000">' + esc(value) + '</textarea>';
       else if (type === 'stage') input = '<select id="f-stage" name="stage">' + C.stages.map(s => '<option value="' + esc(s) + '"' + (s === value ? ' selected' : '') + '>' + esc(t(s)) + '</option>').join('') + '</select>';
-      else if (type === 'priority') input = '<select id="f-priority" name="priority"><option value="99">' + esc(t('Nie ustalono')) + '</option>' + [1, 2, 3, 4, 5, 6].map(n => '<option value="' + n + '"' + (record && C.priority(record) === n ? ' selected' : '') + '>' + n + ' · ' + t(n < 3 ? 'wysoki' : n < 5 ? 'średni' : 'niższy') + '</option>').join('') + '</select>';
+      else if (type === 'priority') input = '<select id="f-priority" name="priority">' + priorityOptions(record ? C.priorityValue(record) : '') + '</select>';
       else input = '<input id="f-' + key + '" name="' + key + '" type="' + type + '" value="' + esc(value) + '" placeholder="' + esc(t(placeholder || '')) + '"' + (key === 'name' ? ' required maxlength="250"' : ' maxlength="5000"') + '>';
       return (key === 'industry' ? '</div><details class="advanced-fields"><summary>' + esc(t('Więcej informacji (opcjonalnie)')) + '</summary><div class="form-grid">' : '') + '<div class="form-field' + (full ? ' full' : '') + '"><label for="f-' + key + '">' + esc(t(label)) + '</label>' + input + '</div>';
     }).join('') + '</div></details>';
@@ -568,8 +610,11 @@
     const patch = {};
     for (const [name] of formSchema) {
       const value = String(form.get(name) || '').trim(); const key = F[name];
-      if (name === 'priority' && record && String(C.priority(record)) === value) continue;
-      if (!record || String(record[key] || '') !== value) patch[key] = name === 'priority' && value === '99' ? '' : value;
+      if (name === 'priority') {
+        if (!['', ...C.priorities.map(item => item.value)].includes(value)) throw new Error('Wybierz poprawny priorytet.');
+        if (record && C.priorityValue(record) === value) continue;
+      }
+      if (!record || String(record[key] || '') !== value) patch[key] = value;
     }
     return patch;
   }
@@ -762,7 +807,9 @@
     open: id => { if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage === 'Odrzucony' ? 'Wykreślone' : stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
-  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+  $('clientsContent').addEventListener('change', changePriority);
+  $('drawer').addEventListener('change', changePriority);
   for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
     if (id === 'sortField') {
       const field = $('sortField').value;
@@ -777,15 +824,18 @@
   });
   $('addClient').onclick = () => openForm();
   $('clientsContent').addEventListener('click', event => {
+    const pin = event.target.closest('[data-pin]'); if (pin) return togglePin(pin);
+    if (event.target.closest('[data-priority]')) return;
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
     const call = event.target.closest('[data-call]'); if (call) { registerPhone(call.dataset.call); return; }
     if (event.target.closest('a[href]')) return;
     const item = event.target.closest('[data-client]'); if (item) { openClient(item.dataset.client); return; }
     if (event.target.closest('[data-import-csv]')) $('importButton').click();
-    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).value = ''; render(); }
+    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; render(); }
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const pin = event.target.closest('[data-pin]'); if (pin) { await togglePin(pin); return; }
     const preview = event.target.closest('[data-google-preview]'); if (preview) { window.GoogleMapSession?.open(preview.dataset.googlePreview); return; }
     const exclude = event.target.closest('[data-exclude]'); if (exclude) { openExclude(exclude.dataset.exclude); return; }
     const copy = event.target.closest('[data-copy-phone]');
@@ -852,7 +902,7 @@
   $('connectGitHub').onclick = connectGitHub;
   $('profileSelect').value = authorName;
   $('profileSelect').addEventListener('change', () => {
-    if (busy || githubBusy || callsInProgress.size) { $('profileSelect').value = authorName; return; }
+    if (busy || githubBusy || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
     authorName = ['T', 'K'].includes($('profileSelect').value) ? $('profileSelect').value : '';
     try { localStorage.setItem('pracownia.author', authorName); } catch {}
   });

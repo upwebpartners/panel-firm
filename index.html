@@ -138,7 +138,7 @@
                     <option value="name">Nazwa firmy</option>
                     <option value="industry">Branża</option>
                     <option value="city">Miejscowość</option>
-                    <option value="priority">Priorytet roboczy</option>
+                    <option value="priority">Priorytet</option>
                     <option value="due">Termin działania</option>
                     <option value="called">Ostatni telefon</option>
                   </select>
@@ -147,6 +147,21 @@
                     <option value="desc">Od najnowszych</option>
                     <option value="asc">Od najstarszych</option>
                   </select>
+                  <label for="priorityFilter">Pokaż priorytet</label>
+                  <select id="priorityFilter">
+                    <option value="">Wszystkie priorytety</option>
+                    <option value="wysoki">Wysoki</option>
+                    <option value="średni">Średni</option>
+                    <option value="niski">Niski</option>
+                    <option value="none">Nie ustawiono</option>
+                  </select>
+                  <label for="pinFilter">Przypięte firmy</label>
+                  <select id="pinFilter">
+                    <option value="">Wszystkie firmy</option>
+                    <option value="pinned">Tylko przypięte</option>
+                    <option value="unpinned">Bez przypiętych</option>
+                  </select>
+                  <p class="small-copy">Przypięte firmy są zawsze na górze listy.</p>
                 </div>
               </div>
             </details>
@@ -369,7 +384,7 @@
     <input type="file" accept=".csv,text/csv" id="importFile" hidden>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
-    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Proponowana poprawa", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Ocena potrzeby zmiany", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres"], "records": []}</script>
+    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta"], "records": []}</script>
     <script src="translations.js"></script>
     <script src="i18n.js"></script>
     <script src="core.js"></script>

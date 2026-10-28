@@ -3,15 +3,19 @@
   'use strict';
   const fields = {
     name: 'Firma', industry: 'Branza', city: 'Miejscowosc', url: 'Strona',
-    issue: 'Sprawdzony problem', offer: 'Proponowana poprawa', priority: 'Priorytet roboczy',
+    issue: 'Sprawdzony problem', priority: 'Priorytet roboczy',
     phone: 'Telefon', email: 'Email', next: 'Nastepny krok', due: 'Termin', price: 'Wycena',
-    notes: 'Notatki', stage: 'Etap', assessment: 'Ocena potrzeby zmiany',
+    notes: 'Notatki', stage: 'Etap',
     argument: 'Argument do rozmowy', sources: 'Zrodla', checked: 'Data sprawdzenia zrodel',
     scope: 'Zakres weryfikacji', consent: 'Zgoda data i zakres', modified: 'Modyfikacja', id: 'Id',
     editor: 'Edytowal', called: 'Dzwoniono', caller: 'Dzwonil', calls: 'Historia_polaczen'
   };
   const stages = ['Nowy', 'Do sprawdzenia', 'Rozmowa', 'Oferta', 'W realizacji', 'Pozyskany', 'Odrzucony', 'Archiwum'];
   const callOutcomes = ['Zainteresowany', 'Do ponownego kontaktu', 'Prosi o ofertę', 'Brak odpowiedzi', 'Brak zainteresowania', 'Inny wynik'];
+  const retiredColumns = ['Proponowana poprawa', 'Ocena potrzeby zmiany'];
+  const cleanHeaders = headers => headers.filter(key => !retiredColumns.includes(key));
+  const cleanRecord = record => Object.fromEntries(Object.entries(record).filter(([key]) => !retiredColumns.includes(key)));
+  const priorities = [{ value: 'wysoki', label: 'Wysoki' }, { value: 'średni', label: 'Średni' }, { value: 'niski', label: 'Niski' }];
   function parseCSV(text) {
     text = String(text).replace(/^\uFEFF/, '');
     let headerQuoted = false, commas = 0, semicolons = 0;
@@ -53,10 +57,10 @@
       if (record.Firma.trim() === '[Nazwa firmy]' || record.Notatki?.trim() === '[Twoje notatki i ustalenia]') throw new Error('Wypełnij lub usuń pola przykładowe szablonu przed importem.');
       record.Id ||= stableId(record);
       record.Etap ||= 'Nowy';
-      return record;
+      return cleanRecord(record);
     });
     if (new Set(records.map(r => r.Id)).size !== records.length) throw new Error('CSV zawiera powtórzone identyfikatory klientów.');
-    return { headers, records };
+    return { headers: cleanHeaders(headers), records };
   }
   function stableId(record) {
     const str = (record.Firma || '') + '|' + (record.Strona || '');
@@ -65,7 +69,7 @@
     return 'firma-' + (hash >>> 0).toString(16);
   }
   function csvText(records, headers = []) {
-    const columns = [...new Set([...headers, ...records.flatMap(Object.keys), ...extraColumns])];
+    const columns = cleanHeaders([...new Set([...headers, ...records.flatMap(Object.keys), ...extraColumns])]);
     const quote = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     return '\uFEFF' + [columns.map(quote).join(','), ...records.map(r => columns.map(k => quote(r[k])).join(','))].join('\r\n') + '\r\n';
   }
@@ -74,16 +78,16 @@
     const result = base.map(r => ({ ...r, ...patchFor(r.Id) }));
     const ids = new Set(result.map(r => r.Id));
     for (const r of added) if (!ids.has(r.Id)) { result.push({ ...r, ...patchFor(r.Id) }); ids.add(r.Id); }
-    return result;
+    return result.map(cleanRecord);
   }
   function merge(base, latest, patches, added) {
-    const original = new Map(base.map(r => [r.Id, r]));
-    const current = new Map(latest.map(r => [r.Id, { ...r }]));
+    const original = new Map(base.map(r => [r.Id, cleanRecord(r)]));
+    const current = new Map(latest.map(r => [r.Id, cleanRecord(r)]));
     const conflicts = [];
     for (const [id, patch] of Object.entries(patches)) {
       const before = original.get(id); const after = current.get(id);
       if (!after) { if (before) conflicts.push({ id, name: before.Firma, field: 'Usunięty w pliku', value: '' }); continue; }
-      for (const [key, value] of Object.entries(patch)) {
+      for (const [key, value] of Object.entries(cleanRecord(patch))) {
         if (callColumns.includes(key) && patch.Historia_polaczen) continue;
         if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
           conflicts.push({ id, name: after.Firma, field: key, value: after[key] });
@@ -92,7 +96,7 @@
       }
       if (patch.Historia_polaczen) Object.assign(after, callSummary(unionCalls(callHistory(after), callHistory(patch))));
     }
-    for (const record of added) {
+    for (const record of added.map(cleanRecord)) {
       if (!current.has(record.Id)) {
         const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
@@ -103,13 +107,21 @@
         if (different) conflicts.push({ id: record.Id, name: record.Firma, field: 'Nowy klient o tym samym Id', value: '' });
       }
     }
-    return { records: [...current.values()], conflicts };
+    return { records: [...current.values()].map(cleanRecord), conflicts };
   }
   function norm(value) { return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase(); }
   function safeURL(value) {
     try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
   }
-  function priority(r) { const n = parseInt(r[fields.priority], 10); return Number.isFinite(n) && n > 0 ? n : 99; }
+  function priority(r) {
+    const raw = String(r[fields.priority] || '').trim(), index = priorities.findIndex(item => item.value === raw);
+    if (index >= 0) return index + 1;
+    // Older CSVs used 1–2 (high), 3–4 (medium), 5–6 (low), sometimes with a note.
+    const old = /^([1-6])(?:\s|$)/.exec(raw);
+    return old ? Math.ceil(Number(old[1]) / 2) : 99;
+  }
+  function priorityValue(record) { return priorities[priority(record) - 1]?.value || ''; }
+  function isPinned(record) { return record.Przypieta === 'tak'; }
   function industry(r) {
     const n = norm(r.Branza);
     return n.includes('detail') ? 'Detailing' : n.includes('remont') || n.includes('wnetrz') ? 'Remonty' : n.includes('klim') || n.includes('instalac') || n.includes('wentyl') ? 'Instalacje' : r.Branza || 'Inna branża';
@@ -128,6 +140,8 @@
       return field === 'industry' ? industry(record) : raw;
     };
     return records.map(record => ({ record, value: value(record) })).sort((a, b) => {
+      const pinned = Number(isPinned(b.record)) - Number(isPinned(a.record));
+      if (pinned) return pinned;
       // Unknown dates and other missing values stay last in either direction.
       if (a.value === null && b.value !== null) return 1;
       if (b.value === null && a.value !== null) return -1;
@@ -137,8 +151,8 @@
   }
   const callColumns = ['Dzwoniono', 'Dzwonil', 'Liczba_polaczen', 'Historia_polaczen'];
   const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
-  const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
-  const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
+  const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
+  const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
   function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
   function callHistory(record) {
     if (!record.Historia_polaczen) {
@@ -179,7 +193,7 @@
   function stampFile(records, at, by) { return records.map(r => ({ ...r, Plik_edytowano: at, Plik_edytowal: by })); }
   function importPlan(current, incoming) {
     const patches = Object.create(null), added = [], seen = [...current];
-    for (const row of incoming) {
+    for (const row of incoming.map(cleanRecord)) {
       let match = seen.find(r => r.Id === row.Id);
       if (!match && row.Google_place_id) match = seen.find(r => r.Google_place_id === row.Google_place_id);
       if (!match) {
@@ -198,5 +212,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, callOutcomes, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, parseCSV, csvText, overlay, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);
