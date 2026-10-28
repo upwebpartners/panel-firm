@@ -468,6 +468,7 @@
     const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
 
     const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
+    const nextEditorOpen = selected === id && preserve && !resetDraft && $('nextStepEditor')?.open;
     const same = selected === id, draft = same && preserve && !resetDraft && actionDirty() ? { next: $('actionNext').value, due: $('actionDue').value, notes: $('actionNotes').value, consent: $('actionConsent').value, original: actionOriginal } : null;
     if (!selected || !preserve) { browseIds = filteredRecords().map(r => r.Id); returnFocus = document.activeElement; }
     if (!browseIds.includes(id)) browseIds.push(id);
@@ -493,16 +494,6 @@
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
         <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
-      <section class="next-step-fields" aria-label="${esc(t('Następny krok'))}">
-        <div class="drawer-field">
-          <label for="actionNext">${esc(t('Następny krok'))}</label>
-          <textarea id="actionNext" rows="2" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea>
-        </div>
-        <div class="drawer-field">
-          <label for="actionDue">${esc(t('Termin działania'))}</label>
-          <input id="actionDue" type="date" value="${esc(record.Termin)}">
-        </div>
-      </section>
       <div class="company-grid">
         <div class="company-analysis">
           ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
@@ -513,6 +504,17 @@
             <span class="muted">${esc(t('Ostatnia edycja firmy'))}: ${esc(record.Modyfikacja ? dateTime(record.Modyfikacja) : '—')}${record.Edytowal ? ' · ' + esc(record.Edytowal) : ''}</span>
           </div>
           <div class="analysis-grid">
+            <section class="detail-block wide next-step-block">
+              <h3>${esc(t('Następny krok'))}</h3>
+              <p id="nextStepDisplay" data-content>${esc(record['Nastepny krok'] || '—')}</p>
+              ${record.Termin ? `<small class="next-step-date">${esc(t('Termin działania'))}: ${esc(prettyDate(record.Termin))}</small>` : ''}
+              <details id="nextStepEditor" class="next-step-editor"${nextEditorOpen ? ' open' : ''}>
+                <summary>${esc(t('Edytuj następny krok'))}</summary>
+                <div class="drawer-field"><label for="actionNext">${esc(t('Następny krok'))}</label><textarea id="actionNext" rows="3" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea></div>
+                <div class="drawer-field"><label for="actionDue">${esc(t('Termin działania'))}</label><input id="actionDue" type="date" value="${esc(record.Termin)}"></div>
+                <button type="button" class="button" data-save-actions>${esc(t('Zapisz'))}</button>
+              </details>
+            </section>
             ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'])}
             ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
             <details class="analysis-details"><summary>${esc(t('Źródła i pozostałe dane'))}</summary><div class="analysis-grid">
@@ -870,8 +872,8 @@
     if (event.target.closest('[data-close-drawer]')) closeDrawer();
     if (event.target.closest('[data-edit-client]')) openForm(byId(selected));
     const navigation = event.target.closest('[data-navigate]'); if (navigation) navigateCompany(Number(navigation.dataset.navigate));
-    if (event.target.closest('#saveActions')) {
-      const button = $('saveActions'), id = selected; button.disabled = true;
+    if (event.target.closest('[data-save-actions]') || event.target.closest('#saveActions')) {
+      const button = event.target.closest('[data-save-actions]') || $('saveActions'), id = selected; button.disabled = true; $('saveActions').disabled = true;
       const patch = {}, mapping = { actionNext: 'Nastepny krok', actionDue: 'Termin', actionNotes: 'Notatki', actionConsent: 'Zgoda data i zakres' };
       const submitted = Object.fromEntries(Object.keys(mapping).map(field => [field, $(field).value]));
       for (const [field, key] of Object.entries(mapping)) { const value = submitted[field].trim(); if (value !== (actionOriginal[key] || '')) patch[key] = value; }
@@ -880,11 +882,11 @@
         if (selected === id) {
           const current = Object.fromEntries(Object.keys(mapping).map(field => [field, $(field).value]));
           openClient(id, true, true);
-          for (const field of Object.keys(mapping)) if (current[field] !== submitted[field]) $(field).value = current[field];
+          for (const field of Object.keys(mapping)) if (current[field] !== submitted[field]) { $(field).value = current[field]; if (field === 'actionNext' || field === 'actionDue') $('nextStepEditor').open = true; }
         }
         toast('Zapisano działania i notatki.');
       }
-      catch (error) { toast(error.message, true); button.disabled = false; }
+      catch (error) { toast(error.message, true); button.disabled = false; $('saveActions').disabled = false; }
     }
   });
   $('statusForm').addEventListener('submit', event => event.preventDefault());

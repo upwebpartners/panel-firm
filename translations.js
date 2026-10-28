@@ -89,6 +89,7 @@ globalThis.CRM_MESSAGES = {
   "Źródła": "Sources",
   "Historia telefonów": "Call history",
   "Następny krok": "Next step",
+  "Edytuj następny krok": "Edit next step",
   "Termin działania": "Action date",
   "Twoje notatki": "Your notes",
   "Uzgodniony kontakt — data i zakres": "Agreed contact — date and scope",
