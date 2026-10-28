@@ -1947,7 +1947,7 @@ dialog::backdrop {
       if (!current.has(record.Id)) {
         const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
-        else current.set(record.Id, { ...record, ...(patches[record.Id] || {}) });
+        else current.set(record.Id, { ...record, ...(Object.hasOwn(patches, record.Id) ? patches[record.Id] : {}) });
       } else if (!original.has(record.Id)) {
         const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'];
         const different = [...new Set([...Object.keys(existing), ...Object.keys(record)])].some(key => !ignored.includes(key) && String(existing[key] || '') !== String(record[key] || ''));
