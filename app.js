@@ -498,6 +498,16 @@
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
         <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
+      <section class="next-step-fields" aria-label="${esc(t('Następny krok'))}">
+        <div class="drawer-field">
+          <label for="actionNext">${esc(t('Następny krok'))}</label>
+          <textarea id="actionNext" rows="2" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea>
+        </div>
+        <div class="drawer-field">
+          <label for="actionDue">${esc(t('Termin działania'))}</label>
+          <input id="actionDue" type="date" value="${esc(record.Termin)}">
+        </div>
+      </section>
       <div class="company-grid">
         <div class="company-analysis">
           ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
@@ -525,16 +535,6 @@
           </div>
         </div>
         <div class="company-actions">
-          <section class="next-step-fields">
-            <div class="drawer-field">
-              <label for="actionNext">${esc(t('Następny krok'))}</label>
-              <textarea id="actionNext" rows="3" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea>
-            </div>
-            <div class="drawer-field">
-              <label for="actionDue">${esc(t('Termin działania'))}</label>
-              <input id="actionDue" type="date" value="${esc(record.Termin)}">
-            </div>
-          </section>
           <div class="last-call">
             <strong>${esc(t('Ostatni zapisany telefon'))}:</strong>
             ${esc(record.Dzwoniono ? dateTime(record.Dzwoniono) + ' · ' + (record.Dzwonil || '') : t('Jeszcze nie dzwoniono'))}
