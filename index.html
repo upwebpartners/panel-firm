@@ -233,6 +233,16 @@
         <div class="dialog-footer"><span id="callSaveHint"></span><div><button type="button" id="cancelCall" class="button">Anuluj</button><button type="submit" id="saveCall" class="button primary">Zapisz rozmowę</button></div></div>
       </form>
     </dialog>
+    <dialog id="priorityDialog" class="status-dialog" aria-labelledby="priorityTitle">
+      <form id="priorityForm">
+        <div class="dialog-heading">
+          <div><h2 id="priorityTitle">Zmień priorytet</h2><p id="priorityCompanyName" data-content></p></div>
+          <button type="button" id="closePriority" class="icon-button" aria-label="Zamknij"><svg><use href="#i-close"/></svg></button>
+        </div>
+        <fieldset id="priorityOptions" class="status-options" aria-label="Priorytet"></fieldset>
+        <div id="priorityError" class="form-error" role="alert" hidden></div>
+      </form>
+    </dialog>
     <dialog id="statusDialog" class="status-dialog">
       <form id="statusForm">
         <div class="dialog-heading">

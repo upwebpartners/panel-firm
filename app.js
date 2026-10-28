@@ -26,6 +26,7 @@
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
   let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
+  let priorityOriginal = null, prioritySaving = false;
   let toastTimer = null;
   let github = null, githubBusy = false, fileBusy = false, lastGitHubPoll = 0;
   let authorName = '';
@@ -352,8 +353,8 @@
     </button>`;
   }
 
-  function priorityOptions(value, compact = false) {
-    return [{ value: '', label: compact ? 'LVL —' : 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label) + (!compact && item.description ? ' — ' + t(item.description) : ''))}</option>`).join('');
+  function priorityOptions(value) {
+    return [{ value: '', label: 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label) + (item.description ? ' — ' + t(item.description) : ''))}</option>`).join('');
   }
   function pinButton(record) {
     const pinned = C.isPinned(record), label = t(pinned ? 'Odepnij' : 'Przypnij');
@@ -362,16 +363,14 @@
   function priorityControl(record) {
     const value = C.priorityValue(record), level = C.priorities.find(item => item.value === value);
     const hint = t('Priorytet') + ': ' + (level ? level.label + ' — ' + t(level.description) : t('Nie ustawiono'));
-    return `<div class="priority-control ${esc(value || 'none')}"><select class="priority-select" data-priority="${esc(record.Id)}" aria-label="${esc(t('Priorytet'))}" title="${esc(hint)}">${priorityOptions(value, true)}</select></div>`;
+    return `<button type="button" class="priority-trigger ${esc(value || 'none')}" data-priority="${esc(record.Id)}" aria-label="${esc(t('Zmień priorytet'))}" title="${esc(hint)}"><span>${esc(level?.label || 'LVL —')}</span><span aria-hidden="true">▾</span></button>`;
   }
   function statusControls(record) {
     return `<div class="status-line">${statusButton(record)}${pinButton(record)}</div>`;
   }
   async function updatePriority(id, patch, control) {
     const record = byId(id);
-    const restore = () => { if (control?.tagName === 'SELECT') control.value = record ? C.priorityValue(record) : ''; };
-    if (!record || busy || priorityInProgress.has(id)) { restore(); return; }
-    if (!requireProfile()) { restore(); return; }
+    if (!record || busy || priorityInProgress.has(id) || !requireProfile()) return;
     if (Object.entries(patch).every(([key, value]) => String(record[key] || '') === value)) return;
     const focused = document.activeElement === control;
     priorityInProgress.add(id); if (control) control.disabled = true;
@@ -384,13 +383,33 @@
         (replacement || $('search')).focus();
       }
       toast('Zapisano priorytet i przypięcie.');
-    } catch (error) { restore(); toast(error.message, true); }
+    } catch (error) { toast(error.message, true); }
     finally { priorityInProgress.delete(id); if (control) control.disabled = false; }
   }
-  function changePriority(event) {
-    const control = event.target.closest('[data-priority]');
-    if (!control || !['', ...C.priorities.map(item => item.value)].includes(control.value)) return;
-    return updatePriority(control.dataset.priority, { [F.priority]: control.value }, control);
+  function renderPriorityOptions(record) {
+    const options = [...C.priorities, { value: '', label: 'Nie ustawiono', description: 'Bez priorytetu' }];
+    $('priorityOptions').innerHTML = options.map(item => `<label class="status-option"><input type="radio" name="priority" value="${esc(item.value)}"${C.priorityValue(record) === item.value ? ' checked' : ''}><span><strong>${esc(t(item.label))}</strong><small>${esc(t(item.description))}</small></span></label>`).join('');
+    I18n.bindUI($('priorityDialog'));
+  }
+  function openPriority(id) {
+    const record = byId(id); if (!record || busy || prioritySaving || priorityInProgress.has(id) || !requireProfile()) return;
+    priorityOriginal = { ...record };
+    $('priorityCompanyName').textContent = record.Firma; $('priorityError').hidden = true;
+    renderPriorityOptions(record); $('priorityDialog').showModal();
+  }
+  async function changePriority(event) {
+    if (event.target.name !== 'priority' || !priorityOriginal || busy || prioritySaving) return;
+    const value = event.target.value;
+    if (!['', ...C.priorities.map(item => item.value)].includes(value) || value === C.priorityValue(priorityOriginal)) return;
+    const original = priorityOriginal; prioritySaving = true; priorityInProgress.add(original.Id);
+    $('priorityOptions').disabled = true; $('closePriority').disabled = true; $('priorityError').hidden = true;
+    try {
+      await saveChange(original.Id, { [F.priority]: value }, original);
+      $('priorityDialog').close(); if (selected === original.Id) openClient(original.Id, true);
+      toast('Zapisano priorytet.');
+    } catch (error) {
+      renderPriorityOptions(original); $('priorityError').textContent = I18n.message(error.message); $('priorityError').hidden = false;
+    } finally { prioritySaving = false; priorityInProgress.delete(original.Id); $('priorityOptions').disabled = false; $('closePriority').disabled = false; }
   }
   function togglePin(control) {
     const record = byId(control.dataset.pin); if (!record) return;
@@ -401,12 +420,13 @@
     const rows = items.map(record => `
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
         <td>
-          <div class="firm-heading"><strong class="firm-name">${esc(record.Firma)}</strong>${priorityControl(record)}</div>
+          <strong class="firm-name">${esc(record.Firma)}</strong>
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
         </td>
-        <td>${statusControls(record)}</td>
+        <td class="status-cell">${statusControls(record)}</td>
+        <td class="priority-cell">${priorityControl(record)}</td>
         <td>${contactHTML(record)}</td>
         <td><span class="cell-text company-notes" data-content title="${esc(record.Notatki || '')}">${esc(record.Notatki || '—')}</span></td>
         <td>
@@ -427,6 +447,7 @@
         <thead><tr>
           <th>${esc(t('Firma'))}</th>
           <th>${esc(t('Status'))}</th>
+          <th>${esc(t('Priorytet'))}</th>
           <th>${esc(t('Kontakt'))}</th>
           <th>${esc(t('Notatki'))}</th>
           <th>${esc(t('Następny krok'))}</th>
@@ -462,7 +483,7 @@
       <div class="company-toolbar${C.isPinned(record) ? ' pinned-toolbar' : ''}">
         <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
         <div class="company-heading">
-          <div class="company-heading-row"><h2 id="drawerTitle" data-content>${esc(heading)}</h2>${priorityControl(record)}</div>
+          <h2 id="drawerTitle" data-content>${esc(heading)}</h2>
           ${pendingName && preview?.name ? googleAttribution : ''}
           <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
         </div>
@@ -475,7 +496,7 @@
       </div>
       <div class="call-bar">
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
-        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
@@ -814,8 +835,6 @@
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage === 'Odrzucony' ? 'Wykreślone' : stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
   for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
-  $('clientsContent').addEventListener('change', changePriority);
-  $('drawer').addEventListener('change', changePriority);
   for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
     if (id === 'sortField') {
       const field = $('sortField').value;
@@ -831,7 +850,7 @@
   $('addClient').onclick = () => openForm();
   $('clientsContent').addEventListener('click', event => {
     const pin = event.target.closest('[data-pin]'); if (pin) return togglePin(pin);
-    if (event.target.closest('[data-priority]')) return;
+    const priority = event.target.closest('[data-priority]'); if (priority) { openPriority(priority.dataset.priority); return; }
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
     const call = event.target.closest('[data-call]'); if (call) { registerPhone(call.dataset.call); return; }
     if (event.target.closest('a[href]')) return;
@@ -841,6 +860,7 @@
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const priority = event.target.closest('[data-priority]'); if (priority) { openPriority(priority.dataset.priority); return; }
     const pin = event.target.closest('[data-pin]'); if (pin) { await togglePin(pin); return; }
     const preview = event.target.closest('[data-google-preview]'); if (preview) { window.GoogleMapSession?.open(preview.dataset.googlePreview); return; }
     const exclude = event.target.closest('[data-exclude]'); if (exclude) { openExclude(exclude.dataset.exclude); return; }
@@ -877,6 +897,11 @@
   $('closeStatus').onclick = () => { if (!statusSaving) $('statusDialog').close(); };
   $('statusDialog').addEventListener('cancel', event => { if (statusSaving) event.preventDefault(); });
   $('statusDialog').addEventListener('close', () => { statusOriginal = null; });
+  $('priorityForm').addEventListener('submit', event => event.preventDefault());
+  $('priorityOptions').addEventListener('change', changePriority);
+  $('closePriority').onclick = () => { if (!prioritySaving) $('priorityDialog').close(); };
+  $('priorityDialog').addEventListener('cancel', event => { if (prioritySaving) event.preventDefault(); });
+  $('priorityDialog').addEventListener('close', () => { priorityOriginal = null; });
   $('callForm').addEventListener('submit', submitCall);
   $('closeCall').onclick = closeCall; $('cancelCall').onclick = closeCall;
   $('callDialog').addEventListener('cancel', event => { event.preventDefault(); closeCall(); });
@@ -914,9 +939,9 @@
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
-    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
-    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open) closeDrawer();
-    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
+    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
+    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open) closeDrawer();
+    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
 
   });
   window.addEventListener('beforeunload', event => {
@@ -928,6 +953,6 @@
     connectionUI();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
-  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); });
+  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();
