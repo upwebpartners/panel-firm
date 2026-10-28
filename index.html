@@ -109,24 +109,6 @@
               Już dzwoniono
             </option>
           </select>
-          <div class="sort-controls">
-            <label for="sortField">Sortuj według</label>
-            <select id="sortField">
-              <option value="updated">Ostatnia aktualizacja</option>
-              <option value="added">Data dodania</option>
-              <option value="status">Status</option>
-              <option value="name">Nazwa firmy</option>
-              <option value="industry">Branża</option>
-              <option value="city">Miejscowość</option>
-              <option value="priority">Priorytet roboczy</option>
-              <option value="due">Termin działania</option>
-              <option value="called">Ostatni telefon</option>
-            </select>
-            <select id="sortDirection" aria-label="Kolejność sortowania">
-              <option value="desc">Od najnowszych</option>
-              <option value="asc">Od najstarszych</option>
-            </select>
-          </div>
           <div class="toolbar-actions">
             <button id="importButton" class="button primary">
               <svg>
@@ -154,6 +136,25 @@
                 <button id="connectButton">
                   Wspólna baza GitHub
                 </button>
+                <div class="sort-controls">
+                  <label for="sortField">Sortuj według</label>
+                  <select id="sortField">
+                    <option value="updated">Ostatnia aktualizacja</option>
+                    <option value="added">Data dodania</option>
+                    <option value="status">Status</option>
+                    <option value="name">Nazwa firmy</option>
+                    <option value="industry">Branża</option>
+                    <option value="city">Miejscowość</option>
+                    <option value="priority">Priorytet roboczy</option>
+                    <option value="due">Termin działania</option>
+                    <option value="called">Ostatni telefon</option>
+                  </select>
+                  <label for="sortDirection">Kolejność sortowania</label>
+                  <select id="sortDirection" aria-label="Kolejność sortowania">
+                    <option value="desc">Od najnowszych</option>
+                    <option value="asc">Od najstarszych</option>
+                  </select>
+                </div>
               </div>
             </details>
           </div>
