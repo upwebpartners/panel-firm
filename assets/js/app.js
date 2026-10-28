@@ -366,7 +366,7 @@
     return `<button type="button" class="priority-trigger ${esc(value || 'none')}" data-priority="${esc(record.Id)}" aria-label="${esc(t('Zmień priorytet'))}" title="${esc(hint)}"><span>${esc(level?.label || 'LVL —')}</span><span aria-hidden="true">▾</span></button>`;
   }
   function statusControls(record) {
-    return `<div class="status-line">${statusButton(record)}${pinButton(record)}</div>`;
+    return `<div class="status-line">${pinButton(record)}${statusButton(record)}</div>`;
   }
   async function updatePriority(id, patch, control) {
     const record = byId(id);
