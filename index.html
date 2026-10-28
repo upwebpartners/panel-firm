@@ -774,6 +774,9 @@ dialog::backdrop {
   gap:8px;
 }
 .status-options {
+  border:0;
+  margin:0;
+  min-width:0;
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:8px;
@@ -1319,17 +1322,9 @@ dialog::backdrop {
             </svg>
           </button>
         </div>
-        <div id="statusOptions" class="status-options">
-        </div>
+        <fieldset id="statusOptions" class="status-options" aria-label="Status">
+        </fieldset>
         <div id="statusError" class="form-error" role="alert" hidden>
-        </div>
-        <div class="dialog-footer">
-          <button type="button" id="cancelStatus" class="button">
-            Anuluj
-          </button>
-          <button type="submit" id="saveStatus" class="button primary">
-            Zapisz status
-          </button>
         </div>
       </form>
     </dialog>
@@ -1671,7 +1666,6 @@ dialog::backdrop {
   "Następna firma": "Next company",
   "Historia i uzgodnienia": "History and agreements",
   "Zmień status": "Change status",
-  "Zapisz status": "Save status",
   "Nowa firma w bazie": "New company in the directory",
   "Dane wymagają sprawdzenia": "Details need verification",
   "Kontakt z firmą w toku": "Contact with the company is ongoing",
@@ -2154,7 +2148,7 @@ dialog::backdrop {
   let records = C.overlay(base, local.patches, local.added);
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
-  let browseIds = [], statusOriginal = null, excludeOriginal = null;
+  let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
   let toastTimer = null;
   let github = null, githubBusy = false, lastGitHubPoll = 0;
   let authorName = '';
@@ -2560,21 +2554,25 @@ dialog::backdrop {
     const index = browseIds.indexOf(selected), id = browseIds[index + direction]; if (id && byId(id)) openClient(id, true);
   }
   const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', Oferta: 'Firma na etapie oferty', 'W realizacji': 'Trwa realizacja', Pozyskany: 'Potwierdzona współpraca', Odrzucony: 'Nie kontynuujemy kontaktu', Archiwum: 'Ukryj z głównej listy' };
-  function openStatus(id) {
-    const record = byId(id); if (!record || busy || !requireProfile()) return; statusOriginal = { ...record };
-    $('statusCompanyName').textContent = record.Firma; $('statusError').hidden = true;
+  function renderStatusOptions(record) {
     $('statusOptions').innerHTML = C.stages.map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
-    I18n.bindUI($('statusDialog')); $('statusDialog').showModal();
+    I18n.bindUI($('statusDialog'));
   }
-  async function submitStatus(event) {
-    event.preventDefault(); if (!statusOriginal || busy) return;
-    const stage = new FormData($('statusForm')).get('stage');
+  function openStatus(id) {
+    const record = byId(id); if (!record || busy || statusSaving || !requireProfile()) return; statusOriginal = { ...record };
+    $('statusCompanyName').textContent = record.Firma; $('statusError').hidden = true;
+    renderStatusOptions(record); $('statusDialog').showModal();
+  }
+  async function changeStatus(event) {
+    if (event.target.name !== 'stage' || !statusOriginal || busy || statusSaving) return;
+    const stage = event.target.value;
     if (!C.stages.includes(stage)) return;
-    if (stage === statusOriginal.Etap) { $('statusDialog').close(); return; }
-    const original = statusOriginal; $('saveStatus').disabled = true; $('statusError').hidden = true;
+    if (stage === statusOriginal.Etap) return;
+    const original = statusOriginal; statusSaving = true;
+    $('statusOptions').disabled = true; $('closeStatus').disabled = true; $('statusError').hidden = true;
     try { await saveChange(original.Id, { Etap: stage }, original); $('statusDialog').close(); if (selected === original.Id) openClient(original.Id, true); toast('Zmieniono etap współpracy.'); }
-    catch (error) { $('statusError').textContent = I18n.message(error.message); $('statusError').hidden = false; }
-    finally { $('saveStatus').disabled = false; }
+    catch (error) { renderStatusOptions(original); $('statusError').textContent = I18n.message(error.message); $('statusError').hidden = false; }
+    finally { statusSaving = false; $('statusOptions').disabled = false; $('closeStatus').disabled = false; }
   }
 
   const formSchema = [
@@ -2834,8 +2832,10 @@ dialog::backdrop {
       catch (error) { toast(error.message, true); button.disabled = false; }
     }
   });
-  $('statusForm').addEventListener('submit', submitStatus);
-  for (const id of ['closeStatus', 'cancelStatus']) $(id).onclick = () => $('statusDialog').close();
+  $('statusForm').addEventListener('submit', event => event.preventDefault());
+  $('statusOptions').addEventListener('change', changeStatus);
+  $('closeStatus').onclick = () => { if (!statusSaving) $('statusDialog').close(); };
+  $('statusDialog').addEventListener('cancel', event => { if (statusSaving) event.preventDefault(); });
   $('statusDialog').addEventListener('close', () => { statusOriginal = null; });
   document.addEventListener('crm:beforetab', event => { if (busy || githubBusy) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
   $('clientForm').addEventListener('submit', submitForm);
