@@ -561,31 +561,6 @@ main {
   position:relative;
   background:var(--subtle);
 }
-.map-panel iframe {
-  display:block;
-  border:0;
-  width:100%;
-  height:100%;
-}
-.map-loading {
-  position:absolute;
-  top:12px;
-  left:50%;
-  transform:translateX(-50%);
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:10px 14px;
-  border:1px solid var(--border);
-  border-radius:3px;
-  background:var(--panel);
-  box-shadow:var(--shadow);
-  font-size:12px;
-  max-width:calc(100% - 24px);
-}
-.map-loading a {
-  white-space:nowrap;
-}
 .drawer {
   position:fixed;
   inset:var(--header) 0 0;
@@ -1044,12 +1019,6 @@ dialog::backdrop {
   .company-actions textarea {
     min-height:100px;
   }
-  .map-loading {
-    flex-direction:column;
-    align-items:flex-start;
-    gap:5px;
-    width:max-content;
-  }
   .dialog-footer {
     padding:10px;
   }
@@ -1122,6 +1091,33 @@ dialog::backdrop {
   .call-actions { margin-left: auto; }
   .company-grid { display: flex; flex-direction: column; }
   .company-actions { order: -1; border-bottom: 1px solid var(--border); }
+}
+/* Google map: controls float above the map; the preview stays on the map. */
+#businessMap { position: absolute; inset: 0; }
+.map-tools { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+.map-tools > * { pointer-events: auto; box-shadow: var(--shadow); }
+.map-tools input[type=search] { width: 230px; }
+.map-filters { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
+.map-filters summary { padding: 6px 10px; }
+.map-filters > div { position: absolute; right: 0; top: 100%; min-width: 170px; padding: 10px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
+.map-filters label { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
+.map-filters input { height: auto; }
+.map-status { position: absolute; bottom: 34px; left: 12px; max-width: calc(100% - 72px); padding: 7px 10px; background: var(--panel); border: 1px solid var(--border); font-size: 12px; z-index: 2; box-shadow: var(--shadow); }
+.map-place { position: absolute; top: 100px; right: 12px; width: 350px; max-width: calc(100% - 24px); max-height: calc(100% - 155px); overflow: auto; padding: 14px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); z-index: 3; font-size: 13px; }
+.map-place-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.map-place h2 { font-size: 17px; margin-bottom: 4px; }
+.map-place p { margin: 8px 0; overflow-wrap: anywhere; }
+.map-place-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+#mapExcludeFields { margin-top: 12px; }
+#mapExcludeFields label { display: block; margin: 8px 0 4px; }
+#mapExcludeFields .button { margin: 6px 4px 0 0; }
+#excludeReason { width: 100%; }
+@media(max-width:760px) {
+  .map-tools { top: 8px; left: 8px; right: 8px; gap: 5px; }
+  .map-tools .button, .map-filters summary { font-size: 11px; padding: 5px 7px; }
+  .map-tools input[type=search] { width: 145px; font-size: 12px; }
+  .map-place { top: auto; bottom: 62px; max-height: 48%; right: 8px; padding: 10px; }
+  .map-status { left: 8px; font-size: 11px; }
 }
 </style>
   </head>
@@ -1269,20 +1265,39 @@ dialog::backdrop {
         </div>
       </section>
       <section id="mapPanel" class="map-panel" role="tabpanel" aria-labelledby="mapTab" hidden>
-        <iframe id="mapFrame" title="Interaktywna mapa okolicy" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen>
-        </iframe>
-        <div id="mapLoading" class="map-loading">
-          <span>
-            Mapa wymaga połączenia z internetem.
-          </span>
-          <a id="mapFallbackLink" href="https://www.openstreetmap.org/#map=13/54.2622/18.6362" target="_blank" rel="noopener noreferrer">
-            Otwórz mapę w nowej karcie
-          </a>
+        <div id="businessMap" aria-label="Mapa firm"></div>
+        <div class="map-tools">
+          <button id="mapSearchArea" class="button primary">Szukaj w tym obszarze</button>
+          <input id="mapQuery" type="search" placeholder="Firma lub miejsce…" aria-label="Szukaj na mapie">
+          <button id="mapSearchText" class="button">Szukaj</button>
+          <button id="mapKnown" class="button">Wczytaj oznaczenia</button>
+          <button id="mapSettings" class="button">Klucz Google</button>
+          <details class="map-filters"><summary>Pokaż / ukryj</summary><div>
+            <label><input type="checkbox" id="showNew" checked>Nowe</label>
+            <label><input type="checkbox" id="showReviewed" checked>Przejrzane</label>
+            <label><input type="checkbox" id="showAdded" checked>Dodane</label>
+            <label><input type="checkbox" id="showExcluded" checked>Wykreślone</label>
+          </div></details>
         </div>
+        <div class="map-status" id="mapStatus" role="status">Otwórz ustawienia mapy i podaj klucz Google.</div>
+        <aside id="mapPlace" class="map-place" aria-label="Firma na mapie" hidden></aside>
       </section>
     </main>
     <section class="drawer" id="drawer" role="region" aria-labelledby="drawerTitle" hidden>
     </section>
+    <dialog id="googleDialog" class="connect-dialog"><form id="googleForm">
+      <div class="dialog-heading"><h2>Mapa Google</h2><button id="closeGoogle" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
+      <div class="connect-body"><label for="googleKey">Klucz API Google Maps</label><input id="googleKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…" required>
+        <p class="small-copy">Włącz Maps JavaScript API i Places API (New) oraz rozliczenia. Ogranicz klucz do adresu swojej strony i tych usług. Klucz zostaje w pamięci karty; nie trafia do CSV ani repozytorium.</p>
+        <p class="small-copy"><a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer">Ustawienia klucza w Google Cloud ↗</a></p>
+        <div id="googleError" class="form-error" role="alert" hidden></div>
+      </div><div class="dialog-footer"><button type="submit" class="button primary" id="connectGoogle">Uruchom mapę</button></div>
+    </form></dialog>
+    <dialog id="excludeDialog" class="connect-dialog"><form id="excludeForm">
+      <div class="dialog-heading"><div><h2>Wykreśl firmę</h2><p id="excludeName"></p></div><button id="closeExclude" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
+      <div class="connect-body"><label for="excludeReason">Powód (opcjonalnie)</label><textarea id="excludeReason" rows="3"></textarea><p class="small-copy">Firma zostanie na liście wykreślonych. Można ją przywrócić.</p><div id="excludeError" class="form-error" role="alert" hidden></div></div>
+      <div class="dialog-footer"><button type="button" id="cancelExclude" class="button">Anuluj</button><button type="submit" id="saveExclude" class="button primary">Wykreśl</button></div>
+    </form></dialog>
     <dialog id="statusDialog" class="status-dialog">
       <form id="statusForm">
         <div class="dialog-heading">
@@ -1445,7 +1460,7 @@ dialog::backdrop {
     <input type="file" accept=".csv,text/csv" id="importFile" hidden>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
-    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Proponowana poprawa", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Ocena potrzeby zmiany", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano"], "records": []}</script>
+    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Proponowana poprawa", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Ocena potrzeby zmiany", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres"], "records": []}</script>
     <script>globalThis.CRM_MESSAGES = {
   "Firmy": "Companies",
   "Mapa": "Map",
@@ -1676,7 +1691,57 @@ dialog::backdrop {
   "Zapisz": "Save",
   "Skopiowano numer telefonu.": "Phone number copied.",
   "Nie udało się skopiować. Zaznacz numer i skopiuj go ręcznie.": "Could not copy. Select the number and copy it manually.",
-  "Wybierz T lub K w nagłówku, aby zapisać zmianę.": "Choose T or K in the header before saving changes."
+  "Wybierz T lub K w nagłówku, aby zapisać zmianę.": "Choose T or K in the header before saving changes.",
+  "Szukaj w tym obszarze": "Search this area",
+  "Firma lub miejsce…": "Business or place…",
+  "Szukaj na mapie": "Search the map",
+  "Szukaj": "Search",
+  "Klucz Google": "Google key",
+  "Wczytaj oznaczenia": "Load saved markers",
+  "Pokaż / ukryj": "Show / hide",
+  "Nowe": "New",
+  "Przejrzane": "Viewed",
+  "Dodane": "Added",
+  "Wykreślone": "Excluded",
+  "Mapa firm": "Business map",
+  "Firma na mapie": "Business on the map",
+  "Nowa": "New",
+  "Przejrzana": "Viewed",
+  "Dodana": "Added",
+  "Wykreślona": "Excluded",
+  "Mapa Google": "Google map",
+  "Klucz API Google Maps": "Google Maps API key",
+  "Otwórz ustawienia mapy i podaj klucz Google.": "Open map settings and enter your Google key.",
+  "Włącz Maps JavaScript API i Places API (New) oraz rozliczenia. Ogranicz klucz do adresu swojej strony i tych usług. Klucz zostaje w pamięci karty; nie trafia do CSV ani repozytorium.": "Enable Maps JavaScript API, Places API (New) and billing. Restrict the key to your website and these services. It stays in this tab and is never saved in the CSV or repository.",
+  "Ustawienia klucza w Google Cloud ↗": "Key settings in Google Cloud ↗",
+  "Uruchom mapę": "Start map",
+  "Wykreśl firmę": "Exclude company",
+  "Powód (opcjonalnie)": "Reason (optional)",
+  "Firma zostanie na liście wykreślonych. Można ją przywrócić.": "The company stays in the excluded list and can be restored.",
+  "Wykreśl": "Exclude",
+  "Przywróć": "Restore",
+  "Przejrzane na mapie": "Viewed on map",
+  "Otwórz w Google Maps": "Open in Google Maps",
+  "Powód wykreślenia": "Exclusion reason",
+  "Dodaj do weryfikacji": "Add for verification",
+  "Przywróć do weryfikacji": "Restore for verification",
+  "Potwierdź wykreślenie": "Confirm exclusion",
+  "Podgląd Google. W CSV zapisujemy identyfikator, własne dane i decyzje. Dane firmy potwierdź z niezależnego źródła.": "Google preview. The CSV stores the place ID, your own data and decisions. Verify company details using an independent source.",
+  "Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.": "Click a Google business or search the visible area.",
+  "Pobieranie danych firmy z Google…": "Loading company details from Google…",
+  "Dane Google — sprawdź aktualność przed zapisaniem własnych danych firmy.": "Google data — verify current details before saving your own company data.",
+  "Szukanie firm…": "Searching businesses…",
+  "Przybliż mapę, aby przeszukać mniejszy obszar.": "Zoom in to search a smaller area.",
+  "Google nie zwrócił lokalizacji firmy.": "Google did not return a company location.",
+  "Tylko profil T lub K może zmienić wybór firmy.": "Only profile T or K can change a company selection.",
+  "Nieprawidłowy wybór firmy.": "Invalid company selection.",
+  "Import nie może wykreślać firm bez decyzji T lub K.": "Import cannot exclude companies without a T or K decision.",
+  "Wpisz poprawny klucz API Google.": "Enter a valid Google API key.",
+  "Aby zmienić klucz, odśwież stronę.": "Reload the page to change the key.",
+  "Nie udało się wczytać Google Maps. Sprawdź internet.": "Could not load Google Maps. Check your connection.",
+  "Google Maps nie odpowiedział. Sprawdź internet i spróbuj ponownie.": "Google Maps did not respond. Check your connection and retry.",
+  "Google odrzucił klucz. Sprawdź usługi, rozliczenia i ograniczenia domeny.": "Google rejected the key. Check enabled services, billing and domain restrictions.",
+  "Filtry obejmują wczytane znaczniki. Przy filtrowaniu bazowe wizytówki Google są ukryte.": "Filters apply to loaded markers. Native Google POIs are hidden while filtering."
 };
 
 /* Translate interface labels only. Company names, analyses and editable values stay intact. */
@@ -1701,6 +1766,8 @@ dialog::backdrop {
     const text = String(value ?? ''); if (language !== 'en') return text;
     if (messages[text]) return messages[text];
     const patterns = [
+      [/^Wyniki Google: (\d+)\/20\. To nie jest pełna lista firm w okolicy\.$/, (_, n) => `Google results: ${n}/20. This is not a complete business directory.`],
+      [/^Wczytano oznaczenia: (\d+)\. Pozostało: (\d+)\.$/, (_, a, b) => `Loaded markers: ${a}. Remaining: ${b}.`],
       [/^Wyświetlono (\d+) z (\d+) firm$/, (_, a, b) => `Showing ${a} of ${b} companies`],
       [/^Ostatni zapis telefonu: (.*?) \((.*?)\)\. Zapisać kolejny wykonany telefon teraz\?$/, (_, at, by) => `Last recorded call: ${at} (${by}). Record another completed call now?`],
       [/^W repozytorium nie ma jeszcze tego CSV\. Zapisać w nim obecną listę (\d+) firm\?$/, (_, count) => `This CSV does not exist in the repository yet. Save the current ${count} companies there?`],
@@ -1848,7 +1915,7 @@ dialog::backdrop {
     }
     for (const record of added) {
       if (!current.has(record.Id)) {
-        const duplicate = [...current.values()].find(r => norm(r.Firma.trim()) === norm(record.Firma.trim()));
+        const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
         else current.set(record.Id, { ...record, ...(patches[record.Id] || {}) });
       } else if (!original.has(record.Id)) {
@@ -1869,8 +1936,9 @@ dialog::backdrop {
     return n.includes('detail') ? 'Detailing' : n.includes('remont') || n.includes('wnetrz') ? 'Remonty' : n.includes('klim') || n.includes('instalac') || n.includes('wentyl') ? 'Instalacje' : r.Branza || 'Inna branża';
   }
   const callColumns = ['Dzwoniono', 'Dzwonil', 'Liczba_polaczen', 'Historia_polaczen'];
-  const extraColumns = ['Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
-  const workflowColumns = ['Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
+  const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
+  const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
+  const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
   function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
   function callHistory(record) {
     if (!record.Historia_polaczen) {
@@ -1903,14 +1971,16 @@ dialog::backdrop {
     const patches = {}, added = [], seen = [...current];
     for (const row of incoming) {
       let match = seen.find(r => r.Id === row.Id);
+      if (!match && row.Google_place_id) match = seen.find(r => r.Google_place_id === row.Google_place_id);
       if (!match) {
         const same = seen.filter(r => norm(r.Firma.trim()) === norm(row.Firma.trim()));
         if (same.length === 1) match = same[0];
       }
+      if (!match && (row.Mapa_status === 'wykreslona' || ['Odrzucony', 'Archiwum'].includes(row.Etap)) && !['T', 'K'].includes(row.Mapa_edytowal || row.Edytowal)) throw new Error('Import nie może wykreślać firm bez decyzji T lub K.');
       if (!match) { const newRow = { ...row, Id: row.Id || uid(), Etap: row.Etap || 'Nowy' }; added.push(newRow); seen.push(newRow); continue; }
       const patch = {};
       for (const [key, value] of Object.entries(row)) if (!workflowColumns.includes(key) && value !== '' && String(match[key] || '') !== value) patch[key] = value;
-      for (const key of ['Dodal', 'Dodano']) if (!match[key] && row[key]) patch[key] = row[key];
+      for (const key of ['Dodal', 'Dodano', 'Google_place_id']) if (!match[key] && row[key]) patch[key] = row[key];
       const mergedHistory = unionCalls(callHistory(match), callHistory(row));
       if (JSON.stringify(mergedHistory) !== JSON.stringify(callHistory(match))) Object.assign(patch, callSummary(mergedHistory));
       if (Object.keys(patch).length) { patches[match.Id] = { ...(patches[match.Id] || {}), ...patch }; const index = seen.findIndex(r => r.Id === match.Id); seen[index] = { ...match, ...patch }; }
@@ -1918,6 +1988,54 @@ dialog::backdrop {
     return { patches, added };
   }
   root.CRMCore = { fields, stages, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+})(globalThis);
+
+/* Selection data belongs to the team. Google place details stay in memory. */
+(function (root) {
+  'use strict';
+  const C = root.CRMCore;
+  const decisionFields = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
+  function coordinates(value) {
+    const lat = value.lat ?? value.Lat, lon = value.lon ?? value.Lon;
+    if (lat === '' || lon === '' || lat == null || lon == null) return null;
+    return Number.isFinite(+lat) && Number.isFinite(+lon) && Math.abs(+lat) <= 90 && Math.abs(+lon) <= 180 ? [+lat, +lon] : null;
+  }
+  function fromGoogle(place) {
+    const lat = typeof place.location?.lat === 'function' ? place.location.lat() : place.location?.lat;
+    const lon = typeof place.location?.lng === 'function' ? place.location.lng() : place.location?.lng;
+    const point = coordinates({ lat, lon });
+    if (!place.id || !point) throw new Error('Google nie zwrócił lokalizacji firmy.');
+    return { id: place.id, name: place.displayName || '', lat: point[0], lon: point[1],
+      address: place.formattedAddress || '', phone: place.nationalPhoneNumber || place.internationalPhoneNumber || '',
+      website: C.safeURL(place.websiteURI), category: (place.types || []).join(', '), businessStatus: place.businessStatus || '' };
+  }
+  function placeURL(id) { return 'https://www.google.com/maps/search/?api=1&query=place&query_place_id=' + encodeURIComponent(id); }
+  function matchRecord(entity, records) {
+    const exact = records.find(r => r.Google_place_id === entity.id); if (exact) return exact;
+    const candidates = records.filter(r => entity.name && C.norm(r.Firma) === C.norm(entity.name) &&
+      ((entity.phone && r.Telefon && entity.phone.replace(/\D/g, '') === r.Telefon.replace(/\D/g, '')) ||
+       (entity.website && C.safeURL(r.Strona).replace(/\/$/, '') === entity.website.replace(/\/$/, ''))));
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+  function state(record) {
+    if (!record) return 'nowa';
+    if (record.Mapa_status === 'wykreslona' || ['Odrzucony', 'Archiwum'].includes(record.Etap)) return 'wykreslona';
+    return record.Mapa_status === 'przejrzana' ? 'przejrzana' : 'dodana';
+  }
+  function decision(record, value, author, reason = '', at = new Date().toISOString()) {
+    if (!['T', 'K'].includes(author)) throw new Error('Tylko profil T lub K może zmienić wybór firmy.');
+    if (!['przejrzana', 'dodana', 'wykreslona'].includes(value)) throw new Error('Nieprawidłowy wybór firmy.');
+    if (value === 'przejrzana' && record && state(record) !== 'nowa') return {};
+    return { Mapa_status: value, Mapa_edytowal: author, Mapa_edytowano: at,
+      ...(value === 'wykreslona' ? { Etap: 'Odrzucony', Powod_wykreslenia: reason } : {}),
+      ...(value === 'dodana' && (!record || state(record) !== 'dodana') ? { Etap: 'Do sprawdzenia' } : {}) };
+  }
+  function draft(entity) {
+    // Do not persist Google names, phones, addresses, types or coordinates in CSV.
+    return { Id: C.uid(), Firma: 'Do weryfikacji — ' + entity.id, Google_place_id: entity.id,
+      Etap: 'Do sprawdzenia', Notatki: '', Status: 'Miejsce z mapy — uzupełnij dane z niezależnego źródła' };
+  }
+  root.MapCore = { decisionFields, coordinates, fromGoogle, placeURL, matchRecord, state, decision, draft };
 })(globalThis);
 </script>
     <script>/* GitHub Contents API. Token istnieje wyłącznie w pamięci otwartej karty. */
@@ -2011,6 +2129,7 @@ dialog::backdrop {
     <script>/* Panel klientów. CSV jest wspólnym źródłem danych po połączeniu. */
 (function () {
   'use strict';
+  const M = MapCore;
   const C = CRMCore, F = C.fields, $ = id => document.getElementById(id);
   const t = I18n.t, ask = value => confirm(I18n.message(value));
   const seed = JSON.parse($('initial-data').textContent);
@@ -2026,7 +2145,7 @@ dialog::backdrop {
   let records = C.overlay(base, local.patches, local.added);
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
-  let browseIds = [], statusOriginal = null;
+  let browseIds = [], statusOriginal = null, excludeOriginal = null;
   let toastTimer = null;
   let github = null, githubBusy = false, lastGitHubPoll = 0;
   let authorName = '';
@@ -2216,8 +2335,10 @@ dialog::backdrop {
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
     return records.filter(r => {
-      if (!stage && r.Etap === 'Archiwum') return false;
-      if (stage && r.Etap !== stage) return false;
+      if (!stage && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
+      if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
+      if (stage === 'Odrzucony' && M.state(r) !== 'wykreslona') return false;
+      if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
       if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
       return !query || C.norm([r.Firma, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
@@ -2231,6 +2352,7 @@ dialog::backdrop {
       $('clientsContent').innerHTML = '<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>';
     } else renderTable(visible);
     I18n.bindUI(document);
+    document.dispatchEvent(new CustomEvent('crm:data'));
   }
   function phoneHTML(record, prominent = false) {
     const phone = record.Telefon || '';
@@ -2343,7 +2465,7 @@ dialog::backdrop {
       </div>
       <div class="call-bar">
         ${phoneHTML(record, true)}
-        <div class="call-actions">${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div class="call-actions"><button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
@@ -2366,6 +2488,8 @@ dialog::backdrop {
             ${detailBlock('Co faktycznie sprawdzono', record['Zakres weryfikacji'], 'wide')}
             ${record['Zrodlo kontaktu'] ? detailBlock('Źródło kontaktu', record['Zrodlo kontaktu']) : ''}
             ${record.Status ? detailBlock('Stan weryfikacji / kontaktu', record.Status) : ''}
+            ${record.Google_place_id ? `<a class="source-link" href="${esc(M.placeURL(record.Google_place_id))}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz w Google Maps'))} ↗</a>` : ''}
+            ${record.Powod_wykreslenia ? detailBlock('Powód wykreślenia', record.Powod_wykreslenia) : ''}
             ${record.Wycena ? detailBlock('Wycena', record.Wycena) : ''}
             </div></details>
           </div>
@@ -2496,7 +2620,8 @@ dialog::backdrop {
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
     if (!newRecord && !Object.keys(patch).length) return;
     const author = await ensureAuthor(), at = new Date().toISOString();
-    const update = { ...patch, Modyfikacja: at, Edytowal: author };
+    const selection = patch.Etap && ['Odrzucony', 'Archiwum'].includes(patch.Etap) ? M.decision(original, 'wykreslona', author, patch.Powod_wykreslenia ?? original?.Powod_wykreslenia ?? '', at) : patch.Etap && original && M.state(original) === 'wykreslona' ? M.decision(original, 'dodana', author, '', at) : {};
+    const update = { ...selection, ...patch, Modyfikacja: at, Edytowal: author };
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
     const added = newRecord ? [{ ...newRecord, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
     await commitBatch(original ? [{ ...original }] : [], newRecord ? {} : { [id]: update }, added, author, at);
@@ -2621,7 +2746,45 @@ dialog::backdrop {
     }
   }
 
-  $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('');
+  async function decidePlace(entity, value, reason = '') {
+    const author = await ensureAuthor();
+    const existing = M.matchRecord(entity, records);
+    if (existing?.Google_place_id && value === 'przejrzana') return existing;
+    const patch = { ...M.decision(existing, value, author, reason), Google_place_id: entity.id };
+    if (existing) await saveChange(existing.Id, patch, { ...existing });
+    else {
+      const record = { ...M.draft(entity), ...patch };
+      await saveChange(record.Id, {}, null, record);
+    }
+    return M.matchRecord(entity, records);
+  }
+  function openExclude(id) {
+    const record = byId(id); if (!record || busy || !requireProfile()) return;
+    if (M.state(record) === 'wykreslona') {
+      saveChange(id, { ...M.decision(record, 'dodana', authorName), Etap: 'Do sprawdzenia' }, { ...record })
+        .then(() => { if (selected === id) openClient(id, true); }).catch(error => toast(error.message, true));
+      return;
+    }
+    excludeOriginal = { ...record }; $('excludeName').textContent = record.Firma;
+    $('excludeReason').value = ''; $('excludeError').hidden = true; $('excludeDialog').showModal();
+  }
+  $('excludeForm').addEventListener('submit', async event => {
+    event.preventDefault(); if (!excludeOriginal || busy) return;
+    const record = excludeOriginal; $('saveExclude').disabled = true;
+    try {
+      await saveChange(record.Id, M.decision(record, 'wykreslona', await ensureAuthor(), $('excludeReason').value.trim()), record);
+      $('excludeDialog').close(); if (selected === record.Id) openClient(record.Id, true);
+    } catch (error) { $('excludeError').textContent = I18n.message(error.message); $('excludeError').hidden = false; }
+    finally { $('saveExclude').disabled = false; }
+  });
+  for (const id of ['closeExclude', 'cancelExclude']) $(id).onclick = () => $('excludeDialog').close();
+  $('excludeDialog').addEventListener('close', () => { excludeOriginal = null; });
+  window.CRM = {
+    records: () => records.map(record => ({ ...record })), profile: () => authorName,
+    decidePlace,
+    open: id => { if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
+  };
+  $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage === 'Odrzucony' ? 'Wykreślone' : stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
   for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
   $('addClient').onclick = () => openForm();
   $('clientsContent').addEventListener('click', event => {
@@ -2634,6 +2797,7 @@ dialog::backdrop {
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const exclude = event.target.closest('[data-exclude]'); if (exclude) { openExclude(exclude.dataset.exclude); return; }
     const copy = event.target.closest('[data-copy-phone]');
     if (copy) {
       try { await navigator.clipboard.writeText(copy.dataset.copyPhone); toast('Skopiowano numer telefonu.'); }
@@ -2689,9 +2853,9 @@ dialog::backdrop {
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
-    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
-    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open) closeDrawer();
-    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
+    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
+    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open) closeDrawer();
+    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
 
   });
   window.addEventListener('beforeunload', event => {
@@ -2702,12 +2866,12 @@ dialog::backdrop {
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();
 </script>
-    <script>/* Appearance and an independent map view. Does not read or modify company records. */
+    <script>/* Theme and top-level navigation. Business map is initialized on demand. */
 (function (root) {
   'use strict';
   if (typeof document === 'undefined' || !document.getElementById('companiesPanel')) return;
   const $ = id => document.getElementById(id), t = I18n.t;
-  let theme = 'light', mainTab = 'companies', mapLoaded = false;
+  let theme = 'light', mainTab = 'companies';
   // Preserve existing theme preferences stored by earlier versions.
   try { theme = localStorage.getItem('atlas.theme') === 'dark' ? 'dark' : 'light'; } catch {}
   function appearance() {
@@ -2717,16 +2881,10 @@ dialog::backdrop {
     $('themeToggle').innerHTML = '<svg aria-hidden="true"><use href="#i-' + (theme === 'dark' ? 'sun' : 'moon') + '"/></svg>';
     $('languageSelect').value = I18n.language();
   }
-  function updateMapLabels() { $('mapFrame').title = t('Interaktywna mapa okolicy'); }
-  function loadMap() {
-    $('mapLoading').hidden = false;
-    $('mapFrame').src = 'https://www.openstreetmap.org/export/embed.html?bbox=18.583%2C54.236%2C18.687%2C54.290&layer=mapnik';
-    mapLoaded = true; updateMapLabels();
-  }
   function showTab(value, focus = false) {
     const next = value === 'map' ? 'map' : 'companies';
     const event = new CustomEvent('crm:beforetab', { detail: { tab: next }, cancelable: true });
-    if (!document.dispatchEvent(event)) return;
+    if (!document.dispatchEvent(event)) return false;
     mainTab = next;
     $('companiesPanel').hidden = mainTab !== 'companies'; $('mapPanel').hidden = mainTab !== 'map';
     document.querySelectorAll('[data-main-tab]').forEach(button => {
@@ -2735,7 +2893,8 @@ dialog::backdrop {
       if (active && focus) button.focus();
     });
     try { history.replaceState(null, '', '#' + mainTab); } catch {}
-    if (mainTab === 'map' && !mapLoaded) loadMap();
+    document.dispatchEvent(new CustomEvent('crm:tab', { detail: { tab: mainTab } }));
+    return true;
   }
   $('themeToggle').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('atlas.theme', theme); } catch {} appearance(); });
   $('languageSelect').addEventListener('change', () => I18n.setLanguage($('languageSelect').value));
@@ -2746,10 +2905,196 @@ dialog::backdrop {
       event.preventDefault(); showTab(event.key === 'Home' ? 'map' : event.key === 'End' ? 'companies' : mainTab === 'companies' ? 'map' : 'companies', true);
     });
   });
-  $('mapFrame').addEventListener('load', () => { if (mapLoaded) $('mapLoading').hidden = true; });
-  document.addEventListener('crm:language', () => { appearance(); updateMapLabels(); });
+  document.addEventListener('crm:language', appearance);
   root.addEventListener('hashchange', () => showTab(root.location.hash === '#map' ? 'map' : 'companies'));
+  root.PanelUI = { showTab };
   appearance(); showTab(root.location.hash === '#map' ? 'map' : 'companies');
+})(globalThis);
+
+/* Google data is session-only; only place IDs and team decisions reach CRM. */
+(function (root) {
+  'use strict';
+  if (typeof document === 'undefined' || !document.getElementById('businessMap')) return;
+  const $ = id => document.getElementById(id), C = root.CRMCore, M = root.MapCore, t = root.I18n.t;
+  let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false;
+  const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
+  const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
+  const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
+  const filters = { nowa: 'showNew', przejrzana: 'showReviewed', dodana: 'showAdded', wykreslona: 'showExcluded' };
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  function status(message) { $('mapStatus').textContent = root.I18n.message(message); }
+  function record(entity) { return M.matchRecord(entity, root.CRM.records()); }
+  function settings() { $('googleError').hidden = true; $('googleDialog').showModal(); $('googleKey').focus(); }
+  function loadGoogle(apiKey) {
+    if (loading) return loading;
+    loading = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const timer = setTimeout(() => { script.remove(); delete root.__crmGoogleReady; loading = null; reject(new Error('Google Maps nie odpowiedział. Sprawdź internet i spróbuj ponownie.')); }, 20000);
+      root.__crmGoogleReady = () => { clearTimeout(timer); delete root.__crmGoogleReady; resolve(); };
+      root.gm_authFailure = () => {
+        clearTimeout(timer); const message = 'Google odrzucił klucz. Sprawdź usługi, rozliczenia i ograniczenia domeny.';
+        status(message); $('googleError').textContent = t(message); $('googleError').hidden = false;
+        if (!$('googleDialog').open) $('googleDialog').showModal(); reject(new Error(message));
+      };
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&v=weekly&loading=async&language=' + encodeURIComponent(root.I18n.language()) + '&callback=__crmGoogleReady';
+      script.async = true; script.referrerPolicy = 'strict-origin-when-cross-origin';
+      script.onerror = () => { clearTimeout(timer); delete root.__crmGoogleReady; loading = null; script.remove(); reject(new Error('Nie udało się wczytać Google Maps. Sprawdź internet.')); };
+      document.head.append(script);
+    });
+    return loading;
+  }
+  async function initialize(apiKey) {
+    if (map) return;
+    await loadGoogle(apiKey);
+    const maps = await root.google.maps.importLibrary('maps');
+    library = await root.google.maps.importLibrary('places');
+    Marker = (await root.google.maps.importLibrary('marker')).Marker;
+    map = new maps.Map($('businessMap'), { center: { lat: 54.2622, lng: 18.6362 }, zoom: 15,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true });
+    map.addListener('click', event => { if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
+    status('Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.');
+    draw();
+  }
+  function draw() {
+    if (!map) return;
+    for (const marker of markers.values()) marker.setMap(null);
+    markers.clear();
+    const filtering = Object.values(filters).some(id => !$(id).checked);
+    // Google cannot hide individual native POIs. In filtered mode use only loaded overlays.
+    map.setOptions({ styles: filtering ? [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }] : null });
+    for (const entity of places.values()) {
+      const current = record(entity), state = M.state(current);
+      if (!$(filters[state]).checked) continue;
+      const marker = new Marker({ map, position: { lat: entity.lat, lng: entity.lon },
+        title: (entity.name || current?.Firma || t('Firma')) + ' · ' + t(labels[state]),
+        icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
+        label: { text: ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
+      marker.addListener('click', () => selectPlace(entity.id)); markers.set(entity.id, marker);
+    }
+    if (selected && details.has(selected)) showCard(places.get(selected));
+  }
+  function showCard(entity) {
+    const current = record(entity), state = M.state(current);
+    const oldFields = $('mapExcludeFields'), oldReason = $('mapExcludeReason');
+    const draft = cardId === entity.id && oldFields && oldReason ? { visible: !oldFields.hidden, value: oldReason.value } : null;
+    cardId = entity.id;
+    $('mapPlace').hidden = false;
+    $('mapPlace').innerHTML = `<div class="map-place-heading"><div><h2>${esc(entity.name || current?.Firma || t('Firma'))}</h2><span style="color:${colors[state]}">${esc(t(labels[state]))}</span></div><button type="button" class="icon-button" data-map-close aria-label="${esc(t('Zamknij'))}">×</button></div>
+      <p data-content>${esc(entity.address || '')}</p>
+      ${entity.phone ? `<p><a href="tel:${esc(entity.phone.replace(/[^+\d]/g,''))}">${esc(entity.phone)}</a></p>` : `<p class="muted">${esc(t('Brak numeru telefonu'))}</p>`}
+      ${entity.website ? `<p><a href="${esc(entity.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a></p>` : ''}
+      <p><a href="${esc(M.placeURL(entity.id))}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a></p>
+      <p class="small-copy">${esc(t('Podgląd Google. W CSV zapisujemy identyfikator, własne dane i decyzje. Dane firmy potwierdź z niezależnego źródła.'))}</p>
+      <div class="map-place-actions">
+        ${state === 'dodana' ? `<button class="button primary" data-map-open>${esc(t('Otwórz firmę'))}</button>` : `<button class="button primary" data-map-add>${esc(t(state === 'wykreslona' ? 'Przywróć do weryfikacji' : 'Dodaj do weryfikacji'))}</button>`}
+        ${state !== 'wykreslona' ? `<button class="button" data-map-exclude>${esc(t('Wykreśl'))}</button>` : ''}
+      </div>
+      ${state === 'wykreslona' ? `<p data-content>${esc(current?.Powod_wykreslenia || '')}</p>` : ''}
+      <div id="mapExcludeFields" hidden><label for="mapExcludeReason">${esc(t('Powód (opcjonalnie)'))}</label><textarea id="mapExcludeReason" rows="2"></textarea><button class="button" data-map-confirm>${esc(t('Potwierdź wykreślenie'))}</button><button class="button" data-map-cancel>${esc(t('Anuluj'))}</button></div>`;
+    $('mapPlace').querySelectorAll('button').forEach(button => { button.disabled = pending; });
+    if (draft) { $('mapExcludeFields').hidden = !draft.visible; $('mapExcludeReason').value = draft.value; }
+    root.I18n.bindUI($('mapPlace'));
+  }
+  async function selectPlace(id) {
+    const version = ++selectionVersion; selected = id; $('mapPlace').hidden = true;
+    try {
+      if (!details.has(id)) {
+        status('Pobieranie danych firmy z Google…');
+        const place = new library.Place({ id, requestedLanguage: root.I18n.language() });
+        await place.fetchFields({ fields: ['id','displayName','formattedAddress','location','nationalPhoneNumber','websiteURI','types','businessStatus'] });
+        if (version !== selectionVersion) return;
+        places.set(id, M.fromGoogle(place)); details.add(id);
+      }
+      if (version !== selectionVersion) return;
+      const entity = places.get(id); showCard(entity);
+      if (!record(entity) && ['T','K'].includes(root.CRM.profile())) {
+        await root.CRM.decidePlace(entity, 'przejrzana');
+        if (selected === id) draw();
+      }
+      status('Dane Google — sprawdź aktualność przed zapisaniem własnych danych firmy.');
+    } catch (error) { status(error.message); }
+  }
+  async function search(text = '') {
+    if (!map) { settings(); return; }
+    if (pending) return;
+    pending = true; $('mapSearchArea').disabled = true; $('mapSearchText').disabled = true;
+    try {
+      status('Szukanie firm…');
+      const fields = ['id','displayName','location','formattedAddress','types'];
+      let result;
+      if (text.trim()) result = await library.Place.searchByText({ textQuery: text.trim(), language: root.I18n.language(), fields, maxResultCount: 20, locationBias: map.getBounds() });
+      else {
+        const center = map.getCenter(), edge = map.getBounds().getNorthEast();
+        const distance = Math.max(Math.abs(center.lat() - edge.lat()) * 111000, Math.abs(center.lng() - edge.lng()) * 111000 * Math.cos(center.lat() * Math.PI / 180));
+        if (distance > 5000) throw new Error('Przybliż mapę, aby przeszukać mniejszy obszar.');
+        result = await library.Place.searchNearby({ fields, language: root.I18n.language(), maxResultCount: 20, locationRestriction: { center, radius: Math.max(100, Math.min(50000, distance * 1.42)) }, rankPreference: library.SearchNearbyRankPreference.DISTANCE });
+      }
+      for (const place of result.places || []) { const entity = M.fromGoogle(place); if (!details.has(entity.id)) places.set(entity.id, entity); }
+      draw();
+      if (text.trim() && result.places?.length) map.panTo(result.places[0].location);
+      status('Wyniki Google: ' + (result.places?.length || 0) + '/20. To nie jest pełna lista firm w okolicy.');
+    } catch (error) { status(error.message); }
+    finally { pending = false; $('mapSearchArea').disabled = false; $('mapSearchText').disabled = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
+  }
+  async function loadSaved() {
+    if (!map) { settings(); return; }
+    if (pending) return;
+    pending = true; $('mapKnown').disabled = true;
+    const candidates = root.CRM.records().filter(r => r.Google_place_id && !loadedSaved.has(r.Google_place_id));
+    let loaded = 0;
+    try {
+      for (const row of candidates.slice(0, 50)) {
+        if (!places.has(row.Google_place_id)) {
+          const place = new library.Place({ id: row.Google_place_id });
+          await place.fetchFields({ fields: ['id','location'] });
+          places.set(place.id, M.fromGoogle(place));
+        }
+        loadedSaved.add(row.Google_place_id); loaded++;
+      }
+      status('Wczytano oznaczenia: ' + loaded + '. Pozostało: ' + Math.max(0, candidates.length - loaded) + '.');
+    } catch (error) { status(error.message); }
+    finally { pending = false; $('mapKnown').disabled = false; draw(); }
+  }
+  $('googleForm').addEventListener('submit', async event => {
+    event.preventDefault(); const candidate = $('googleKey').value.trim();
+    if (!/^[A-Za-z0-9_-]{20,200}$/.test(candidate)) { $('googleError').textContent = t('Wpisz poprawny klucz API Google.'); $('googleError').hidden = false; return; }
+    if (key && key !== candidate && loading) { $('googleError').textContent = t('Aby zmienić klucz, odśwież stronę.'); $('googleError').hidden = false; return; }
+    $('connectGoogle').disabled = true;
+    try { key = candidate; await initialize(key); $('googleKey').value = ''; $('googleDialog').close(); }
+    catch (error) { $('googleError').textContent = error.message; $('googleError').hidden = false; }
+    finally { $('connectGoogle').disabled = false; }
+  });
+  $('closeGoogle').onclick = () => $('googleDialog').close();
+  $('mapSettings').onclick = settings;
+  $('mapSearchArea').onclick = () => search();
+  $('mapSearchText').onclick = () => search($('mapQuery').value);
+  $('mapQuery').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search($('mapQuery').value); } });
+  $('mapKnown').onclick = loadSaved;
+  Object.values(filters).forEach(id => $(id).addEventListener('change', () => { draw(); status('Filtry obejmują wczytane znaczniki. Przy filtrowaniu bazowe wizytówki Google są ukryte.'); }));
+  $('mapPlace').addEventListener('click', async event => {
+    if (event.target.closest('[data-map-close]')) { selected = null; selectionVersion++; $('mapPlace').hidden = true; return; }
+    if (!selected || pending) return;
+    const entity = places.get(selected); if (!entity) return;
+    if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) root.CRM.open(row.Id); return; }
+    if (event.target.closest('[data-map-exclude]')) { $('mapExcludeFields').hidden = false; $('mapExcludeReason').focus(); return; }
+    if (event.target.closest('[data-map-cancel]')) { $('mapExcludeFields').hidden = true; return; }
+    const add = event.target.closest('[data-map-add]'), exclude = event.target.closest('[data-map-confirm]');
+    if (!add && !exclude) return;
+    pending = true; $('mapPlace').querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try {
+      const row = await root.CRM.decidePlace(entity, add ? 'dodana' : 'wykreslona', exclude ? $('mapExcludeReason').value.trim() : '');
+      if (add) root.CRM.open(row.Id);
+      draw();
+    } catch (error) { status(error.message); }
+    finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
+  });
+  document.addEventListener('crm:tab', event => {
+    if (event.detail.tab !== 'map') return;
+    if (!map) settings(); else root.google.maps.event.trigger(map, 'resize');
+  });
+  document.addEventListener('crm:data', draw);
+  document.addEventListener('crm:language', () => { if (selected && details.has(selected)) showCard(places.get(selected)); });
+  if (!$('mapPanel').hidden) settings();
 })(globalThis);
 </script>
   </body>
