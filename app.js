@@ -129,13 +129,15 @@
     }
     render();
   }
+  // Keep saved outcome values unchanged; use simpler labels in the interface.
+  const callOutcomeLabel = outcome => ({ 'Brak odpowiedzi': 'Nie odebrał', 'Brak zainteresowania': 'Nie zainteresowany' })[outcome] || outcome;
   function callOutcomeHTML(event) {
     if (!event?.outcome) return '';
     const tone = ['positive', 'followup', 'positive', 'neutral', 'negative', 'neutral'][C.callOutcomes.indexOf(event.outcome)] || 'neutral';
-    return `<span class="call-outcome ${tone}">${esc(t(event.outcome))}</span>`;
+    return `<span class="call-outcome ${tone}">${esc(t(callOutcomeLabel(event.outcome)))}</span>`;
   }
   function renderCallOptions(value = '') {
-    $('callOutcome').innerHTML = '<option value="">' + esc(t('Wybierz wynik')) + '</option>' + C.callOutcomes.map(outcome => `<option value="${esc(outcome)}">${esc(t(outcome))}</option>`).join('');
+    $('callOutcome').innerHTML = '<option value="">' + esc(t('Wybierz wynik')) + '</option>' + C.callOutcomes.map(outcome => `<option value="${esc(outcome)}">${esc(t(callOutcomeLabel(outcome)))}</option>`).join('');
     $('callOutcome').value = value;
   }
   function callControls() {
@@ -467,7 +469,7 @@
             <div class="call-history-heading"><h3 id="callHistoryTitle">${esc(t('Historia rozmów'))}</h3><span class="muted">${esc(record.Liczba_polaczen || history.length)}</span></div>
             ${history.map((event, index) => `<details class="call-entry"${index === 0 ? ' open' : ''}>
               <summary><span class="call-entry-meta"><time datetime="${esc(event.at)}">${esc(dateTime(event.at))}</time><span>${esc(event.by)}</span></span>${callOutcomeHTML(event) || `<span class="muted">${esc(t('Nie zapisano wyniku'))}</span>`}</summary>
-              <div class="call-entry-body"><p data-content>${esc(event.notes || t('Brak opisu rozmowy.'))}</p>${event.count > 1 ? `<small class="muted">${esc(t('Liczba telefonów w starszym wpisie'))}: ${event.count}</small>` : ''}</div>
+              ${event.notes?.trim() || event.count > 1 ? `<div class="call-entry-body">${event.notes?.trim() ? `<p data-content>${esc(event.notes)}</p>` : ''}${event.count > 1 ? `<small class="muted">${esc(t('Liczba telefonów w starszym wpisie'))}: ${event.count}</small>` : ''}</div>` : ''}
             </details>`).join('') || `<p class="call-history-empty">${esc(t('Tutaj pojawią się wyniki i ustalenia zapisanych rozmów.'))}</p>`}
           </section>
           <div class="drawer-field">
