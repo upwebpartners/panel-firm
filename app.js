@@ -352,12 +352,19 @@
     </button>`;
   }
 
-  function priorityOptions(value) {
-    return [{ value: '', label: 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label))}</option>`).join('');
+  function priorityOptions(value, compact = false) {
+    return [{ value: '', label: compact ? '—' : 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label))}</option>`).join('');
   }
-  function priorityControls(record) {
-    const value = C.priorityValue(record), pinned = C.isPinned(record);
-    return `<div class="priority-controls"><label><span>${esc(t('Priorytet'))}</span><select class="priority-select ${esc(value || 'none')}" data-priority="${esc(record.Id)}">${priorityOptions(value)}</select></label><button type="button" class="button pin-button${pinned ? ' pinned' : ''}" data-pin="${esc(record.Id)}" aria-pressed="${pinned}">${esc(t(pinned ? 'Odepnij' : 'Przypnij'))}</button></div>`;
+  function pinButton(record) {
+    const pinned = C.isPinned(record), label = t(pinned ? 'Odepnij' : 'Przypnij');
+    return `<button type="button" class="button pin-button${pinned ? ' pinned' : ''}" data-pin="${esc(record.Id)}" aria-pressed="${pinned}" aria-label="${esc(label)}" title="${esc(label)}">${icon('pin')}</button>`;
+  }
+  function priorityControl(record) {
+    const value = C.priorityValue(record);
+    return `<div class="priority-control ${esc(value || 'none')}">${icon('priority')}<select class="priority-select" data-priority="${esc(record.Id)}" aria-label="${esc(t('Priorytet'))}" title="${esc(t('Priorytet'))}">${priorityOptions(value, true)}</select></div>`;
+  }
+  function statusControls(record) {
+    return `<div class="company-state"><div class="status-line">${statusButton(record)}${pinButton(record)}</div>${priorityControl(record)}</div>`;
   }
   async function updatePriority(id, patch, control) {
     const record = byId(id);
@@ -394,12 +401,11 @@
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
         <td>
           <strong class="firm-name">${esc(record.Firma)}</strong>
-          ${C.isPinned(record) ? `<span class="pinned-label">${esc(t('Przypięta'))}</span>` : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
         </td>
-        <td>${statusButton(record)}${priorityControls(record)}</td>
+        <td>${statusControls(record)}</td>
         <td>${contactHTML(record)}</td>
         <td><span class="cell-text company-notes" data-content title="${esc(record.Notatki || '')}">${esc(record.Notatki || '—')}</span></td>
         <td>
@@ -419,7 +425,7 @@
       <table class="client-table">
         <thead><tr>
           <th>${esc(t('Firma'))}</th>
-          <th>${esc(t('Status i priorytet'))}</th>
+          <th>${esc(t('Status'))}</th>
           <th>${esc(t('Kontakt'))}</th>
           <th>${esc(t('Notatki'))}</th>
           <th>${esc(t('Następny krok'))}</th>
@@ -468,7 +474,7 @@
       </div>
       <div class="call-bar">
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
-        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
@@ -497,7 +503,6 @@
           </div>
         </div>
         <div class="company-actions">
-          ${priorityControls(record)}
           <section class="next-step-fields">
             <div class="drawer-field">
               <label for="actionNext">${esc(t('Następny krok'))}</label>
