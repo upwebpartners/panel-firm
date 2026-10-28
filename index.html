@@ -1,0 +1,2722 @@
+<!doctype html>
+<html lang="pl" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="Firmy, statusy i kontakty z pliku CSV.">
+    <title>
+      Firmy
+    </title>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
+    <style>:root {
+  color-scheme:light;
+  --bg:#edf0f4;
+  --panel:#fff;
+  --subtle:#f4f6f8;
+  --text:#202936;
+  --muted:#626e7b;
+  --border:#c4cbd4;
+  --accent:#245eb7;
+  --accent-bg:#e5eefc;
+  --hover:#edf3fc;
+  --shadow:2px 3px 0 #c8ced7;
+  --danger:#b02b36;
+  --header:46px;
+  font:14px/1.45 Arial,Helvetica,sans-serif;
+}
+:root[data-theme=dark] {
+  color-scheme:dark;
+  --bg:#181d24;
+  --panel:#242b35;
+  --subtle:#1f252e;
+  --text:#e1e6ee;
+  --muted:#a5b0bf;
+  --border:#46515f;
+  --accent:#95bfff;
+  --accent-bg:#2a3d58;
+  --hover:#2c3644;
+  --shadow:2px 3px 0 #101419;
+  --danger:#ff9aa2;
+}
+* {
+  box-sizing:border-box;
+}
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
+}
+[hidden] {
+  display:none!important;
+}
+button,input,select,textarea {
+  font:inherit;
+  color:inherit;
+}
+button,summary,select {
+  cursor:pointer;
+}
+button {
+  background:var(--panel);
+}
+button:disabled {
+  opacity:.5;
+  cursor:default;
+}
+a {
+  color:var(--accent);
+  text-underline-offset:2px;
+}
+a:hover {
+  text-decoration:none;
+}
+svg {
+  width:16px;
+  height:16px;
+  flex-shrink:0;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  vertical-align:middle;
+}
+.sprite {
+  position:absolute;
+  width:0;
+  height:0;
+  overflow:hidden;
+}
+button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,tr:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+input,select,textarea {
+  border:1px solid var(--border);
+  border-radius:3px;
+  background:var(--panel);
+  padding:7px 8px;
+  min-width:0;
+}
+input,select {
+  height:34px;
+}
+textarea {
+  width:100%;
+  resize:vertical;
+  line-height:1.5;
+}
+input[type=radio] {
+  accent-color:var(--accent);
+  width:16px;
+  height:16px;
+  padding:0;
+  margin:2px 0 0;
+}
+h2,h3,p {
+  margin:0;
+}
+h2 {
+  font-size:18px;
+  line-height:1.3;
+}
+h3 {
+  font-size:14px;
+}
+small,.small-copy {
+  font-size:12px;
+}
+.muted,.small-copy {
+  color:var(--muted);
+}
+.button,.icon-button,.text-button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  min-height:32px;
+  padding:5px 10px;
+  white-space:nowrap;
+  text-decoration:none;
+  line-height:1.4;
+}
+.button:hover,.icon-button:hover,.text-button:hover {
+  background:var(--hover);
+}
+.button.primary {
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+[data-theme=dark] .button.primary {
+  background:#326bc0;
+  border-color:#5285d0;
+  color:#fff;
+}
+.button.primary:hover {
+  filter:brightness(1.08);
+}
+.icon-button {
+  width:32px;
+  padding:6px;
+}
+.text-button {
+  background:none;
+  border-color:transparent;
+}
+.topbar {
+  height:var(--header);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 12px;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 2px 0 var(--border);
+  position:relative;
+  z-index:10;
+  gap:12px;
+}
+.main-nav {
+  height:100%;
+  display:flex;
+  gap:4px;
+  align-items:stretch;
+}
+.main-tab {
+  font-size:14px;
+  font-weight:700;
+  border:0;
+  border-bottom:3px solid transparent;
+  padding:0 20px;
+  background:none;
+}
+.main-tab:hover {
+  background:var(--hover);
+}
+.main-tab.active {
+  color:var(--accent);
+  border-bottom-color:var(--accent);
+  background:var(--accent-bg);
+}
+.appearance-controls {
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.appearance-controls select {
+  height:30px;
+  padding:3px 5px;
+  width:57px;
+}
+.appearance-controls .icon-button {
+  height:30px;
+  min-height:30px;
+  width:30px;
+}
+main {
+  height:calc(100% - var(--header));
+}
+.companies-panel {
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  padding:12px;
+  gap:9px;
+}
+.toolbar {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.search {
+  display:flex;
+  align-items:center;
+  border:1px solid var(--border);
+  border-radius:3px;
+  background:var(--panel);
+  padding:0 8px;
+  gap:5px;
+  flex:1;
+  min-width:210px;
+  max-width:500px;
+}
+.search input {
+  border:0;
+  outline:none;
+  background:none;
+  width:100%;
+  padding-left:2px;
+}
+.search:focus-within {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+.search svg {
+  color:var(--muted);
+}
+.toolbar>select {
+  max-width:175px;
+}
+.toolbar-actions {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-left:auto;
+}
+.toolbar-actions>.button {
+  box-shadow:1px 2px 0 var(--border);
+}
+.settings-menu {
+  position:relative;
+}
+.settings-menu summary {
+  list-style:none;
+  border:1px solid var(--border);
+  border-radius:3px;
+  padding:5px 10px;
+  min-height:32px;
+  background:var(--panel);
+}
+.settings-menu summary::-webkit-details-marker {
+  display:none;
+}
+.settings-menu[open] summary,.settings-menu summary:hover {
+  background:var(--hover);
+}
+.settings-menu>div {
+  position:absolute;
+  right:0;
+  top:calc(100% + 5px);
+  min-width:220px;
+  border:1px solid var(--border);
+  background:var(--panel);
+  box-shadow:var(--shadow);
+  z-index:5;
+  padding:4px;
+}
+.settings-menu button {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  text-align:left;
+  width:100%;
+  padding:9px;
+  border:0;
+  background:none;
+}
+.settings-menu button:hover {
+  background:var(--hover);
+}
+.file-info {
+  display:flex;
+  gap:5px 20px;
+  align-items:center;
+  flex-wrap:wrap;
+  font-size:12px;
+  color:var(--muted);
+}
+.file-info>div {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.file-info strong {
+  font-weight:400;
+  color:var(--text);
+}
+.file-info svg {
+  width:14px;
+  height:14px;
+}
+.unsaved-file {
+  color:var(--accent);
+}
+.clients-content {
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:3px;
+  box-shadow:var(--shadow);
+}
+.client-table {
+  border-collapse:separate;
+  border-spacing:0;
+  table-layout:fixed;
+  width:100%;
+  min-width:1150px;
+  font-size:13px;
+}
+.client-table th {
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:var(--subtle);
+  font-weight:700;
+  text-align:left;
+  padding:9px 10px;
+  border-bottom:1px solid var(--border);
+  box-shadow:0 1px 0 var(--border);
+}
+.client-table th:nth-child(1) {
+  width:19%;
+}
+.client-table th:nth-child(2) {
+  width:12%;
+}
+.client-table th:nth-child(3) {
+  width:17%;
+}
+.client-table th:nth-child(4) {
+  width:23%;
+}
+.client-table th:nth-child(5) {
+  width:18%;
+}
+.client-table th:nth-child(6) {
+  width:11%;
+}
+.client-table td {
+  padding:11px 10px;
+  vertical-align:top;
+  border-bottom:1px solid var(--border);
+  overflow-wrap:anywhere;
+}
+.client-table tr:last-child td {
+  border-bottom:0;
+}
+.client-row {
+  cursor:pointer;
+}
+.client-row:nth-child(even) {
+  background:var(--subtle);
+}
+.client-row:hover {
+  background:var(--hover);
+}
+.firm-name {
+  display:block;
+  font-size:14px;
+  font-weight:700;
+  color:var(--accent);
+  margin-bottom:4px;
+}
+.firm-meta {
+  display:block;
+  color:var(--muted);
+  font-size:12px;
+}
+.cell-text {
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  line-height:1.5;
+}
+.contact-lines {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:3px;
+  overflow-wrap:anywhere;
+}
+.contact-lines a {
+  text-decoration:none;
+}
+.contact-lines a:hover {
+  text-decoration:underline;
+}
+.status-trigger {
+  display:inline-flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:9px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  min-height:31px;
+  padding:4px 7px;
+  white-space:nowrap;
+  text-align:left;
+}
+.status-trigger:hover {
+  outline:1px solid var(--accent);
+}
+.stage-pill {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.stage-pill:before {
+  content:'';
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--muted);
+}
+.stage-pill.nowy:before {
+  background:#568de0;
+}
+.stage-pill.do-sprawdzenia:before {
+  background:#c79127;
+}
+.stage-pill.rozmowa:before {
+  background:#9672d9;
+}
+.stage-pill.oferta:before {
+  background:#c57528;
+}
+.stage-pill.w-realizacji:before {
+  background:#3a9aab;
+}
+.stage-pill.pozyskany:before {
+  background:#389464;
+}
+.stage-pill.odrzucony:before {
+  background:#be6670;
+}
+.call-button {
+  font-size:12px;
+  min-height:28px;
+  padding:4px 8px;
+  margin-bottom:5px;
+}
+.called-label,.client-table td>small {
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.5;
+}
+.due {
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  margin-top:5px;
+}
+.overdue {
+  color:var(--danger);
+}
+.list-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  font-size:12px;
+  color:var(--muted);
+  padding-top:2px;
+}
+.save-state {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.status-dot {
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--muted);
+}
+.connected .status-dot {
+  background:#389464;
+}
+.error .status-dot {
+  background:var(--danger);
+}
+.empty-state {
+  padding:50px 15px;
+  text-align:center;
+  color:var(--muted);
+}
+.empty-state p {
+  margin-bottom:14px;
+}
+.empty-state .button {
+  margin:3px;
+}
+.connection-notice {
+  padding:8px 10px;
+  background:var(--panel);
+  border:1px solid var(--danger);
+  color:var(--danger);
+  font-size:13px;
+}
+.dragover .clients-content {
+  outline:3px dashed var(--accent);
+  outline-offset:-4px;
+}
+/* The map and an opened company use all the space below the shared header. */
+.map-panel {
+  height:100%;
+  position:relative;
+  background:var(--subtle);
+}
+.map-panel iframe {
+  display:block;
+  border:0;
+  width:100%;
+  height:100%;
+}
+.map-loading {
+  position:absolute;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:10px 14px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  background:var(--panel);
+  box-shadow:var(--shadow);
+  font-size:12px;
+  max-width:calc(100% - 24px);
+}
+.map-loading a {
+  white-space:nowrap;
+}
+.drawer {
+  position:fixed;
+  inset:var(--header) 0 0;
+  z-index:6;
+  background:var(--bg);
+  display:flex;
+  flex-direction:column;
+}
+.company-toolbar {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:9px 12px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
+  min-height:62px;
+}
+.company-heading {
+  min-width:0;
+  flex:1;
+}
+.company-heading h2 {
+  font-size:18px;
+  overflow-wrap:anywhere;
+}
+.company-heading>span {
+  font-size:12px;
+}
+.company-pagination {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.company-pagination>.button:last-child {
+  margin-left:5px;
+}
+.company-grid {
+  flex:1;
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(340px,32%);
+}
+.company-analysis,.company-actions {
+  overflow:auto;
+  padding:12px;
+}
+.company-actions {
+  background:var(--panel);
+  border-left:1px solid var(--border);
+}
+.company-contact {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  padding:10px 12px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:3px;
+  box-shadow:var(--shadow);
+  margin-bottom:12px;
+}
+.company-contact .contact-lines {
+  flex-direction:row;
+  flex-wrap:wrap;
+  gap:6px 18px;
+}
+.company-contact>.muted {
+  font-size:11px;
+  text-align:right;
+  flex-shrink:0;
+  max-width:35%;
+}
+.analysis-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.detail-block {
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  background:var(--panel);
+  box-shadow:var(--shadow);
+  min-width:0;
+}
+.detail-block h3 {
+  font-size:13px;
+  border-bottom:1px solid var(--border);
+  padding-bottom:7px;
+  margin-bottom:8px;
+}
+.detail-block p {
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-size:13px;
+  line-height:1.6;
+}
+.detail-block.wide {
+  grid-column:1/-1;
+}
+.source-link {
+  display:block;
+  overflow-wrap:anywhere;
+  font-size:12px;
+  line-height:1.7;
+  margin:3px 0;
+}
+.action-controls {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}
+.action-controls .status-trigger {
+  flex:1;
+  min-height:34px;
+  padding:6px 10px;
+}
+.last-call {
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:16px;
+  line-height:1.6;
+}
+.last-call strong {
+  font-weight:400;
+}
+.drawer-field {
+  margin-bottom:12px;
+}
+.drawer-field label {
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  margin-bottom:5px;
+}
+.drawer-field textarea {
+  font-size:13px;
+}
+.drawer-field input {
+  width:100%;
+}
+.save-actions {
+  width:100%;
+  margin-bottom:16px;
+}
+.secondary-fields {
+  border-top:1px solid var(--border);
+  padding-top:10px;
+  font-size:12px;
+}
+.secondary-fields summary {
+  font-weight:700;
+  color:var(--muted);
+}
+.secondary-fields[open] summary {
+  margin-bottom:12px;
+}
+.secondary-fields h3 {
+  font-size:12px;
+  margin:14px 0 7px;
+}
+.secondary-fields p {
+  padding:5px 0;
+  border-bottom:1px solid var(--border);
+}
+/* Forms are plain native dialogs with explicit save/cancel controls. */
+dialog {
+  color:var(--text);
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:0;
+  box-shadow:4px 6px 0 #0003;
+  max-width:calc(100vw - 24px);
+  max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+}
+dialog::backdrop {
+  background:#10182080;
+}
+.status-dialog {
+  width:530px;
+}
+.edit-dialog {
+  width:840px;
+}
+.connect-dialog {
+  width:590px;
+}
+.dialog-heading {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:16px 18px;
+  border-bottom:1px solid var(--border);
+  background:var(--subtle);
+}
+.dialog-heading p {
+  font-size:13px;
+  color:var(--muted);
+  margin-top:5px;
+}
+.dialog-footer {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:9px;
+  padding:12px 18px;
+  background:var(--subtle);
+  border-top:1px solid var(--border);
+  position:sticky;
+  bottom:0;
+}
+.dialog-footer>span {
+  margin-right:auto;
+  font-size:11px;
+  color:var(--muted);
+}
+.dialog-footer>div {
+  display:flex;
+  gap:8px;
+}
+.status-options {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  padding:16px 18px;
+}
+.status-option {
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  padding:10px;
+  cursor:pointer;
+}
+.status-option:hover {
+  background:var(--hover);
+}
+.status-option:has(input:checked) {
+  background:var(--accent-bg);
+  border-color:var(--accent);
+  outline:1px solid var(--accent);
+}
+.status-option strong {
+  display:block;
+  font-size:13px;
+  font-weight:700;
+}
+.status-option small {
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  margin-top:3px;
+}
+.form-error {
+  color:var(--danger);
+  border:1px solid var(--danger);
+  padding:9px 12px;
+  margin:10px 18px;
+  font-size:13px;
+}
+.form-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 16px;
+  padding:16px 18px;
+}
+.form-field label {
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  margin-bottom:5px;
+}
+.form-field input,.form-field select {
+  width:100%;
+}
+.form-field textarea {
+  min-height:80px;
+  font-size:13px;
+}
+.full,.form-divider {
+  grid-column:1/-1;
+}
+.form-divider {
+  font-size:11px;
+  font-weight:700;
+  padding:9px 0 0;
+  border-top:1px solid var(--border);
+  color:var(--muted);
+  margin-top:5px;
+}
+.connect-body {
+  padding:16px 18px;
+  font-size:13px;
+}
+.connect-body p {
+  margin:0 0 12px;
+}
+.connect-body label {
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  margin:12px 0 5px;
+}
+.connect-body input {
+  width:100%;
+}
+.connect-body .small-copy {
+  margin-top:9px;
+  line-height:1.6;
+}
+.connect-mode {
+  display:flex;
+  gap:6px;
+  margin-bottom:16px;
+}
+.connect-mode button {
+  flex:1;
+  border:1px solid var(--border);
+  border-radius:3px;
+  padding:8px;
+}
+.connect-mode .selected {
+  background:var(--accent-bg);
+  border-color:var(--accent);
+  color:var(--accent);
+}
+.github-grid {
+  display:grid;
+  grid-template-columns:1fr 2fr;
+  gap:12px;
+}
+.toast {
+  position:fixed;
+  bottom:18px;
+  left:50%;
+  transform:translateX(-50%);
+  max-width:calc(100vw - 32px);
+  width:max-content;
+  padding:10px 16px;
+  background:var(--panel);
+  border:1px solid var(--accent);
+  border-radius:3px;
+  box-shadow:var(--shadow);
+  font-size:13px;
+  z-index:30;
+}
+.toast.error {
+  border-color:var(--danger);
+  color:var(--danger);
+}
+@media(min-width:1800px) {
+  .client-table {
+    font-size:14px;
+  }
+  .company-grid {
+    grid-template-columns:minmax(0,1fr) minmax(400px,30%);
+  }
+}
+@media(max-width:1100px) {
+  .toolbar-actions {
+    margin-left:0;
+  }
+  .toolbar {
+    gap:7px;
+  }
+  .toolbar .search {
+    max-width:none;
+  }
+  .company-contact {
+    flex-direction:column;
+  }
+  .company-contact>.muted {
+    max-width:none;
+    text-align:left;
+  }
+  .analysis-grid {
+    grid-template-columns:1fr;
+  }
+}
+@media(max-width:760px) {
+  .topbar {
+    padding:0 8px;
+  }
+  .main-tab {
+    padding:0 16px;
+  }
+  .companies-panel {
+    padding:8px;
+    gap:7px;
+  }
+  .toolbar .search {
+    flex-basis:100%;
+  }
+  .toolbar>select {
+    flex:1;
+    width:30%;
+    max-width:none;
+    font-size:12px;
+    padding:4px;
+  }
+  .toolbar-actions {
+    width:100%;
+    gap:5px;
+  }
+  .toolbar-actions>.button {
+    flex:1;
+    padding:5px 7px;
+    font-size:12px;
+  }
+  .toolbar-actions>.button svg {
+    display:none;
+  }
+  .settings-menu summary {
+    font-size:12px;
+    padding:6px 8px;
+  }
+  .file-info {
+    gap:4px;
+    font-size:11px;
+  }
+  .file-info>div:first-child>span {
+    display:none;
+  }
+  .list-footer {
+    font-size:11px;
+  }
+  .company-toolbar {
+    flex-wrap:wrap;
+    gap:7px;
+    padding:8px;
+  }
+  .company-heading {
+    flex-basis:65%;
+  }
+  .company-heading h2 {
+    font-size:16px;
+  }
+  .company-pagination {
+    margin-left:auto;
+  }
+  .company-grid {
+    display:block;
+    overflow:auto;
+  }
+  .company-analysis,.company-actions {
+    overflow:visible;
+    padding:8px;
+  }
+  .company-actions {
+    border-left:0;
+    border-top:1px solid var(--border);
+  }
+  .company-contact {
+    padding:9px;
+    margin-bottom:10px;
+  }
+  .analysis-grid {
+    gap:10px;
+  }
+  .detail-block {
+    padding:10px;
+  }
+  .company-actions textarea {
+    min-height:100px;
+  }
+  .map-loading {
+    flex-direction:column;
+    align-items:flex-start;
+    gap:5px;
+    width:max-content;
+  }
+  .dialog-footer {
+    padding:10px;
+  }
+  .dialog-heading {
+    padding:12px;
+  }
+  .form-grid {
+    padding:12px;
+    grid-template-columns:1fr;
+  }
+  .form-grid .full {
+    grid-column:auto;
+  }
+  .dialog-footer>span {
+    display:none;
+  }
+  .status-options {
+    padding:12px;
+    gap:7px;
+  }
+  .status-option {
+    padding:9px;
+  }
+  .toast {
+    bottom:10px;
+  }
+}
+@media(max-width:380px) {
+  .status-options {
+    grid-template-columns:1fr;
+  }
+  .toolbar-actions>.button {
+    font-size:11px;
+    padding:5px;
+  }
+  .list-footer {
+    flex-wrap:wrap;
+  }
+  .company-heading {
+    flex-basis:60%;
+  }
+}
+
+.profile-dialog { width: 340px; }
+.profile-choices { display: flex; gap: 16px; padding: 24px; }
+.profile-choice { flex: 1; padding: 18px; font-size: 32px; font-weight: bold; border: 1px solid var(--border); border-radius: 4px; box-shadow: var(--shadow); }
+.profile-choice:hover, .profile-choice:focus-visible { background: var(--accent-bg); border-color: var(--accent); }
+.profile-hint { padding: 0 24px 20px; font-size: 12px; color: var(--muted); }
+.advanced-fields { border-top: 1px solid var(--border); }
+.advanced-fields > summary { padding: 12px 18px; color: var(--muted); font-size: 13px; }
+</style>
+  </head>
+  <body data-csv-url="klienci.csv">
+    <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14"/>
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="7"/>
+          <path d="m16 16 5 5"/>
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6"/>
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24">
+          <path d="m6 6 12 12M18 6 6 18"/>
+        </symbol>
+        <symbol id="i-link" viewBox="0 0 24 24">
+          <path d="m10 13 4-4m-6 8-1 1a4.3 4.3 0 0 1-6-6l5-5a4.3 4.3 0 0 1 6 0m0 10a4.3 4.3 0 0 0 6 0l5-5a4.3 4.3 0 0 0-6-6l-1 1"/>
+        </symbol>
+        <symbol id="i-download" viewBox="0 0 24 24">
+          <path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/>
+        </symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24">
+          <path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/>
+        </symbol>
+        <symbol id="i-note" viewBox="0 0 24 24">
+          <path d="M14 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9zM14 2v7h7M7 13h10M7 17h7"/>
+        </symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24">
+          <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>
+        </symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24">
+          <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13z"/>
+        </symbol>
+      </defs>
+    </svg>
+    <header class="topbar">
+      <nav class="main-nav" role="tablist" aria-label="Główne zakładki">
+        <button id="mapTab" class="main-tab" role="tab" aria-selected="false" aria-controls="mapPanel" tabindex="-1" data-main-tab="map">
+          Mapa
+        </button>
+        <button id="companiesTab" class="main-tab active" role="tab" aria-selected="true" aria-controls="companiesPanel" data-main-tab="companies">
+          Firmy
+        </button>
+      </nav>
+      <div class="appearance-controls">
+        <select id="languageSelect" aria-label="Język interfejsu">
+          <option value="pl">
+            PL
+          </option>
+          <option value="en">
+            EN
+          </option>
+        </select>
+        <button id="themeToggle" class="icon-button" aria-label="Zmień motyw" title="Zmień motyw">
+          <svg>
+            <use href="#i-moon"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+    <main>
+      <section id="companiesPanel" class="companies-panel" role="tabpanel" aria-labelledby="companiesTab">
+        <div class="toolbar">
+          <label class="search">
+            <svg>
+              <use href="#i-search"/>
+            </svg>
+            <input id="search" type="search" placeholder="Szukaj firmy, branży lub miasta…" aria-label="Szukaj klientów">
+          </label>
+          <select id="industryFilter" aria-label="Branża">
+            <option value="">
+              Wszystkie branże
+            </option>
+          </select>
+          <select id="stageFilter" aria-label="Etap">
+            <option value="">
+              Wszystkie etapy
+            </option>
+          </select>
+          <select id="callFilter" aria-label="Telefony">
+            <option value="">
+              Wszystkie telefony
+            </option>
+            <option value="no">
+              Jeszcze nie dzwoniono
+            </option>
+            <option value="yes">
+              Już dzwoniono
+            </option>
+          </select>
+          <div class="toolbar-actions">
+            <button id="importButton" class="button primary">
+              <svg>
+                <use href="#i-upload"/>
+              </svg>
+              Wczytaj CSV
+            </button>
+            <button id="exportButton" class="button">
+              <svg>
+                <use href="#i-download"/>
+              </svg>
+              Eksport CSV
+            </button>
+            <button id="addClient" class="button">
+              <svg>
+                <use href="#i-plus"/>
+              </svg>
+              Dodaj firmę
+            </button>
+            <details class="settings-menu">
+              <summary>
+                Opcje
+              </summary>
+              <div>
+                <button id="connectButton">
+                  Wspólna baza GitHub
+                </button>
+                <button id="identityButton">
+                  Ustaw swój podpis
+                </button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div id="connectionNotice" class="connection-notice" hidden>
+        </div>
+        <div id="fileInfo" class="file-info" aria-label="Informacje o pliku">
+        </div>
+        <div id="clientsContent" class="clients-content">
+        </div>
+        <div class="list-footer">
+          <span id="resultsLabel">
+          </span>
+          <span id="saveState">
+            Zapis w przeglądarce
+          </span>
+        </div>
+      </section>
+      <section id="mapPanel" class="map-panel" role="tabpanel" aria-labelledby="mapTab" hidden>
+        <iframe id="mapFrame" title="Interaktywna mapa okolicy" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen>
+        </iframe>
+        <div id="mapLoading" class="map-loading">
+          <span>
+            Mapa wymaga połączenia z internetem.
+          </span>
+          <a id="mapFallbackLink" href="https://www.openstreetmap.org/#map=13/54.2622/18.6362" target="_blank" rel="noopener noreferrer">
+            Otwórz mapę w nowej karcie
+          </a>
+        </div>
+      </section>
+    </main>
+    <section class="drawer" id="drawer" role="region" aria-labelledby="drawerTitle" hidden>
+    </section>
+    <dialog id="statusDialog" class="status-dialog">
+      <form id="statusForm">
+        <div class="dialog-heading">
+          <div>
+            <h2>
+              Zmień status
+            </h2>
+            <p id="statusCompanyName">
+            </p>
+          </div>
+          <button type="button" id="closeStatus" class="icon-button" aria-label="Zamknij">
+            <svg>
+              <use href="#i-close"/>
+            </svg>
+          </button>
+        </div>
+        <div id="statusOptions" class="status-options">
+        </div>
+        <div id="statusError" class="form-error" role="alert" hidden>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" id="cancelStatus" class="button">
+            Anuluj
+          </button>
+          <button type="submit" id="saveStatus" class="button primary">
+            Zapisz status
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="editDialog" class="edit-dialog">
+      <form id="clientForm">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="formTitle">
+              Dodaj nową firmę
+            </h2>
+          </div>
+          <button type="button" class="icon-button" id="closeForm" aria-label="Zamknij">
+            <svg>
+              <use href="#i-close"/>
+            </svg>
+          </button>
+        </div>
+        <div id="formFields">
+        </div>
+        <div id="formError" class="form-error" role="alert" hidden>
+        </div>
+        <div class="dialog-footer">
+          <span id="formSaveHint">
+            Zmiany zapiszą się w tej przeglądarce.
+          </span>
+          <div>
+            <button type="button" class="button" id="cancelForm">
+              Anuluj
+            </button>
+            <button type="submit" class="button primary" id="submitForm">
+              Dodaj klienta
+              <svg>
+                <use href="#i-plus"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="connectDialog" class="connect-dialog">
+      <div class="dialog-heading">
+        <div>
+          <h2>
+            Połącz wspólną bazę klientów
+          </h2>
+        </div>
+        <button class="icon-button" id="closeConnect" aria-label="Zamknij">
+          <svg>
+            <use href="#i-close"/>
+          </svg>
+        </button>
+      </div>
+      <div class="connect-body">
+        <div class="connect-mode">
+          <button id="githubMode" class="selected">
+            Wspólna baza GitHub
+          </button>
+          <button id="fileMode">
+            Plik na komputerze
+          </button>
+        </div>
+        <div id="githubConnectFields">
+          <p>
+            Obie osoby łączą się z tym samym repozytorium. Każda zmiana statusu, notatki i telefonu zapisuje się we wspólnym CSV.
+          </p>
+          <label for="ghRepo">
+            Repozytorium z danymi (może być prywatne)
+          </label>
+          <input id="ghRepo" type="text" placeholder="właściciel/repozytorium lub link GitHub" autocomplete="off">
+          <div class="github-grid">
+            <div>
+              <label for="ghBranch">
+                Gałąź
+              </label>
+              <input id="ghBranch" value="main" autocomplete="off">
+            </div>
+            <div>
+              <label for="ghPath">
+                Plik danych
+              </label>
+              <input id="ghPath" value="klienci.csv" autocomplete="off">
+            </div>
+          </div>
+          <label for="ghToken">
+            Twój token GitHub
+          </label>
+          <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="Fine-grained: Contents write; classic: repo">
+          <p class="small-copy">
+            Właściciel repo: token fine-grained z Contents: Read and write. Zaproszony współpracownik osobistego repo: GitHub wymaga obecnie tokenu classic z zakresem repo (szerszy dostęp). Każda osoba używa własnego tokenu. Token zostaje tylko w pamięci karty; po odświeżeniu połącz się ponownie.
+            <a href="https://github.com/settings/personal-access-tokens/new?name=Panel%20klientow&amp;contents=write" target="_blank" rel="noopener noreferrer">
+              Token fine-grained
+            </a>
+            ·
+            <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=Panel%20klientow" target="_blank" rel="noopener noreferrer">
+              Token classic
+            </a>
+            .
+          </p>
+          <p class="small-copy">
+            Połączenie wczyta bazę z repozytorium. Nowych klientów z pliku AI dodasz potem przyciskiem Wczytaj CSV. Jeśli pliku jeszcze nie ma, panel pozwoli zapisać obecną listę.
+          </p>
+        </div>
+        <div id="localConnectFields" hidden>
+          <p>
+            Wskaż plik
+            <strong>
+              klienci.csv
+            </strong>
+            z folderu startup i pozwól przeglądarce zapisywać zmiany.
+          </p>
+          <p class="small-copy">
+            Bezpośrednie połączenie działa w Chrome i Edge. W pozostałych przeglądarkach możesz importować i eksportować CSV. Bez połączenia zmiany są zapisywane tylko w tej przeglądarce.
+          </p>
+        </div>
+        <div id="connectError" class="form-error" role="alert" hidden>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="disconnectButton" class="text-button" hidden>
+          Rozłącz plik
+        </button>
+        <button id="connectGitHub" class="button primary">
+          Połącz GitHub
+        </button>
+        <button id="chooseCSV" hidden class="button primary">
+          <svg>
+            <use href="#i-folder"/>
+          </svg>
+          Wybierz klienci.csv
+        </button>
+      </div>
+    </dialog>
+    <dialog id="identityDialog" class="profile-dialog">
+      <div class="dialog-heading"><h2>Kto teraz pracuje?</h2></div>
+      <div class="profile-choices">
+        <button type="button" id="profileT" class="profile-choice">T</button>
+        <button type="button" id="profileK" class="profile-choice">K</button>
+      </div>
+      <p class="profile-hint">Wybierz swój profil. Agenci podpisują się jako AI.</p>
+    </dialog>
+    <input type="file" accept=".csv,text/csv" id="importFile" hidden>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+    </div>
+    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Proponowana poprawa", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Ocena potrzeby zmiany", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano"], "records": []}</script>
+    <script>globalThis.CRM_MESSAGES = {
+  "Firmy": "Companies",
+  "Mapa": "Map",
+  "Główne zakładki": "Main tabs",
+  "Zmień motyw": "Switch theme",
+  "Włącz tryb jasny": "Switch to light mode",
+  "Włącz tryb ciemny": "Switch to dark mode",
+  "Język interfejsu": "Interface language",
+  "Ustaw swój podpis": "Set your name",
+  "Dodaj firmę": "Add company",
+  "Dodaj klienta": "Add company",
+  "Wczytaj CSV": "Import CSV",
+  "Informacje o pliku": "File information",
+  "Archiwum": "Archive",
+  "Eksport CSV": "Export CSV",
+  "Szukaj klientów": "Search companies",
+  "Branża": "Industry",
+  "Etap": "Stage",
+  "Telefony": "Calls",
+  "Wszystkie branże": "All industries",
+  "Wszystkie etapy": "All stages",
+  "Wszystkie telefony": "All calls",
+  "Jeszcze nie dzwoniono": "Not called yet",
+  "Już dzwoniono": "Already called",
+  "Zapis w przeglądarce": "Saved in this browser",
+  "Interaktywna mapa okolicy": "Interactive area map",
+  "Mapa wymaga połączenia z internetem.": "The map needs an internet connection.",
+  "Otwórz mapę w nowej karcie": "Open map in a new tab",
+  "Nie ustalono": "Not set",
+  "wysoki": "high",
+  "średni": "medium",
+  "niższy": "lower",
+  "Nowy": "New",
+  "Do sprawdzenia": "To verify",
+  "Rozmowa": "Conversation",
+  "Oferta": "Proposal",
+  "W realizacji": "In progress",
+  "Pozyskany": "Won",
+  "Odrzucony": "Lost",
+  "Inna branża": "Other industry",
+  "Remonty": "Renovation",
+  "Instalacje": "Installation",
+  "brak autora": "unknown author",
+  "Dzwoniliśmy": "We called",
+  "Otwórz": "Open",
+  "Etap współpracy": "Partnership stage",
+  "Ostatni zapisany telefon": "Last recorded call",
+  "Edytuj firmę": "Edit company",
+  "Co zauważyliśmy": "What we noticed",
+  "Czy potrzebna jest nowa strona?": "Does it need a new website?",
+  "Argument do rozmowy": "Conversation starter",
+  "Proponowane usprawnienie": "Proposed improvement",
+  "Co faktycznie sprawdzono": "What was actually checked",
+  "Źródła": "Sources",
+  "Historia telefonów": "Call history",
+  "Następny krok": "Next step",
+  "Termin działania": "Action date",
+  "Twoje notatki": "Your notes",
+  "Uzgodniony kontakt — data i zakres": "Agreed contact — date and scope",
+  "Zapisz działania": "Save actions",
+  "Pełna nazwa": "Full name",
+  "Miejscowość": "Location",
+  "Telefon": "Phone",
+  "E-mail": "Email",
+  "Strona internetowa": "Website",
+  "Wycena": "Price quote",
+  "Priorytet roboczy": "Working priority",
+  "Źródło kontaktu": "Contact source",
+  "Stan weryfikacji / kontaktu": "Verification / contact status",
+  "Ostatnia edycja firmy": "Last company edit",
+  "brak informacji": "no information",
+  "Edytuj dane firmy": "Edit company details",
+  "Dodaj nową firmę": "Add a company",
+  "Zamknij": "Close",
+  "Anuluj": "Cancel",
+  "Zapisz zmiany": "Save changes",
+  "Nazwa firmy *": "Company name *",
+  "Pełna nazwa firmy": "Full company name",
+  "np. Detailing": "e.g. Detailing",
+  "np. Pruszcz Gdański": "e.g. Pruszcz Gdański",
+  "Publiczny numer firmy": "Public business phone number",
+  "Adres kontaktowy": "Contact email",
+  "Co konkretnie warto zrobić?": "What is the next concrete step?",
+  "Ustalona wycena": "Agreed price quote",
+  "Uzupełnij po przygotowaniu oferty": "Fill in after preparing a proposal",
+  "Zaobserwowany problem": "Observed issue",
+  "Tylko sprawdzone obserwacje; zaznacz niepewność.": "Use verified observations; make uncertainty clear.",
+  "Nowa strona, konkretne poprawki czy najpierw sprawdzenie?": "A new website, specific improvements or further review?",
+  "Dlaczego ta zmiana może pomóc firmie?": "How could this change help the business?",
+  "Konkretny zakres propozycji": "Specific scope of the proposal",
+  "Adresy stron oddziel pionową kreską | lub nową linią.": "Separate source URLs with | or a new line.",
+  "Data sprawdzenia źródeł": "Sources checked on",
+  "Zakres weryfikacji": "Verification scope",
+  "Co sprawdzono, a co wymaga potwierdzenia?": "What has been checked and what still needs verifying?",
+  "Dodatkowe informacje i ustalenia": "Additional information and agreements",
+  "ANALIZA I PROPOZYCJA DLA FIRMY": "REVIEW AND PROPOSAL",
+  "Połącz wspólną bazę klientów": "Connect shared company data",
+  "Wspólna baza GitHub": "Shared GitHub data",
+  "Plik na komputerze": "File on this computer",
+  "Obie osoby łączą się z tym samym repozytorium. Każda zmiana statusu, notatki i telefonu zapisuje się we wspólnym CSV.": "Both people connect to the same repository. Stages, notes and calls are saved in one shared CSV.",
+  "Repozytorium z danymi (może być prywatne)": "Data repository (can be private)",
+  "właściciel/repozytorium lub link GitHub": "owner/repository or GitHub URL",
+  "Gałąź": "Branch",
+  "Plik danych": "Data file",
+  "Twój token GitHub": "Your GitHub token",
+  "Fine-grained: Contents write; classic: repo": "Fine-grained: Contents write; classic: repo",
+  "Właściciel repo: token fine-grained z Contents: Read and write. Zaproszony współpracownik osobistego repo: GitHub wymaga obecnie tokenu classic z zakresem repo (szerszy dostęp). Każda osoba używa własnego tokenu. Token zostaje tylko w pamięci karty; po odświeżeniu połącz się ponownie.": "Repository owner: use a fine-grained token with Contents: Read and write. Invited collaborators of personal repositories currently need a classic token with the broader repo scope. Each person uses their own token. It stays only in this tab; reconnect after a reload.",
+  "Token fine-grained": "Fine-grained token",
+  "Token classic": "Classic token",
+  "Połączenie wczyta bazę z repozytorium. Nowych klientów z pliku AI dodasz potem przyciskiem Wczytaj CSV. Jeśli pliku jeszcze nie ma, panel pozwoli zapisać obecną listę.": "Connecting loads the repository data. Use Import CSV afterwards to add companies found by AI. If the file does not exist yet, you can save the current directory.",
+  "Panel": "Panel",
+  "Wskaż plik": "Choose",
+  "z folderu startup i pozwól przeglądarce zapisywać zmiany.": "from the startup folder and allow your browser to save changes.",
+  "Bezpośrednie połączenie działa w Chrome i Edge. W pozostałych przeglądarkach możesz importować i eksportować CSV. Bez połączenia zmiany są zapisywane tylko w tej przeglądarce.": "Direct file access works in Chrome and Edge. Other browsers support CSV import and export. Without a connection, changes are saved only in this browser.",
+  "Rozłącz plik": "Disconnect",
+  "Połącz GitHub": "Connect GitHub",
+  "Wybierz klienci.csv": "Choose klienci.csv",
+  "Kto teraz pracuje?": "Who is working?",
+  "Imię lub podpis autora": "Your name or author label",
+  "Twoje imię": "Your name",
+  "Ten podpis zapisze się obok zmian i wykonanych telefonów. Druga osoba ustawia własny podpis.": "This name appears next to your edits and calls. The other person sets their own name.",
+  "Zapisz podpis": "Save name",
+  "Kopia w tej przeglądarce": "Copy in this browser",
+  "Połączony plik CSV": "Connected CSV file",
+  "Ostatnia edycja pliku:": "File last edited:",
+  "Wczytany CSV zmieniono:": "Imported CSV modified:",
+  "Zmiany lokalne — zapisz lub eksportuj CSV": "Local changes — save or export CSV",
+  "GitHub · wspólna baza": "GitHub · shared data",
+  "Połączono z CSV · na żywo": "CSV connected · live",
+  "Plik czeka na połączenie": "File awaiting connection",
+  "Zapis lokalny niedostępny": "Local storage unavailable",
+  "Zapisywanie do GitHuba…": "Saving to GitHub…",
+  "Zapisywanie do CSV…": "Saving to CSV…",
+  "Sprawdź połączenie z CSV": "Check your data connection",
+  "Wspólna baza odświeża się co 15 sekund.": "Shared data refreshes every 15 seconds.",
+  "Zmiany pliku sprawdzane co 3 sekundy.": "File changes are checked every 3 seconds.",
+  "Połącz CSV, żeby panel i asystent pracowali na tej samej liście.": "Connect data so you and the assistant use the same directory.",
+  "Połączono": "Connected",
+  "Zmiany zapiszą się we wspólnym CSV na GitHubie.": "Changes will be saved to the shared CSV on GitHub.",
+  "Zmiany zapiszą się w klienci.csv.": "Changes will be saved to klienci.csv.",
+  "Zmiany zapiszą się w tej przeglądarce.": "Changes will be saved in this browser.",
+  "Połącz ponownie z plikiem": "Reconnect file",
+  "Zapisano wykonany telefon, datę i autora.": "Call, date and author recorded.",
+  "Ten telefon jest już zapisany we wspólnej bazie.": "This call is already recorded in shared data.",
+  "Zapisano działania i notatki.": "Actions and notes saved.",
+  "Zmieniono etap współpracy.": "Partnership stage updated.",
+  "Zapisano zmiany w danych firmy.": "Company details saved.",
+  "Nowy klient jest już na liście.": "The company is now in your directory.",
+  "Lista zaktualizowana z pliku CSV.": "Directory updated from CSV.",
+  "Połączono wspólną bazę. Druga osoba używa tego samego repozytorium.": "Shared data connected. The other person uses the same repository.",
+  "Pobrano pełny CSV z datą edycji, statusami i historią telefonów.": "Full CSV downloaded with edit dates, stages and call history.",
+  "Rozłączono plik. Bieżąca lista zostaje w przeglądarce.": "Disconnected. The current directory stays in this browser.",
+  "Połączono z CSV. Zmiany asystenta pojawią się automatycznie.": "CSV connected. Assistant updates will appear automatically.",
+  "Podaj nazwę firmy.": "Enter the company name.",
+  "Podaj pełny adres strony zaczynający się od https:// lub http://.": "Enter a full website URL starting with https:// or http://.",
+  "Taka firma jest już w bazie. Otwórz jej kartę, żeby uzupełnić informacje.": "This company is already in your directory. Open its card to update it.",
+  "Poczekaj na zakończenie poprzedniego zapisu.": "Please wait for the previous save to finish.",
+  "Poczekaj na zakończenie zapisu.": "Please wait for the save to finish.",
+  "Ustaw podpis autora, żeby zapisać zmianę.": "Set your name before saving changes.",
+  "Trwa odświeżanie wspólnej bazy. Spróbuj zapisać ponownie za chwilę.": "Shared data is refreshing. Try saving again in a moment.",
+  "Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.": "Shared data is disconnected. Reconnect GitHub before saving.",
+  "Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.": "Could not save to GitHub. The change has not been marked as saved.",
+  "Nie zapisano zmian do pliku. Sprawdź połączenie i spróbuj ponownie.": "Changes were not saved to the file. Check the connection and try again.",
+  "Tej firmy nie ma już w bazie. Odśwież listę.": "This company is no longer in the directory. Refresh the list.",
+  "Limit importu wynosi 10 MB.": "The import limit is 10 MB.",
+  "Przeglądarka nie pozwoliła zapisać danych. Wyeksportuj CSV, żeby zachować zmiany.": "Your browser could not save the data. Export a CSV to keep your changes.",
+  "Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.": "Browser storage is unavailable. Connect a file or export your changes before closing.",
+  "Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.": "Disconnect the current data source before switching repositories.",
+  "Podaj repozytorium jako właściciel/nazwa.": "Enter the repository as owner/name.",
+  "Plik właśnie się zmienił. Spróbuj zapisać ponownie; niczego nie nadpisano.": "The file has just changed. Try saving again; nothing was overwritten.",
+  "Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?": "You have unsaved actions or notes. Leave without saving?",
+  "Zamknąć formularz bez zapisywania zmian?": "Close the form without saving changes?",
+  "Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.": "Move local changes to the shared CSV? Saving will stop if the same fields have changed.",
+  "Masz zmiany zapisane w tej przeglądarce. Przenieść je do wybranego CSV? Pozostałe dane z pliku zostaną zachowane. Anuluj, żeby najpierw wyeksportować kopię.": "There are changes saved in this browser. Move them to the selected CSV? Other file data will be preserved. Cancel to export a backup first.",
+  "Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejne odświeżenie za 15 s.": "Shared data could not be refreshed. The last copy stays visible; retrying in 15 seconds.",
+  "Najpierw rozłącz GitHub, żeby wybrać plik na komputerze.": "Disconnect GitHub before selecting a local file.",
+  "Ta przeglądarka nie obsługuje bezpośredniego zapisu do pliku. Otwórz panel w Chrome lub Edge albo korzystaj z przycisków Importuj i Eksportuj CSV.": "This browser does not support direct file saving. Use Chrome or Edge, or import and export CSV files.",
+  "Przeglądarka nie udzieliła dostępu do zapisu. Możesz ponownie wybrać plik po rozłączeniu.": "Write access was not granted. Disconnect and select the file again.",
+  "Pozwól zapisywać zmiany, aby połączyć listę.": "Allow saving changes to connect the directory.",
+  "Połączenie z CSV przerwane. Ostatnie dane są zachowane. Kliknij Połącz CSV, aby wznowić synchronizację.": "CSV connection lost. Your last data is preserved. Click Connect data to resume syncing.",
+  "GitHub odrzucił token. Sprawdź, czy nie wygasł.": "GitHub rejected the token. Check whether it has expired.",
+  "Nie znaleziono repozytorium, gałęzi lub pliku. Sprawdź dostęp tokenu i konfigurację.": "Repository, branch or file not found. Check the token access and settings.",
+  "Podaj poprawną nazwę właściciela i repozytorium GitHub.": "Enter a valid GitHub owner and repository name.",
+  "Ścieżka musi wskazywać plik .csv bez segmentów ..": "The path must point to a .csv file without .. segments.",
+  "Podaj nazwę gałęzi, np. main.": "Enter a branch name, e.g. main.",
+  "Wpisz swój token GitHub w tym formularzu.": "Enter your GitHub token in this form.",
+  "Podana ścieżka nie jest plikiem CSV.": "The specified path is not a CSV file.",
+  "Limit bazy CSV w panelu wynosi 10 MB.": "The CSV directory limit is 10 MB.",
+  "Baza przekracza limit 10 MB.": "The directory exceeds the 10 MB limit.",
+  "Wspólny CSV został usunięty. Zapis wstrzymany, aby nie odtworzyć niepełnej bazy.": "The shared CSV was deleted. Saving stopped to avoid recreating an incomplete directory.",
+  "Szukaj firmy, branży lub miasta…": "Search company, industry or town…",
+  "Opcje": "Options",
+  "Autor": "Author",
+  "Firma": "Company",
+  "Status": "Status",
+  "Kontakt": "Contact",
+  "Co poprawić": "What to improve",
+  "Wykonany telefon": "Completed call",
+  "Brak firm dla tych filtrów.": "No companies match these filters.",
+  "Wczytaj CSV, aby wyświetlić firmy.": "Import a CSV to view companies.",
+  "Wyczyść filtry": "Clear filters",
+  "Poprzednia firma": "Previous company",
+  "Następna firma": "Next company",
+  "Historia i uzgodnienia": "History and agreements",
+  "Zmień status": "Change status",
+  "Zapisz status": "Save status",
+  "Nowa firma w bazie": "New company in the directory",
+  "Dane wymagają sprawdzenia": "Details need verification",
+  "Kontakt z firmą w toku": "Contact with the company is ongoing",
+  "Firma na etapie oferty": "A proposal is being considered",
+  "Trwa realizacja": "Work is in progress",
+  "Potwierdzona współpraca": "Confirmed partnership",
+  "Nie kontynuujemy kontaktu": "We are not pursuing this contact",
+  "Ukryj z głównej listy": "Hide from the main list",
+  "Profil": "Profile",
+  "Wybierz profil": "Choose profile",
+  "Dodał": "Added by",
+  "Nie zapisano": "Not recorded",
+  "Więcej informacji (opcjonalnie)": "More details (optional)",
+  "Wybierz swój profil. Agenci podpisują się jako AI.": "Choose your profile. Agents sign as AI."
+};
+
+/* Translate interface labels only. Company names, analyses and editable values stay intact. */
+(function (root) {
+  'use strict';
+  const messages = root.CRM_MESSAGES || {}, reverse = new Map(Object.entries(messages).map(([pl, en]) => [en, pl]));
+  // Keep the existing storage key so saved language preferences survive cleanup.
+  let language = 'pl'; try { language = localStorage.getItem('atlas.language') === 'en' ? 'en' : 'pl'; } catch {}
+  const bindings = new Map();
+  function source(value) {
+    const numbered = /^(\d+) · (high|medium|lower)$/.exec(value);
+    if (numbered) return numbered[1] + ' · ' + ({ high: 'wysoki', medium: 'średni', lower: 'niższy' })[numbered[2]];
+    return reverse.get(value) || value;
+  }
+  function t(value) {
+    if (value == null) return '';
+    const key = source(String(value)), numbered = /^(\d+) · (wysoki|średni|niższy)$/.exec(key);
+    if (numbered) return numbered[1] + ' · ' + (language === 'en' ? messages[numbered[2]] : numbered[2]);
+    return language === 'en' ? messages[key] || key : key;
+  }
+  function message(value) {
+    const text = String(value ?? ''); if (language !== 'en') return text;
+    if (messages[text]) return messages[text];
+    const patterns = [
+      [/^Wyświetlono (\d+) z (\d+) firm$/, (_, a, b) => `Showing ${a} of ${b} companies`],
+      [/^Ostatni zapis telefonu: (.*?) \((.*?)\)\. Zapisać kolejny wykonany telefon teraz\?$/, (_, at, by) => `Last recorded call: ${at} (${by}). Record another completed call now?`],
+      [/^W repozytorium nie ma jeszcze tego CSV\. Zapisać w nim obecną listę (\d+) firm\?$/, (_, count) => `This CSV does not exist in the repository yet. Save the current ${count} companies there?`],
+      [/^Konflikt zmian: (.+)\. Zamknij edycję i odczytaj najnowszą kartę\. Niczego nie nadpisano\.$/, (_, fields) => `Edit conflict: ${fields}. Close the editor and open the latest company card. Nothing was overwritten.`],
+      [/^GitHub nie przyjął operacji \(HTTP (\d+)\)\.$/, (_, status) => `GitHub rejected the operation (HTTP ${status}).`]
+    ];
+    for (const [pattern, replace] of patterns) if (pattern.test(text)) return text.replace(pattern, replace);
+    const segments = [
+      ['Te same pola zmieniła druga osoba: ', 'The other person changed the same fields: '], ['. Odśwież kartę klienta.', '. Refresh the company card.'],
+      ['Brak dostępu lub limit GitHuba. Sprawdź dostęp do repozytorium: fine-grained wymaga Contents: Read and write; token classic zakresu repo.', 'GitHub access denied or rate limit reached. Check repository access: fine-grained tokens need Contents: Read and write; classic tokens need repo scope.'],
+      ['Nieprawidłowy CSV: niedomknięty cudzysłów.', 'Invalid CSV: an unclosed quotation mark.'], ['Ten plik nie ma kolumny Firma. Wybierz klienci.csv.', 'The file has no Firma column. Select the company CSV.'],
+      ['CSV ma powtórzone nazwy kolumn.', 'The CSV has duplicate column names.'], ['CSV zawiera powtórzone identyfikatory klientów.', 'The CSV contains duplicate company IDs.'],
+      ['Niewłaściwa liczba kolumn w wierszu ', 'Wrong number of columns in row '], ['Nieprawidłowa historia telefonów w CSV. Popraw pole Historia_polaczen, zanim zapiszesz zmiany.', 'Invalid call history in the CSV. Correct Historia_polaczen before saving changes.'],
+      ['Historia telefonów ma nieprawidłowy format.', 'Call history has an invalid format.'], ['Ktoś właśnie zapisał plik. Ponawiam odczyt najnowszej wersji.', 'Someone just saved the file. Reading the latest version again.']
+    ];
+    let result = text; for (const [pl, en] of segments) result = result.split(pl).join(en); return result;
+  }
+  function captureText(node) {
+    const raw = node.nodeValue || '', trimmed = raw.trim(), key = source(trimmed);
+    if (!Object.hasOwn(messages, key) && !/^\d+ · (wysoki|średni|niższy)$/.test(key)) return;
+    bindings.set(node, { kind: 'text', key, start: raw.match(/^\s*/)[0], end: raw.match(/\s*$/)[0] });
+  }
+  function captureAttributes(element) {
+    const values = {};
+    for (const attr of ['placeholder', 'title', 'aria-label']) {
+      const value = element.getAttribute(attr); if (value && Object.hasOwn(messages, source(value))) values[attr] = source(value);
+    }
+    if (Object.keys(values).length) bindings.set(element, { kind: 'attributes', values });
+    if (element.tagName === 'OPTION' && !element.hasAttribute('value')) element.value = source(element.textContent.trim());
+  }
+  function capture(rootNode, all = false) {
+    if (!rootNode || typeof document === 'undefined') return;
+    const elements = all ? [rootNode] : [...rootNode.querySelectorAll('label,.form-divider,.advanced-fields summary,button:not(#identityButton),input[placeholder],textarea[placeholder],select option,.empty-state p,.form-error,#toast')];
+    for (const element of elements) {
+      const walker = document.createTreeWalker(element, 4);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.parentElement?.closest('script,style,svg,textarea,[data-content],.firm-name')) continue;
+        captureText(node);
+      }
+      captureAttributes(element);
+      if (all) element.querySelectorAll('[placeholder],[title],[aria-label],option').forEach(captureAttributes);
+    }
+    apply();
+  }
+  function apply() {
+    for (const [node, binding] of bindings) {
+      if (node.isConnected === false) { bindings.delete(node); continue; }
+      if (binding.kind === 'text') node.nodeValue = binding.start + t(binding.key) + binding.end;
+      else for (const [name, value] of Object.entries(binding.values)) node.setAttribute(name, t(value));
+    }
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+      document.title = language === 'en' ? 'Companies' : 'Firmy';
+    }
+  }
+  function setLanguage(value) {
+    language = value === 'en' ? 'en' : 'pl';
+    try { localStorage.setItem('atlas.language', language); } catch {}
+    apply();
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('crm:language', { detail: { language } }));
+  }
+  root.I18n = { t, message, setLanguage, language: () => language, locale: () => language === 'en' ? 'en-GB' : 'pl-PL', bindUI: rootNode => capture(rootNode), captureStatic: rootNode => capture(rootNode, true) };
+  if (typeof document !== 'undefined') root.I18n.captureStatic(document.body);
+})(globalThis);
+</script>
+    <script>/* Wspólne funkcje danych. Bez zależności i bez połączeń z internetem. */
+(function (root) {
+  'use strict';
+  const fields = {
+    name: 'Firma', industry: 'Branza', city: 'Miejscowosc', url: 'Strona',
+    issue: 'Sprawdzony problem', offer: 'Proponowana poprawa', priority: 'Priorytet roboczy',
+    phone: 'Telefon', email: 'Email', next: 'Nastepny krok', due: 'Termin', price: 'Wycena',
+    notes: 'Notatki', stage: 'Etap', assessment: 'Ocena potrzeby zmiany',
+    argument: 'Argument do rozmowy', sources: 'Zrodla', checked: 'Data sprawdzenia zrodel',
+    scope: 'Zakres weryfikacji', consent: 'Zgoda data i zakres', modified: 'Modyfikacja', id: 'Id',
+    editor: 'Edytowal', called: 'Dzwoniono', caller: 'Dzwonil', calls: 'Historia_polaczen'
+  };
+  const stages = ['Nowy', 'Do sprawdzenia', 'Rozmowa', 'Oferta', 'W realizacji', 'Pozyskany', 'Odrzucony', 'Archiwum'];
+  function parseCSV(text) {
+    text = String(text).replace(/^\uFEFF/, '');
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    const sep = firstLine.includes(',') ? ',' : ';';
+    const lines = []; let row = [], cell = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        if (quoted && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (quoted || cell === '') quoted = !quoted;
+        else cell += c;
+      } else if (c === sep && !quoted) { row.push(cell); cell = ''; }
+      else if ((c === '\n' || c === '\r') && !quoted) {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); if (row.some(x => x !== '')) lines.push(row); row = []; cell = '';
+      } else cell += c;
+    }
+    if (quoted) throw new Error('Nieprawidłowy CSV: niedomknięty cudzysłów.');
+    if (cell || row.length) { row.push(cell); if (row.some(x => x !== '')) lines.push(row); }
+    if (!lines.length || !lines[0].includes('Firma')) throw new Error('Ten plik nie ma kolumny Firma. Wybierz klienci.csv.');
+    const headers = lines.shift();
+    if (new Set(headers).size !== headers.length) throw new Error('CSV ma powtórzone nazwy kolumn.');
+    const records = lines.map((values, i) => {
+      if (values.length !== headers.length) throw new Error('Niewłaściwa liczba kolumn w wierszu ' + (i + 2) + '.');
+      const record = {};
+      headers.forEach((key, j) => { record[key] = values[j]; });
+      record.Id ||= stableId(record);
+      record.Etap ||= 'Nowy';
+      return record;
+    });
+    if (new Set(records.map(r => r.Id)).size !== records.length) throw new Error('CSV zawiera powtórzone identyfikatory klientów.');
+    return { headers, records };
+  }
+  function stableId(record) {
+    const str = (record.Firma || '') + '|' + (record.Strona || '');
+    let hash = 2166136261;
+    for (let i = 0; i < str.length; i++) { hash ^= str.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return 'firma-' + (hash >>> 0).toString(16);
+  }
+  function csvText(records, headers = []) {
+    const columns = [...new Set([...headers, ...records.flatMap(Object.keys), ...extraColumns])];
+    const quote = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    return '\uFEFF' + [columns.map(quote).join(','), ...records.map(r => columns.map(k => quote(r[k])).join(','))].join('\r\n') + '\r\n';
+  }
+  function overlay(base, patches, added) {
+    const result = base.map(r => ({ ...r, ...(patches[r.Id] || {}) }));
+    const ids = new Set(result.map(r => r.Id));
+    for (const r of added) if (!ids.has(r.Id)) { result.push({ ...r, ...(patches[r.Id] || {}) }); ids.add(r.Id); }
+    return result;
+  }
+  function merge(base, latest, patches, added) {
+    const original = new Map(base.map(r => [r.Id, r]));
+    const current = new Map(latest.map(r => [r.Id, { ...r }]));
+    const conflicts = [];
+    for (const [id, patch] of Object.entries(patches)) {
+      const before = original.get(id); const after = current.get(id);
+      if (!after) { if (before) conflicts.push({ id, name: before.Firma, field: 'Usunięty w pliku', value: '' }); continue; }
+      for (const [key, value] of Object.entries(patch)) {
+        if (callColumns.includes(key) && patch.Historia_polaczen) continue;
+        if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
+          conflicts.push({ id, name: after.Firma, field: key, value: after[key] });
+        }
+        after[key] = value;
+      }
+      if (patch.Historia_polaczen) Object.assign(after, callSummary(unionCalls(callHistory(after), callHistory(patch))));
+    }
+    for (const record of added) {
+      if (!current.has(record.Id)) {
+        const duplicate = [...current.values()].find(r => norm(r.Firma.trim()) === norm(record.Firma.trim()));
+        if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
+        else current.set(record.Id, { ...record, ...(patches[record.Id] || {}) });
+      } else if (!original.has(record.Id)) {
+        const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'];
+        const different = [...new Set([...Object.keys(existing), ...Object.keys(record)])].some(key => !ignored.includes(key) && String(existing[key] || '') !== String(record[key] || ''));
+        if (different) conflicts.push({ id: record.Id, name: record.Firma, field: 'Nowy klient o tym samym Id', value: '' });
+      }
+    }
+    return { records: [...current.values()], conflicts };
+  }
+  function norm(value) { return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase(); }
+  function safeURL(value) {
+    try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
+  }
+  function priority(r) { const n = parseInt(r[fields.priority], 10); return Number.isFinite(n) && n > 0 ? n : 99; }
+  function industry(r) {
+    const n = norm(r.Branza);
+    return n.includes('detail') ? 'Detailing' : n.includes('remont') || n.includes('wnetrz') ? 'Remonty' : n.includes('klim') || n.includes('instalac') || n.includes('wentyl') ? 'Instalacje' : r.Branza || 'Inna branża';
+  }
+  const callColumns = ['Dzwoniono', 'Dzwonil', 'Liczba_polaczen', 'Historia_polaczen'];
+  const extraColumns = ['Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
+  const workflowColumns = ['Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal'];
+  function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
+  function callHistory(record) {
+    if (!record.Historia_polaczen) {
+      if (!record.Dzwoniono) return [];
+      return [{ id: 'legacy-' + stableId({ Firma: record.Dzwoniono, Strona: record.Dzwonil }), at: record.Dzwoniono, by: record.Dzwonil || 'Nie podano autora', count: Math.max(1, parseInt(record.Liczba_polaczen, 10) || 1) }];
+    }
+    let items;
+    try { items = JSON.parse(record.Historia_polaczen); } catch { throw new Error('Nieprawidłowa historia telefonów w CSV. Popraw pole Historia_polaczen, zanim zapiszesz zmiany.'); }
+    if (!Array.isArray(items) || items.some(e => !e || typeof e.id !== 'string' || typeof e.at !== 'string' || !Number.isFinite(Date.parse(e.at)) || typeof e.by !== 'string')) throw new Error('Historia telefonów ma nieprawidłowy format.');
+    return items;
+  }
+  function unionCalls(a, b) {
+    const calls = new Map(); for (const item of [...a, ...b]) if (!calls.has(item.id)) calls.set(item.id, item);
+    return [...calls.values()].sort((x, y) => Date.parse(x.at) - Date.parse(y.at) || x.id.localeCompare(y.id));
+  }
+  function callSummary(history) {
+    const ordered = unionCalls([], history), last = ordered.at(-1);
+    return { Historia_polaczen: JSON.stringify(ordered), Dzwoniono: last?.at || '', Dzwonil: last?.by || '', Liczba_polaczen: String(ordered.reduce((n, e) => n + (Number.isInteger(e.count) && e.count > 0 ? e.count : 1), 0)) };
+  }
+  function callPatch(record, by, at = new Date().toISOString(), id = uid()) {
+    return callSummary(unionCalls(callHistory(record), [{ id, at, by }]));
+  }
+  function fileMeta(records) {
+    let at = '', by = '';
+    for (const r of records) if (Number.isFinite(Date.parse(r.Plik_edytowano)) && (!at || Date.parse(r.Plik_edytowano) > Date.parse(at))) { at = r.Plik_edytowano; by = r.Plik_edytowal || ''; }
+    return { at, by };
+  }
+  function stampFile(records, at, by) { return records.map(r => ({ ...r, Plik_edytowano: at, Plik_edytowal: by })); }
+  function importPlan(current, incoming) {
+    const patches = {}, added = [], seen = [...current];
+    for (const row of incoming) {
+      let match = seen.find(r => r.Id === row.Id);
+      if (!match) {
+        const same = seen.filter(r => norm(r.Firma.trim()) === norm(row.Firma.trim()));
+        if (same.length === 1) match = same[0];
+      }
+      if (!match) { const newRow = { ...row, Id: row.Id || uid(), Etap: row.Etap || 'Nowy' }; added.push(newRow); seen.push(newRow); continue; }
+      const patch = {};
+      for (const [key, value] of Object.entries(row)) if (!workflowColumns.includes(key) && value !== '' && String(match[key] || '') !== value) patch[key] = value;
+      for (const key of ['Dodal', 'Dodano']) if (!match[key] && row[key]) patch[key] = row[key];
+      const mergedHistory = unionCalls(callHistory(match), callHistory(row));
+      if (JSON.stringify(mergedHistory) !== JSON.stringify(callHistory(match))) Object.assign(patch, callSummary(mergedHistory));
+      if (Object.keys(patch).length) { patches[match.Id] = { ...(patches[match.Id] || {}), ...patch }; const index = seen.findIndex(r => r.Id === match.Id); seen[index] = { ...match, ...patch }; }
+    }
+    return { patches, added };
+  }
+  root.CRMCore = { fields, stages, parseCSV, csvText, overlay, merge, norm, safeURL, priority, industry, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+})(globalThis);
+</script>
+    <script>/* GitHub Contents API. Token istnieje wyłącznie w pamięci otwartej karty. */
+(function (root) {
+  'use strict';
+  const C = root.CRMCore;
+  function encode(text) {
+    const bytes = new TextEncoder().encode(text); let binary = '';
+    for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+    return btoa(binary);
+  }
+  function decode(text) { return new TextDecoder().decode(Uint8Array.from(atob(text.replace(/\s/g, '')), ch => ch.charCodeAt(0))); }
+  class GitHubCSV {
+    constructor(config, token, request = root.fetch.bind(root)) {
+      if (!/^[a-z\d][a-z\d-]{0,38}$/i.test(config.owner) || !/^[\w.-]+$/.test(config.repo)) throw new Error('Podaj poprawną nazwę właściciela i repozytorium GitHub.');
+      const path = config.path.trim().replace(/^\/+/, '');
+      if (!path.endsWith('.csv') || path.split('/').some(x => !x || x === '.' || x === '..') || /[\u0000-\u001f]/.test(path)) throw new Error('Ścieżka musi wskazywać plik .csv bez segmentów ..');
+      if (!config.branch.trim() || /[\u0000-\u0020]/.test(config.branch)) throw new Error('Podaj nazwę gałęzi, np. main.');
+      if (!token.trim()) throw new Error('Wpisz swój token GitHub w tym formularzu.');
+      this.config = { owner: config.owner, repo: config.repo, branch: config.branch.trim(), path };
+      this.token = token.trim(); this.fetch = request; this.cached = null; this.login = '';
+      this.prefix = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo);
+      this.fileEndpoint = this.prefix + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
+    }
+    async request(path, options = {}) {
+      const response = await this.fetch('https://api.github.com' + path, { ...options, cache: 'no-store', redirect: 'error', headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', ...(options.body ? { 'Content-Type': 'application/json' } : {}), Authorization: 'Bearer ' + this.token, ...(options.headers || {}) } });
+      if (!response.ok) {
+        let body = {}; try { body = await response.json(); } catch {}
+        const message = response.status === 401 ? 'GitHub odrzucił token. Sprawdź, czy nie wygasł.' : response.status === 403 ? 'Brak dostępu lub limit GitHuba. Sprawdź dostęp do repozytorium: fine-grained wymaga Contents: Read and write; token classic zakresu repo.' : response.status === 404 ? 'Nie znaleziono repozytorium, gałęzi lub pliku. Sprawdź dostęp tokenu i konfigurację.' : response.status === 409 ? 'Ktoś właśnie zapisał plik. Ponawiam odczyt najnowszej wersji.' : 'GitHub nie przyjął operacji (HTTP ' + response.status + ').';
+        const error = new Error(message); error.status = response.status; error.detail = String(body.message || ''); throw error;
+      }
+      return response;
+    }
+    async connect() {
+      const user = await (await this.request('/user')).json(); this.login = user.login;
+      await this.request(this.prefix);
+      return this.read(true);
+    }
+    async read(allowMissing = false) {
+      let file;
+      try { file = await (await this.request(this.fileEndpoint + '?ref=' + encodeURIComponent(this.config.branch))).json(); }
+      catch (error) {
+        if (allowMissing && error.status === 404) {
+          await this.request(this.prefix + '/branches/' + encodeURIComponent(this.config.branch));
+          return { records: [], headers: ['Firma', ...C.extraColumns], sha: null, missing: true, at: '', by: '' };
+        }
+        throw error;
+      }
+      if (file.type !== 'file' || !file.sha) throw new Error('Podana ścieżka nie jest plikiem CSV.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('Limit bazy CSV w panelu wynosi 10 MB.');
+      if (this.cached?.sha === file.sha) return this.cached;
+      let text;
+      if (file.encoding === 'base64' && typeof file.content === 'string' && file.content) text = decode(file.content);
+      else text = await (await this.request(this.prefix + '/git/blobs/' + encodeURIComponent(file.sha), { headers: { Accept: 'application/vnd.github.raw+json' } })).text();
+      const parsed = C.parseCSV(text); parsed.records.forEach(C.callHistory);
+      const info = C.fileMeta(parsed.records);
+      try {
+        const commits = await (await this.request(this.prefix + '/commits?path=' + encodeURIComponent(this.config.path) + '&sha=' + encodeURIComponent(this.config.branch) + '&per_page=1')).json();
+        if (commits[0]?.commit?.committer?.date) info.at = commits[0].commit.committer.date;
+        if (!info.by) info.by = commits[0]?.author?.login || commits[0]?.commit?.author?.name || '';
+      } catch { /* Metadane w CSV pozostają dostępne bez historii commitów. */ }
+      this.cached = { ...parsed, sha: file.sha, at: info.at, by: info.by, missing: false };
+      return this.cached;
+    }
+    async save(base, patches, added, author) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const latest = await this.read(true);
+        if (latest.missing && base.length) throw new Error('Wspólny CSV został usunięty. Zapis wstrzymany, aby nie odtworzyć niepełnej bazy.');
+        const result = C.merge(base, latest.records, patches, added);
+        if (result.conflicts.length) {
+          const error = new Error('Konflikt zmian: ' + result.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Zamknij edycję i odczytaj najnowszą kartę. Niczego nie nadpisano.'); error.code = 'CONFLICT'; throw error;
+        }
+        const at = new Date().toISOString(), next = C.stampFile(result.records, at, author), text = C.csvText(next, latest.headers);
+        if (new TextEncoder().encode(text).length > 10 * 1024 * 1024) throw new Error('Baza przekracza limit 10 MB.');
+        const body = { message: 'CRM: aktualizacja klientów — ' + author, branch: this.config.branch, content: encode(text), ...(latest.sha ? { sha: latest.sha } : {}) };
+        try {
+          const response = await (await this.request(this.fileEndpoint, { method: 'PUT', body: JSON.stringify(body) })).json();
+          this.cached = { ...C.parseCSV(text), sha: response.content.sha, missing: false, at: response.commit?.committer?.date || at, by: author };
+          return this.cached;
+        } catch (error) {
+          if ((error.status === 409 || error.status === 422 && /sha|does not match|is at/i.test(error.detail)) && attempt < 2) { this.cached = null; continue; }
+          throw error;
+        }
+      }
+    }
+    close() { this.token = ''; this.cached = null; }
+  }
+  root.GitHubCSV = GitHubCSV;
+})(globalThis);
+</script>
+    <script>/* Panel klientów. CSV jest wspólnym źródłem danych po połączeniu. */
+(function () {
+  'use strict';
+  const C = CRMCore, F = C.fields, $ = id => document.getElementById(id);
+  const t = I18n.t, ask = value => confirm(I18n.message(value));
+  const seed = JSON.parse($('initial-data').textContent);
+  seed.records = seed.records.map(r => ({ ...r, Id: r.Id || C.stableId(r), Etap: r.Etap || 'Nowy' }));
+  // Existing storage keys also contain user notes and must remain stable.
+  const STORE = 'pracownia.crm.v1';
+  let local = { patches: {}, added: [], imported: null, meta: null, info: null };
+  let storageOK = true;
+  try { const stored = JSON.parse(localStorage.getItem(STORE) || 'null'); if (stored && typeof stored.patches === 'object' && Array.isArray(stored.added)) local = stored; }
+  catch { storageOK = false; }
+  let base = local.imported || seed.records;
+  let headers = [...seed.headers];
+  let records = C.overlay(base, local.patches, local.added);
+  let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
+  let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
+  let browseIds = [], statusOriginal = null;
+  let toastTimer = null;
+  let github = null, githubBusy = false, lastGitHubPoll = 0, identityResolve = null;
+  let authorName = ''; // Choose T or K on each page load; AI signs CSV directly.
+  let draftId = null;
+  const pendingCalls = new Map();
+  const callsInProgress = new Set();
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const icon = name => '<svg aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+  const val = (record, name) => record[F[name]] || '';
+  const today = () => { const date = new Date(); return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); };
+  const prettyDate = value => { if (!value) return ''; const date = new Date(value + 'T12:00:00'); return Number.isNaN(+date) ? value : date.toLocaleDateString(I18n.locale(), { day: 'numeric', month: 'short', year: 'numeric' }); };
+  const stageSlug = value => C.norm(value).replace(/\s+/g, '-');
+  const stagePill = record => '<span class="stage-pill ' + esc(stageSlug(record.Etap)) + '">' + esc(t(record.Etap || 'Nowy')) + '</span>';
+  const byId = id => records.find(r => r.Id === id);
+  const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0;
+
+  function dateTime(value) { const date = new Date(value); return value && Number.isFinite(+date) ? date.toLocaleString(I18n.locale(), { dateStyle: 'short', timeStyle: 'short' }) : t('brak informacji'); }
+  function displayCallHistory(record) { try { return C.callHistory(record); } catch { return []; } }
+  function openIdentity() {
+    if ($('identityDialog').open) return new Promise(resolve => { identityResolve = resolve; });
+    $('identityDialog').showModal(); $('profileT').focus();
+    return new Promise(resolve => { identityResolve = resolve; });
+  }
+  async function ensureAuthor() {
+    if (['T', 'K'].includes(authorName)) return authorName;
+    const name = await openIdentity(); if (!name) throw new Error('Ustaw podpis autora, żeby zapisać zmianę.'); return name;
+  }
+  function updateFileInfo() {
+    const meta = hasPending() && local.meta ? local.meta : C.fileMeta(records);
+    const at = connected && local.info?.modifiedAt ? local.info.modifiedAt : meta.at || local.info?.modifiedAt;
+    const by = meta.by || local.info?.by || '';
+    const fileName = github ? github.config.path : local.info?.name || 'klienci.csv';
+    const source = github && connected ? 'Wspólna baza GitHub' : connected ? 'Połączony plik CSV' : 'Kopia w tej przeglądarce';
+    $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '') + (hasPending() ? '<span class="unsaved-file">' + esc(t('Zmiany lokalne — zapisz lub eksportuj CSV')) + '</span>' : '');
+    $('identityButton').textContent = authorName ? t('Profil') + ': ' + authorName : t('Wybierz profil');
+    $('identityButton').title = t('Wybierz profil');
+  }
+  function adoptShared(result, info = {}) {
+    base = result.records.map(r => ({ ...r })); records = [...base]; headers = result.headers;
+    local = { patches: {}, added: [], imported: base, meta: C.fileMeta(base), info: { name: github ? github.config.path : 'klienci.csv', modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null, ...info } }; persist();
+  }
+  function switchConnectionMode(kind) {
+    const gh = kind === 'github'; $('githubConnectFields').hidden = !gh; $('localConnectFields').hidden = gh;
+    $('connectGitHub').hidden = !gh; $('chooseCSV').hidden = gh;
+    $('githubMode').classList.toggle('selected', gh); $('fileMode').classList.toggle('selected', !gh);
+  }
+  async function connectGitHub() {
+    if (busy || githubBusy) return;
+    $('connectGitHub').disabled = true; $('connectError').hidden = true; githubBusy = true;
+    let candidate;
+    try {
+      if (connected || fileHandle || github) throw new Error('Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.');
+      const raw = $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
+      const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
+      const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
+      candidate = new GitHubCSV(config, $('ghToken').value); let result = await candidate.connect();
+      if (result.missing && records.length) {
+        if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + records.length + ' firm?')) { candidate.close(); return; }
+        result = await candidate.save([], {}, records, await ensureAuthor());
+      } else if (hasPending()) {
+        if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
+        result = await candidate.save(base, local.patches, local.added, await ensureAuthor());
+      }
+      github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
+      try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}
+      $('ghToken').value = ''; adoptShared(result); render(); $('connectDialog').close();
+      toast('Połączono wspólną bazę. Druga osoba używa tego samego repozytorium.');
+    } catch (error) { candidate?.close(); $('ghToken').value = ''; $('connectError').textContent = I18n.message(error.message); $('connectError').hidden = false; }
+    finally { githubBusy = false; $('connectGitHub').disabled = false; }
+  }
+  async function commitBatch(originals, patches, added, author, at) {
+    if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
+    if (githubBusy) throw new Error('Trwa odświeżanie wspólnej bazy. Spróbuj zapisać ponownie za chwilę.');
+    if (github) {
+      if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
+      busy = true; connectionUI();
+      try { const result = await github.save(originals, patches, added, author); adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
+      catch (error) { connectionError = 'Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.'; throw error; }
+      finally { busy = false; connectionUI(); }
+    } else if (connected && fileHandle) {
+      busy = true; connectionUI();
+      try {
+        const text = await (await fileHandle.getFile()).text(), latest = C.parseCSV(text);
+        const outcome = C.merge(originals, latest.records, patches, added);
+        if (outcome.conflicts.length) throw new Error('Te same pola zmieniła druga osoba: ' + outcome.conflicts.map(x => x.field).join(', ') + '. Odśwież kartę klienta.');
+        await writeRecords(C.stampFile(outcome.records, at, author), latest.headers, text); connectionError = '';
+      } catch (error) { connectionError = 'Nie zapisano zmian do pliku. Sprawdź połączenie i spróbuj ponownie.'; throw error; }
+      finally { busy = false; connectionUI(); }
+    } else {
+      for (const [id, patch] of Object.entries(patches)) {
+        if (!byId(id)) throw new Error('Tej firmy nie ma już w bazie. Odśwież listę.');
+        local.patches[id] = { ...(local.patches[id] || {}), ...patch };
+      }
+      local.added.push(...added); local.meta = { at, by: author };
+      records = C.stampFile(C.overlay(base, local.patches, local.added), at, author); persist();
+    }
+    render();
+  }
+  async function registerPhone(id) {
+    const record = byId(id); if (!record || busy || callsInProgress.has(id)) return;
+    const history = displayCallHistory(record);
+    const pending = pendingCalls.get(id);
+    if (pending && history.some(e => e.id === pending.eventId)) { pendingCalls.delete(id); toast('Ten telefon jest już zapisany we wspólnej bazie.'); return; }
+    if (!pending && history.length && !ask('Ostatni zapis telefonu: ' + dateTime(record.Dzwoniono) + ' (' + (record.Dzwonil || t('brak autora')) + '). Zapisać kolejny wykonany telefon teraz?')) return;
+    callsInProgress.add(id);
+    try {
+      const author = await ensureAuthor();
+      const operation = pending || { original: { ...record }, eventId: C.uid() };
+      if (!pending) operation.patch = C.callPatch(record, author, new Date().toISOString(), operation.eventId);
+      pendingCalls.set(id, operation);
+      await saveChange(id, operation.patch, operation.original); pendingCalls.delete(id);
+      if (selected === id) openClient(id, true);
+      toast('Zapisano wykonany telefon, datę i autora.');
+    } catch (error) { toast(error.message, true); }
+    finally { callsInProgress.delete(id); }
+  }
+  async function importCSV(file) {
+    if (!file) return;
+    try {
+      if (busy) throw new Error('Poczekaj na zakończenie zapisu.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('Limit importu wynosi 10 MB.');
+      const parsed = C.parseCSV(await file.text()); parsed.records.forEach(C.callHistory);
+      const plan = C.importPlan(records, parsed.records);
+      if (!connected) {
+        for (const [id, patch] of Object.entries(plan.patches)) local.patches[id] = { ...(local.patches[id] || {}), ...patch };
+        local.added.push(...plan.added); records = C.overlay(base, local.patches, local.added);
+        const fileAt = file.lastModified ? new Date(file.lastModified).toISOString() : '';
+        local.meta = C.fileMeta(records); local.info = { name: file.name || 'klienci.csv', modifiedAt: local.meta.at || fileAt, uploadedFileModifiedAt: fileAt };
+        persist(); render(); return;
+      }
+      if (!plan.added.length && !Object.keys(plan.patches).length) return;
+      const author = await ensureAuthor(), at = new Date().toISOString();
+      for (const patch of Object.values(plan.patches)) { patch.Modyfikacja = at; patch.Edytowal = author; }
+      await commitBatch(records.map(r => ({ ...r })), plan.patches, plan.added.map(r => ({ ...r, Modyfikacja: r.Modyfikacja || at, Edytowal: r.Edytowal || author })), author, at);
+    } catch (error) { toast(error.message, true); }
+  }
+  async function autoLoadCSV() {
+    if ((records.length && local.info?.kind !== 'public-csv') || connected || hasPending() || !/^https?:$/.test(window.location?.protocol || '')) return;
+    const previous = records;
+    try {
+      const response = await fetch(new URL(document.body.dataset.csvUrl || 'klienci.csv', window.location.href), { cache: 'no-store', credentials: 'omit' });
+      if (!response.ok || Number(response.headers.get('Content-Length') || 0) > 10 * 1024 * 1024) return;
+      const text = await response.text(); if (text.length > 10 * 1024 * 1024 || records !== previous || connected || hasPending()) return;
+      const parsed = C.parseCSV(text); parsed.records.forEach(C.callHistory);
+      base = parsed.records; records = [...base]; headers = parsed.headers;
+      local = { patches: {}, added: [], imported: base, meta: C.fileMeta(base), info: { name: 'klienci.csv', kind: 'public-csv', modifiedAt: response.headers.get('Last-Modified') || C.fileMeta(base).at } };
+      persist(); render();
+    } catch { /* No public CSV is required. The direct file picker stays available. */ }
+  }
+
+  function toast(text, error = false) {
+    $('toast').textContent = I18n.message(text); $('toast').classList.toggle('error', error); $('toast').hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, error ? 8500 : 4000);
+  }
+  function persist() {
+    try { localStorage.setItem(STORE, JSON.stringify(local)); storageOK = true; }
+    catch { storageOK = false; toast('Przeglądarka nie pozwoliła zapisać danych. Wyeksportuj CSV, żeby zachować zmiany.', true); }
+    connectionUI();
+  }
+  function download(name, text, type = 'text/csv;charset=utf-8') {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  function connectionUI() {
+    const el = $('saveState');
+    el.className = 'save-state' + (connected ? ' connected' : connectionError || !storageOK ? ' error' : '');
+    let label = connected ? (github ? 'GitHub · wspólna baza' : 'Połączono z CSV · na żywo') : fileHandle ? 'Plik czeka na połączenie' : storageOK ? 'Zapis w przeglądarce' : 'Zapis lokalny niedostępny';
+    if (busy) label = github ? 'Zapisywanie do GitHuba…' : 'Zapisywanie do CSV…';
+    if (connectionError) label = 'Sprawdź połączenie z CSV';
+    el.innerHTML = '<span class="status-dot"></span>' + esc(t(label));
+    el.title = I18n.message(connected ? (github ? 'Wspólna baza odświeża się co 15 sekund.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
+    $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
+    $('disconnectButton').hidden = !fileHandle && !github;
+    $('connectionNotice').hidden = !connectionError && storageOK;
+    $('connectionNotice').textContent = I18n.message(connectionError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
+    $('formSaveHint').textContent = I18n.message(connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
+    updateFileInfo(); I18n.bindUI(document);
+  }
+
+  function refreshIndustries() {
+    const control = $('industryFilter'), previous = control.value;
+    const groups = [...new Set(records.map(C.industry))].sort((a, b) => a.localeCompare(b, I18n.language()));
+    control.innerHTML = '<option value="">' + esc(t('Wszystkie branże')) + '</option>' + groups.map(v => '<option value="' + esc(v) + '">' + esc(t(v)) + '</option>').join('');
+    if (groups.includes(previous)) control.value = previous;
+  }
+  function filteredRecords() {
+    const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
+    return records.filter(r => {
+      if (!stage && r.Etap === 'Archiwum') return false;
+      if (stage && r.Etap !== stage) return false;
+      if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
+      if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
+      return !query || C.norm([r.Firma, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
+    }).sort((a, b) => C.priority(a) - C.priority(b) || a.Firma.localeCompare(b.Firma, I18n.language()));
+  }
+  function render() {
+    refreshIndustries(); connectionUI();
+    const visible = filteredRecords();
+    $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + records.length + ' firm');
+    if (!visible.length) {
+      $('clientsContent').innerHTML = '<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>';
+    } else renderTable(visible);
+    I18n.bindUI(document);
+  }
+  function contactHTML(record) {
+    const phone = record.Telefon || '';
+    const email = record.Email || '';
+    const url = C.safeURL(record.Strona);
+    const phoneLink = /^\+?[\d\s()-]{7,25}$/.test(phone)
+      ? `<a href="tel:${esc(phone.replace(/[^+\d]/g, ''))}">${esc(phone)}</a>`
+      : esc(phone);
+    const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
+      : esc(email);
+    const parts = [
+      phone ? `<span>${phoneLink}</span>` : '',
+      email ? `<span>${emailLink}</span>` : '',
+      url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
+      !phone && !email && !url ? '—' : '',
+    ];
+    return `<div class="contact-lines">${parts.join('')}</div>`;
+  }
+
+  function statusButton(record) {
+    return `<button type="button" class="status-trigger" data-status="${esc(record.Id)}" aria-label="${esc(t('Zmień status'))}">
+      ${stagePill(record)}<span aria-hidden="true">▾</span>
+    </button>`;
+  }
+
+  function renderTable(items) {
+    const rows = items.map(record => `
+      <tr class="client-row" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
+        <td>
+          <strong class="firm-name">${esc(record.Firma)}</strong>
+          <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
+          <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
+        </td>
+        <td>${statusButton(record)}</td>
+        <td>${contactHTML(record)}</td>
+        <td><span class="cell-text">${esc(record['Sprawdzony problem'] || '—')}</span></td>
+        <td>
+          <span class="cell-text">${esc(record['Nastepny krok'] || '—')}</span>
+          ${record.Termin ? `<span class="due${record.Termin < today() ? ' overdue' : ''}">${esc(prettyDate(record.Termin))}</span>` : ''}
+        </td>
+        <td>
+          <button class="button call-button" type="button" data-call="${esc(record.Id)}">${esc(t('Dzwoniliśmy'))}</button>
+          ${record.Dzwoniono
+            ? `<small class="called-label">${esc(dateTime(record.Dzwoniono))}<br>${esc(record.Dzwonil || '')}</small>`
+            : `<small class="muted">${esc(t('Jeszcze nie dzwoniono'))}</small>`}
+        </td>
+      </tr>
+    `).join('');
+    $('clientsContent').innerHTML = `
+      <table class="client-table">
+        <thead><tr>
+          <th>${esc(t('Firma'))}</th>
+          <th>${esc(t('Status'))}</th>
+          <th>${esc(t('Kontakt'))}</th>
+          <th>${esc(t('Co poprawić'))}</th>
+          <th>${esc(t('Następny krok'))}</th>
+          <th>${esc(t('Wykonany telefon'))}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function detailBlock(label, value, extra = '') {
+    return `<section class="detail-block ${extra}">
+      <h3>${esc(t(label))}</h3>
+      <p data-content>${esc(value || '—')}</p>
+    </section>`;
+  }
+
+  function openClient(id, preserve = false, resetDraft = false) {
+    const record = byId(id); if (!record) return;
+    const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
+    const same = selected === id, draft = same && preserve && !resetDraft && actionDirty() ? { next: $('actionNext').value, due: $('actionDue').value, notes: $('actionNotes').value, consent: $('actionConsent').value, original: actionOriginal } : null;
+    if (!selected || !preserve) { browseIds = filteredRecords().map(r => r.Id); returnFocus = document.activeElement; }
+    if (!browseIds.includes(id)) browseIds.push(id);
+    selected = id; actionOriginal = { ...record };
+    const index = browseIds.indexOf(id), sources = (record.Zrodla || record.Strona || '').split(/\s*\|\s*|\n/).map(C.safeURL).filter(Boolean);
+    const history = displayCallHistory(record).slice().reverse();
+    $('drawer').innerHTML = `
+      <div class="company-toolbar">
+        <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
+        <div class="company-heading">
+          <h2 id="drawerTitle">${esc(record.Firma)}</h2>
+          <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
+        </div>
+        <div class="company-pagination">
+          <button class="button" data-navigate="-1" ${index <= 0 ? 'disabled' : ''} aria-label="${esc(t('Poprzednia firma'))}">←</button>
+          <span>${index + 1} / ${browseIds.length}</span>
+          <button class="button" data-navigate="1" ${index >= browseIds.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Następna firma'))}">→</button>
+          <button class="button" data-edit-client>${esc(t('Edytuj firmę'))}</button>
+        </div>
+      </div>
+      <div class="company-grid">
+        <div class="company-analysis">
+          <div class="company-contact">
+            ${contactHTML(record)}
+            <span class="muted">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}${record.Dodano ? ' · ' + esc(dateTime(record.Dodano)) : ''}</span>
+            <span class="muted">${esc(t('Ostatnia edycja firmy'))}: ${esc(record.Modyfikacja ? dateTime(record.Modyfikacja) : '—')}${record.Edytowal ? ' · ' + esc(record.Edytowal) : ''}</span>
+          </div>
+          <div class="analysis-grid">
+            ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'])}
+            ${detailBlock('Proponowane usprawnienie', record['Proponowana poprawa'])}
+            ${detailBlock('Czy potrzebna jest nowa strona?', record['Ocena potrzeby zmiany'])}
+            ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
+            <section class="detail-block wide">
+              <h3>${esc(t('Źródła'))}${record['Data sprawdzenia zrodel'] ? ' · ' + esc(prettyDate(record['Data sprawdzenia zrodel'])) : ''}</h3>
+              ${sources.map(url => `<a class="source-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)} ↗</a>`).join('')}
+            </section>
+            ${detailBlock('Co faktycznie sprawdzono', record['Zakres weryfikacji'], 'wide')}
+            ${record['Zrodlo kontaktu'] ? detailBlock('Źródło kontaktu', record['Zrodlo kontaktu']) : ''}
+            ${record.Status ? detailBlock('Stan weryfikacji / kontaktu', record.Status) : ''}
+            ${record.Wycena ? detailBlock('Wycena', record.Wycena) : ''}
+          </div>
+        </div>
+        <div class="company-actions">
+          <div class="action-controls">
+            ${statusButton(record)}
+            <button type="button" class="button" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button>
+          </div>
+          <div class="last-call">
+            <strong>${esc(t('Ostatni zapisany telefon'))}:</strong>
+            ${esc(record.Dzwoniono ? dateTime(record.Dzwoniono) + ' · ' + (record.Dzwonil || '') : t('Jeszcze nie dzwoniono'))}
+          </div>
+          <div class="drawer-field">
+            <label for="actionNext">${esc(t('Następny krok'))}</label>
+            <textarea id="actionNext" rows="4">${esc(record['Nastepny krok'])}</textarea>
+          </div>
+          <div class="drawer-field">
+            <label for="actionDue">${esc(t('Termin działania'))}</label>
+            <input id="actionDue" type="date" value="${esc(record.Termin)}">
+          </div>
+          <div class="drawer-field">
+            <label for="actionNotes">${esc(t('Twoje notatki'))}</label>
+            <textarea id="actionNotes" rows="8">${esc(record.Notatki)}</textarea>
+          </div>
+          <button type="button" class="button primary save-actions" id="saveActions">${esc(t('Zapisz działania'))}</button>
+          <details class="secondary-fields">
+            <summary>${esc(t('Historia i uzgodnienia'))}</summary>
+            <div class="drawer-field">
+              <label for="actionConsent">${esc(t('Uzgodniony kontakt — data i zakres'))}</label>
+              <textarea id="actionConsent" rows="3">${esc(record['Zgoda data i zakres'])}</textarea>
+            </div>
+            <h3>${esc(t('Historia telefonów'))}</h3>
+            ${history.map(event => `<p>${esc(dateTime(event.at))} · ${esc(event.by)}</p>`).join('') || '<p class="muted">—</p>'}
+          </details>
+        </div>
+      </div>
+    `;
+    $('drawer').hidden = false; $('companiesPanel').inert = true; $('companiesPanel').setAttribute('aria-hidden', 'true');
+    if (draft) { $('actionNext').value = draft.next; $('actionDue').value = draft.due; $('actionNotes').value = draft.notes; $('actionConsent').value = draft.consent; actionOriginal = draft.original; }
+    for (const [selector, position] of scroll) { const element = $('drawer').querySelector(selector); if (element) element.scrollTop = position; }
+    I18n.bindUI($('drawer'));
+    if (!preserve) $('drawer').querySelector('[data-close-drawer]').focus();
+  }
+  function actionDirty() {
+    return selected && !$('drawer').hidden && actionOriginal && $('actionNext') && ['actionNext', 'actionDue', 'actionNotes', 'actionConsent'].some((id, index) => $(id).value !== (actionOriginal[['Nastepny krok', 'Termin', 'Notatki', 'Zgoda data i zakres'][index]] || ''));
+  }
+  function confirmLeavingActions() { return !actionDirty() || ask('Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?'); }
+  function closeDrawer(force = false) {
+    if (!force && !confirmLeavingActions()) return false;
+    $('drawer').hidden = true; $('companiesPanel').inert = false; $('companiesPanel').removeAttribute('aria-hidden'); selected = null; browseIds = [];
+    if (returnFocus?.isConnected) returnFocus.focus(); return true;
+  }
+  function navigateCompany(direction) {
+    if (busy || !confirmLeavingActions()) return;
+    const index = browseIds.indexOf(selected), id = browseIds[index + direction]; if (id && byId(id)) openClient(id, true);
+  }
+  const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', Oferta: 'Firma na etapie oferty', 'W realizacji': 'Trwa realizacja', Pozyskany: 'Potwierdzona współpraca', Odrzucony: 'Nie kontynuujemy kontaktu', Archiwum: 'Ukryj z głównej listy' };
+  function openStatus(id) {
+    const record = byId(id); if (!record || busy) return; statusOriginal = { ...record };
+    $('statusCompanyName').textContent = record.Firma; $('statusError').hidden = true;
+    $('statusOptions').innerHTML = C.stages.map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
+    I18n.bindUI($('statusDialog')); $('statusDialog').showModal();
+  }
+  async function submitStatus(event) {
+    event.preventDefault(); if (!statusOriginal || busy) return;
+    const stage = new FormData($('statusForm')).get('stage');
+    if (!C.stages.includes(stage)) return;
+    if (stage === statusOriginal.Etap) { $('statusDialog').close(); return; }
+    const original = statusOriginal; $('saveStatus').disabled = true; $('statusError').hidden = true;
+    try { await saveChange(original.Id, { Etap: stage }, original); $('statusDialog').close(); if (selected === original.Id) openClient(original.Id, true); toast('Zmieniono etap współpracy.'); }
+    catch (error) { $('statusError').textContent = I18n.message(error.message); $('statusError').hidden = false; }
+    finally { $('saveStatus').disabled = false; }
+  }
+
+  const formSchema = [
+    ['name', 'Nazwa firmy *', 'text', 'Pełna nazwa firmy', true], ['url', 'Strona internetowa', 'url', 'https://…', true],
+    ['industry', 'Branża', 'text', 'np. Detailing'], ['city', 'Miejscowość', 'text', 'np. Pruszcz Gdański'],
+    ['phone', 'Telefon', 'text', 'Publiczny numer firmy'], ['email', 'E-mail', 'text', 'Adres kontaktowy'],
+    ['stage', 'Etap współpracy', 'stage'], ['priority', 'Priorytet roboczy', 'priority'],
+    ['next', 'Następny krok', 'textarea', 'Co konkretnie warto zrobić?', true], ['due', 'Termin działania', 'date'], ['price', 'Ustalona wycena', 'text', 'Uzupełnij po przygotowaniu oferty'],
+    ['issue', 'Zaobserwowany problem', 'textarea', 'Tylko sprawdzone obserwacje; zaznacz niepewność.', true],
+    ['assessment', 'Czy potrzebna jest nowa strona?', 'textarea', 'Nowa strona, konkretne poprawki czy najpierw sprawdzenie?', true],
+    ['argument', 'Argument do rozmowy', 'textarea', 'Dlaczego ta zmiana może pomóc firmie?', true],
+    ['offer', 'Proponowane usprawnienie', 'textarea', 'Konkretny zakres propozycji', true],
+    ['sources', 'Źródła', 'textarea', 'Adresy stron oddziel pionową kreską | lub nową linią.', true],
+    ['checked', 'Data sprawdzenia źródeł', 'date'], ['scope', 'Zakres weryfikacji', 'textarea', 'Co sprawdzono, a co wymaga potwierdzenia?', true],
+    ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true]
+  ];
+  function openForm(record = null) {
+    if (selected && !confirmLeavingActions()) return;
+    editOriginal = record ? { ...record } : null; draftId = record?.Id || C.uid();
+    $('formTitle').textContent = I18n.message(record ? 'Edytuj dane firmy' : 'Dodaj nową firmę');
+    $('submitForm').innerHTML = record ? 'Zapisz zmiany' + icon('check') : 'Dodaj klienta' + icon('plus');
+    $('formError').hidden = true;
+    const basic = ['name', 'url', 'city', 'phone', 'email', 'notes'];
+    const ordered = [...formSchema.filter(row => basic.includes(row[0])), ...formSchema.filter(row => !basic.includes(row[0]))];
+    $('formFields').innerHTML = '<div class="form-grid">' + ordered.map(([key, label, type, placeholder, full]) => {
+      const value = record ? val(record, key) : key === 'stage' ? 'Nowy' : '';
+      let input;
+      if (type === 'textarea') input = '<textarea name="' + key + '" id="f-' + key + '" placeholder="' + esc(t(placeholder)) + '" maxlength="30000">' + esc(value) + '</textarea>';
+      else if (type === 'stage') input = '<select id="f-stage" name="stage">' + C.stages.map(s => '<option value="' + esc(s) + '"' + (s === value ? ' selected' : '') + '>' + esc(t(s)) + '</option>').join('') + '</select>';
+      else if (type === 'priority') input = '<select id="f-priority" name="priority"><option value="99">' + esc(t('Nie ustalono')) + '</option>' + [1, 2, 3, 4, 5, 6].map(n => '<option value="' + n + '"' + (record && C.priority(record) === n ? ' selected' : '') + '>' + n + ' · ' + t(n < 3 ? 'wysoki' : n < 5 ? 'średni' : 'niższy') + '</option>').join('') + '</select>';
+      else input = '<input id="f-' + key + '" name="' + key + '" type="' + type + '" value="' + esc(value) + '" placeholder="' + esc(t(placeholder || '')) + '"' + (key === 'name' ? ' required maxlength="250"' : ' maxlength="5000"') + '>';
+      return (key === 'industry' ? '</div><details class="advanced-fields"><summary>' + esc(t('Więcej informacji (opcjonalnie)')) + '</summary><div class="form-grid">' : '') + '<div class="form-field' + (full ? ' full' : '') + '"><label for="f-' + key + '">' + esc(t(label)) + '</label>' + input + '</div>';
+    }).join('') + '</div></details>';
+    I18n.bindUI($('editDialog')); $('editDialog').showModal(); $('f-name').focus();
+  }
+  function changedFields(record, form) {
+    const patch = {};
+    for (const [name] of formSchema) {
+      const value = String(form.get(name) || '').trim(); const key = F[name];
+      if (name === 'priority' && record && String(C.priority(record)) === value) continue;
+      if (!record || String(record[key] || '') !== value) patch[key] = name === 'priority' && value === '99' ? '' : value;
+    }
+    return patch;
+  }
+
+  async function writeRecords(newRecords, currentHeaders, expectedText) {
+    const nextText = C.csvText(newRecords, currentHeaders);
+    const writer = await fileHandle.createWritable({ mode: 'exclusive' });
+    try {
+      const latestText = await (await fileHandle.getFile()).text();
+      if (latestText !== expectedText) throw new Error('Plik właśnie się zmienił. Spróbuj zapisać ponownie; niczego nie nadpisano.');
+      await writer.write(nextText); await writer.close();
+    }
+    catch (error) { try { await writer.abort(); } catch {} throw error; }
+    fileText = nextText; const file = await fileHandle.getFile();
+    adoptShared({ records: newRecords, headers: C.parseCSV(nextText).headers }, { name: file.name || 'klienci.csv', modifiedAt: file.lastModified ? new Date(file.lastModified).toISOString() : C.fileMeta(newRecords).at });
+  }
+  async function saveChange(id, patch, original, newRecord = null) {
+    if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
+    if (!newRecord && !Object.keys(patch).length) return;
+    const author = await ensureAuthor(), at = new Date().toISOString();
+    const update = { ...patch, Modyfikacja: at, Edytowal: author };
+    if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
+    const added = newRecord ? [{ ...newRecord, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
+    await commitBatch(original ? [{ ...original }] : [], newRecord ? {} : { [id]: update }, added, author, at);
+  }
+  async function submitForm(event) {
+    event.preventDefault();
+    const form = new FormData($('clientForm')); const patch = changedFields(editOriginal, form);
+    if (!String(form.get('name') || '').trim()) { $('formError').textContent = I18n.message('Podaj nazwę firmy.'); $('formError').hidden = false; return; }
+    if (form.get('url') && !C.safeURL(form.get('url'))) { $('formError').textContent = I18n.message('Podaj pełny adres strony zaczynający się od https:// lub http://.'); $('formError').hidden = false; return; }
+    $('submitForm').disabled = true;
+    try {
+      let id = editOriginal?.Id || draftId;
+      if (!editOriginal) {
+        const duplicate = records.find(r => C.norm(r.Firma.trim()) === C.norm(String(form.get('name')).trim()) && r.Etap !== 'Archiwum');
+        if (duplicate) throw new Error('Taka firma jest już w bazie. Otwórz jej kartę, żeby uzupełnić informacje.');
+        const record = Object.fromEntries(headers.map(k => [k, '']));
+        Object.assign(record, patch, { Id: id, Status: 'Potencjalny klient — zainteresowanie niepotwierdzone' });
+        await saveChange(id, {}, null, record);
+      } else await saveChange(id, patch, editOriginal);
+      $('editDialog').close(); toast(editOriginal ? 'Zapisano zmiany w danych firmy.' : 'Nowy klient jest już na liście.');
+      openClient(id, true, true);
+    } catch (error) { $('formError').textContent = I18n.message(error.message); $('formError').hidden = false; }
+    finally { $('submitForm').disabled = false; }
+  }
+
+  function fileDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('pracownia-file-handles', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('handles');
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    });
+  }
+  async function rememberHandle(handle) {
+    try {
+      const db = await fileDB();
+      await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(handle, 'csv'); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
+    } catch { /* Połączenie działa także bez trwałego uchwytu. */ }
+  }
+  async function restoreHandle() {
+    try {
+      const db = await fileDB(); const handle = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get('csv'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); db.close();
+      if (!handle || github) return;
+      fileHandle = handle;
+      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted' && !hasPending()) await establishConnection(handle);
+      else connectionUI();
+    } catch { /* Przeglądarka może wymagać ponownego wybrania pliku. */ }
+  }
+  async function establishConnection(handle) {
+    if (busy) throw new Error('Trwa poprzedni zapis. Spróbuj ponownie za chwilę.');
+    if (github) throw new Error('Najpierw rozłącz GitHub, żeby wybrać plik na komputerze.');
+    const file = await handle.getFile(), text = await file.text(), parsed = C.parseCSV(text);
+    if (hasPending()) {
+      const outcome = C.merge(base, parsed.records, local.patches, local.added);
+      if (outcome.conflicts.length) {
+        throw new Error('Plik i panel mają różne zmiany tych samych danych: ' + outcome.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Najpierw wyeksportuj wersję z panelu. Nie zmieniono pliku.');
+      }
+      const permission = ask('Masz zmiany zapisane w tej przeglądarce. Przenieść je do wybranego CSV? Pozostałe dane z pliku zostaną zachowane. Anuluj, żeby najpierw wyeksportować kopię.');
+      if (!permission) return false;
+      fileHandle = handle; busy = true;
+      try { const author = await ensureAuthor(); await writeRecords(C.stampFile(outcome.records, new Date().toISOString(), author), parsed.headers, text); } finally { busy = false; }
+    } else {
+      base = parsed.records; records = [...base]; headers = parsed.headers; fileText = text;
+      local = { patches: {}, added: [], imported: base, meta: C.fileMeta(base), info: { name: file.name || 'klienci.csv', modifiedAt: file.lastModified ? new Date(file.lastModified).toISOString() : '' } }; persist();
+    }
+    fileHandle = handle; connected = true; connectionError = ''; persist(); await rememberHandle(handle); render();
+    return true;
+  }
+  function openConnection() {
+    $('connectError').hidden = true;
+    $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
+    try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
+    $('connectDialog').showModal(); switchConnectionMode(github || !fileHandle ? 'github' : 'file'); connectionUI();
+  }
+  async function chooseCSV() {
+    if (!('showOpenFilePicker' in window)) {
+      $('connectError').textContent = I18n.message('Ta przeglądarka nie obsługuje bezpośredniego zapisu do pliku. Otwórz panel w Chrome lub Edge albo korzystaj z przycisków Importuj i Eksportuj CSV.');
+      $('connectError').hidden = false; return;
+    }
+    $('chooseCSV').disabled = true;
+    try {
+      let handle = fileHandle && !connected ? fileHandle : null;
+      if (handle) {
+        if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Przeglądarka nie udzieliła dostępu do zapisu. Możesz ponownie wybrać plik po rozłączeniu.');
+      } else {
+        [handle] = await window.showOpenFilePicker({ multiple: false, types: [{ description: 'Lista klientów CSV', accept: { 'text/csv': ['.csv'] } }] });
+        if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Pozwól zapisywać zmiany, aby połączyć listę.');
+      }
+      const established = await establishConnection(handle);
+      if (established) { $('connectDialog').close(); toast('Połączono z CSV. Zmiany asystenta pojawią się automatycznie.'); }
+    } catch (error) { if (error.name !== 'AbortError') { $('connectError').textContent = I18n.message(error.message); $('connectError').hidden = false; } }
+    finally { $('chooseCSV').disabled = false; }
+  }
+  async function disconnect() {
+    if (busy) return;
+    connected = false; fileHandle = null; connectionError = ''; fileText = null;
+    if (github) { github.close(); github = null; } $('ghToken').value = '';
+    local = { patches: {}, added: [], imported: records.map(r => ({ ...r })), meta: C.fileMeta(records), info: local.info }; base = [...records]; persist();
+    try { const db = await fileDB(); const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete('csv'); tx.oncomplete = () => db.close(); } catch {}
+    $('connectDialog').close(); render(); toast('Rozłączono plik. Bieżąca lista zostaje w przeglądarce.');
+  }
+  async function pollFile() {
+    if (!connected || busy || githubBusy || document.hidden) return;
+    if (github) {
+      if (Date.now() - lastGitHubPoll < 15000) return;
+      githubBusy = true; lastGitHubPoll = Date.now(); const session = github;
+      try { const result = await session.read(); if (github !== session || !connected) return; if (result.sha !== local.info?.sha) { adoptShared(result, { sha: result.sha }); render(); if (selected && !actionDirty() && !$('editDialog').open) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); } } connectionError = ''; connectionUI(); }
+      catch { connectionError = 'Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejne odświeżenie za 15 s.'; connectionUI(); }
+      finally { githubBusy = false; } return;
+    }
+    if (!fileHandle) return;
+    try {
+      const file = await fileHandle.getFile(); const text = await file.text(); if (text === fileText) return;
+      const parsed = C.parseCSV(text); fileText = text; base = parsed.records; headers = parsed.headers; records = [...base];
+      local = { patches: {}, added: [], imported: base, meta: C.fileMeta(base), info: { name: file.name || 'klienci.csv', modifiedAt: file.lastModified ? new Date(file.lastModified).toISOString() : '' } }; connectionError = ''; persist(); render();
+      if (selected && $('drawer').hidden === false && !actionDirty() && !$('editDialog').open) {
+        if (byId(selected)) openClient(selected, true); else closeDrawer(true);
+      }
+      toast('Lista zaktualizowana z pliku CSV.');
+    } catch (error) {
+      connected = false; connectionError = 'Połączenie z CSV przerwane. Ostatnie dane są zachowane. Kliknij Połącz CSV, aby wznowić synchronizację.';
+      connectionUI();
+    }
+  }
+
+  $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('');
+  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+  $('addClient').onclick = () => openForm();
+  $('clientsContent').addEventListener('click', event => {
+    const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
+    const call = event.target.closest('[data-call]'); if (call) { registerPhone(call.dataset.call); return; }
+    if (event.target.closest('a[href]')) return;
+    const item = event.target.closest('[data-client]'); if (item) { openClient(item.dataset.client); return; }
+    if (event.target.closest('[data-import-csv]')) $('importButton').click();
+    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter']) $(id).value = ''; render(); }
+  });
+  $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
+  $('drawer').addEventListener('click', async event => {
+    const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
+    const call = event.target.closest('[data-call]'); if (call) { await registerPhone(call.dataset.call); return; }
+    if (event.target.closest('[data-close-drawer]')) closeDrawer();
+    if (event.target.closest('[data-edit-client]')) openForm(byId(selected));
+    const navigation = event.target.closest('[data-navigate]'); if (navigation) navigateCompany(Number(navigation.dataset.navigate));
+    if (event.target.closest('#saveActions')) {
+      const button = $('saveActions'), id = selected; button.disabled = true;
+      const patch = {}, mapping = { actionNext: 'Nastepny krok', actionDue: 'Termin', actionNotes: 'Notatki', actionConsent: 'Zgoda data i zakres' };
+      for (const [field, key] of Object.entries(mapping)) { const value = $(field).value.trim(); if (value !== (actionOriginal[key] || '')) patch[key] = value; }
+      try { await saveChange(id, patch, actionOriginal); if (selected === id) openClient(id, true, true); toast('Zapisano działania i notatki.'); }
+      catch (error) { toast(error.message, true); button.disabled = false; }
+    }
+  });
+  $('statusForm').addEventListener('submit', submitStatus);
+  for (const id of ['closeStatus', 'cancelStatus']) $(id).onclick = () => $('statusDialog').close();
+  $('statusDialog').addEventListener('close', () => { statusOriginal = null; });
+  document.addEventListener('crm:beforetab', event => { if (busy || githubBusy) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
+  $('clientForm').addEventListener('submit', submitForm);
+  function closeForm() {
+    const changed = Object.keys(changedFields(editOriginal, new FormData($('clientForm')))).length;
+    const meaningful = editOriginal ? changed : [...new FormData($('clientForm'))].some(([key, value]) => !['stage', 'priority'].includes(key) && value.trim());
+    if (meaningful && !ask('Zamknąć formularz bez zapisywania zmian?')) return;
+    $('editDialog').close(); editOriginal = null;
+  }
+  $('closeForm').onclick = closeForm; $('cancelForm').onclick = closeForm;
+  $('editDialog').addEventListener('cancel', event => { event.preventDefault(); closeForm(); });
+  $('editDialog').addEventListener('close', () => { editOriginal = null; });
+  $('connectButton').onclick = openConnection;
+  $('closeConnect').onclick = () => $('connectDialog').close(); $('chooseCSV').onclick = chooseCSV; $('disconnectButton').onclick = disconnect;
+  $('exportButton').onclick = () => {
+    const meta = local.meta || C.fileMeta(records);
+    download('klienci-' + today() + '.csv', C.csvText(meta.at ? C.stampFile(records, meta.at, meta.by) : records, headers));
+    toast('Pobrano pełny CSV z datą edycji, statusami i historią telefonów.');
+  };
+  $('importButton').onclick = () => { $('importFile').value = ''; $('importFile').click(); };
+  $('importFile').addEventListener('change', event => importCSV(event.target.files[0]));
+  $('companiesPanel').addEventListener('dragover', event => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); $('companiesPanel').classList.add('dragover'); } });
+  $('companiesPanel').addEventListener('dragleave', event => { if (!event.relatedTarget || !$('companiesPanel').contains(event.relatedTarget)) $('companiesPanel').classList.remove('dragover'); });
+  $('companiesPanel').addEventListener('drop', event => { event.preventDefault(); $('companiesPanel').classList.remove('dragover'); importCSV(event.dataTransfer.files[0]); });
+  $('githubMode').onclick = () => switchConnectionMode('github'); $('fileMode').onclick = () => switchConnectionMode('file');
+  $('connectGitHub').onclick = connectGitHub;
+  $('identityButton').onclick = openIdentity;
+  for (const profile of ['T', 'K']) $('profile' + profile).onclick = () => {
+    authorName = profile;
+    const resolve = identityResolve; identityResolve = null;
+    $('identityDialog').close(); resolve?.(profile); connectionUI();
+  };
+  $('identityDialog').addEventListener('cancel', event => { event.preventDefault(); });
+  document.addEventListener('keydown', event => {
+    const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
+    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
+    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open) closeDrawer();
+    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
+
+  });
+  window.addEventListener('beforeunload', event => {
+    if (busy || githubBusy || actionDirty() || $('editDialog').open) { event.preventDefault(); event.returnValue = ''; }
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
+  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); });
+  render(); restoreHandle(); autoLoadCSV(); openIdentity(); setInterval(pollFile, 3000);
+})();
+</script>
+    <script>/* Appearance and an independent map view. Does not read or modify company records. */
+(function (root) {
+  'use strict';
+  if (typeof document === 'undefined' || !document.getElementById('companiesPanel')) return;
+  const $ = id => document.getElementById(id), t = I18n.t;
+  let theme = 'light', mainTab = 'companies', mapLoaded = false;
+  // Preserve existing theme preferences stored by earlier versions.
+  try { theme = localStorage.getItem('atlas.theme') === 'dark' ? 'dark' : 'light'; } catch {}
+  function appearance() {
+    document.documentElement.dataset.theme = theme; document.documentElement.style.colorScheme = theme;
+    const label = t(theme === 'dark' ? 'Włącz tryb jasny' : 'Włącz tryb ciemny');
+    $('themeToggle').setAttribute('aria-label', label); $('themeToggle').title = label;
+    $('themeToggle').innerHTML = '<svg aria-hidden="true"><use href="#i-' + (theme === 'dark' ? 'sun' : 'moon') + '"/></svg>';
+    $('languageSelect').value = I18n.language();
+  }
+  function updateMapLabels() { $('mapFrame').title = t('Interaktywna mapa okolicy'); }
+  function loadMap() {
+    $('mapLoading').hidden = false;
+    $('mapFrame').src = 'https://www.openstreetmap.org/export/embed.html?bbox=18.583%2C54.236%2C18.687%2C54.290&layer=mapnik';
+    mapLoaded = true; updateMapLabels();
+  }
+  function showTab(value, focus = false) {
+    const next = value === 'map' ? 'map' : 'companies';
+    const event = new CustomEvent('crm:beforetab', { detail: { tab: next }, cancelable: true });
+    if (!document.dispatchEvent(event)) return;
+    mainTab = next;
+    $('companiesPanel').hidden = mainTab !== 'companies'; $('mapPanel').hidden = mainTab !== 'map';
+    document.querySelectorAll('[data-main-tab]').forEach(button => {
+      const active = button.dataset.mainTab === mainTab;
+      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
+      if (active && focus) button.focus();
+    });
+    try { history.replaceState(null, '', '#' + mainTab); } catch {}
+    if (mainTab === 'map' && !mapLoaded) loadMap();
+  }
+  $('themeToggle').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('atlas.theme', theme); } catch {} appearance(); });
+  $('languageSelect').addEventListener('change', () => I18n.setLanguage($('languageSelect').value));
+  document.querySelectorAll('[data-main-tab]').forEach(button => {
+    button.addEventListener('click', () => showTab(button.dataset.mainTab));
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault(); showTab(event.key === 'Home' ? 'map' : event.key === 'End' ? 'companies' : mainTab === 'companies' ? 'map' : 'companies', true);
+    });
+  });
+  $('mapFrame').addEventListener('load', () => { if (mapLoaded) $('mapLoading').hidden = true; });
+  document.addEventListener('crm:language', () => { appearance(); updateMapLabels(); });
+  root.addEventListener('hashchange', () => showTab(root.location.hash === '#map' ? 'map' : 'companies'));
+  appearance(); showTab(root.location.hash === '#map' ? 'map' : 'companies');
+})(globalThis);
+</script>
+  </body>
+</html>
