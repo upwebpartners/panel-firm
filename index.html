@@ -650,11 +650,6 @@ main {
   box-shadow:var(--shadow);
   margin-bottom:12px;
 }
-.company-contact .contact-lines {
-  flex-direction:row;
-  flex-wrap:wrap;
-  gap:6px 18px;
-}
 .company-contact>.muted {
   font-size:11px;
   text-align:right;
@@ -695,17 +690,6 @@ main {
   font-size:12px;
   line-height:1.7;
   margin:3px 0;
-}
-.action-controls {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  margin-bottom:10px;
-}
-.action-controls .status-trigger {
-  flex:1;
-  min-height:34px;
-  padding:6px 10px;
 }
 .last-call {
   font-size:12px;
@@ -1109,13 +1093,36 @@ dialog::backdrop {
   }
 }
 
-.profile-dialog { width: 340px; }
-.profile-choices { display: flex; gap: 16px; padding: 24px; }
-.profile-choice { flex: 1; padding: 18px; font-size: 32px; font-weight: bold; border: 1px solid var(--border); border-radius: 4px; box-shadow: var(--shadow); }
-.profile-choice:hover, .profile-choice:focus-visible { background: var(--accent-bg); border-color: var(--accent); }
-.profile-hint { padding: 0 24px 20px; font-size: 12px; color: var(--muted); }
 .advanced-fields { border-top: 1px solid var(--border); }
 .advanced-fields > summary { padding: 12px 18px; color: var(--muted); font-size: 13px; }
+
+.profile-control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.appearance-controls .profile-control select { width: 76px; color: var(--text); }
+.call-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.call-actions, .phone-numbers, .phone-number { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.phone-contact { min-width: 0; }
+.phone-link { font-weight: 700; text-decoration: none; white-space: nowrap; }
+.phone-link:hover { text-decoration: underline; }
+.prominent .phone-link { font-size: 24px; line-height: 1.3; }
+.phone-context { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
+.copy-phone { font-size: 11px; min-height: 26px; padding: 3px 7px; }
+.company-grid { grid-template-columns: minmax(0, 1fr) minmax(360px, 37%); }
+.company-contact { flex-wrap: wrap; gap: 6px 16px; font-size: 12px; }
+.company-contact > .muted { text-align: left; max-width: none; }
+.analysis-details { grid-column: 1/-1; }
+.analysis-details > summary { cursor: pointer; padding: 10px 0; color: var(--muted); font-size: 12px; }
+.last-call { margin-bottom: 10px; }
+@media(max-width:760px) {
+  .main-tab { padding: 0 10px; }
+  .appearance-controls { gap: 5px; }
+  .profile-control > span { display: none; }
+  .appearance-controls .profile-control select { width: 67px; }
+  .call-bar { flex-wrap: wrap; padding: 8px; gap: 8px; }
+  .prominent .phone-link { font-size: 20px; }
+  .call-actions { margin-left: auto; }
+  .company-grid { display: flex; flex-direction: column; }
+  .company-actions { order: -1; border-bottom: 1px solid var(--border); }
+}
 </style>
   </head>
   <body data-csv-url="klienci.csv">
@@ -1168,6 +1175,9 @@ dialog::backdrop {
         </button>
       </nav>
       <div class="appearance-controls">
+        <label class="profile-control"><span>Pracuje</span><select id="profileSelect" aria-label="Kto pracuje?">
+          <option value="">Profil</option><option value="T">T</option><option value="K">K</option>
+        </select></label>
         <select id="languageSelect" aria-label="Język interfejsu">
           <option value="pl">
             PL
@@ -1239,9 +1249,6 @@ dialog::backdrop {
               <div>
                 <button id="connectButton">
                   Wspólna baza GitHub
-                </button>
-                <button id="identityButton">
-                  Ustaw swój podpis
                 </button>
               </div>
             </details>
@@ -1434,14 +1441,6 @@ dialog::backdrop {
           Wybierz klienci.csv
         </button>
       </div>
-    </dialog>
-    <dialog id="identityDialog" class="profile-dialog">
-      <div class="dialog-heading"><h2>Kto teraz pracuje?</h2></div>
-      <div class="profile-choices">
-        <button type="button" id="profileT" class="profile-choice">T</button>
-        <button type="button" id="profileK" class="profile-choice">K</button>
-      </div>
-      <p class="profile-hint">Wybierz swój profil. Agenci podpisują się jako AI.</p>
     </dialog>
     <input type="file" accept=".csv,text/csv" id="importFile" hidden>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
@@ -1666,7 +1665,18 @@ dialog::backdrop {
   "Dodał": "Added by",
   "Nie zapisano": "Not recorded",
   "Więcej informacji (opcjonalnie)": "More details (optional)",
-  "Wybierz swój profil. Agenci podpisują się jako AI.": "Choose your profile. Agents sign as AI."
+  "Wybierz swój profil. Agenci podpisują się jako AI.": "Choose your profile. Agents sign as AI.",
+  "Pracuje": "Working as",
+  "Kto pracuje?": "Who is working?",
+  "Brak numeru telefonu": "No phone number",
+  "Kopiuj": "Copy",
+  "Otwórz stronę": "Open website",
+  "Źródła i pozostałe dane": "Sources and other details",
+  "Notatki z rozmowy": "Call notes",
+  "Zapisz": "Save",
+  "Skopiowano numer telefonu.": "Phone number copied.",
+  "Nie udało się skopiować. Zaznacz numer i skopiuj go ręcznie.": "Could not copy. Select the number and copy it manually.",
+  "Wybierz T lub K w nagłówku, aby zapisać zmianę.": "Choose T or K in the header before saving changes."
 };
 
 /* Translate interface labels only. Company names, analyses and editable values stay intact. */
@@ -1723,7 +1733,7 @@ dialog::backdrop {
   }
   function capture(rootNode, all = false) {
     if (!rootNode || typeof document === 'undefined') return;
-    const elements = all ? [rootNode] : [...rootNode.querySelectorAll('label,.form-divider,.advanced-fields summary,button:not(#identityButton),input[placeholder],textarea[placeholder],select option,.empty-state p,.form-error,#toast')];
+    const elements = all ? [rootNode] : [...rootNode.querySelectorAll('label,.form-divider,.advanced-fields summary,button,input[placeholder],textarea[placeholder],select option,.empty-state p,.form-error,#toast')];
     for (const element of elements) {
       const walker = document.createTreeWalker(element, 4);
       let node;
@@ -2018,8 +2028,9 @@ dialog::backdrop {
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
   let browseIds = [], statusOriginal = null;
   let toastTimer = null;
-  let github = null, githubBusy = false, lastGitHubPoll = 0, identityResolve = null;
-  let authorName = ''; // Choose T or K on each page load; AI signs CSV directly.
+  let github = null, githubBusy = false, lastGitHubPoll = 0;
+  let authorName = '';
+  try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
   let draftId = null;
   const pendingCalls = new Map();
   const callsInProgress = new Set();
@@ -2035,14 +2046,15 @@ dialog::backdrop {
 
   function dateTime(value) { const date = new Date(value); return value && Number.isFinite(+date) ? date.toLocaleString(I18n.locale(), { dateStyle: 'short', timeStyle: 'short' }) : t('brak informacji'); }
   function displayCallHistory(record) { try { return C.callHistory(record); } catch { return []; } }
-  function openIdentity() {
-    if ($('identityDialog').open) return new Promise(resolve => { identityResolve = resolve; });
-    $('identityDialog').showModal(); $('profileT').focus();
-    return new Promise(resolve => { identityResolve = resolve; });
+  function requireProfile() {
+    if (['T', 'K'].includes(authorName)) return true;
+    $('profileSelect').focus();
+    toast('Wybierz T lub K w nagłówku, aby zapisać zmianę.', true);
+    return false;
   }
   async function ensureAuthor() {
-    if (['T', 'K'].includes(authorName)) return authorName;
-    const name = await openIdentity(); if (!name) throw new Error('Ustaw podpis autora, żeby zapisać zmianę.'); return name;
+    if (!requireProfile()) throw new Error('Wybierz T lub K w nagłówku, aby zapisać zmianę.');
+    return authorName;
   }
   function updateFileInfo() {
     const meta = hasPending() && local.meta ? local.meta : C.fileMeta(records);
@@ -2051,8 +2063,6 @@ dialog::backdrop {
     const fileName = github ? github.config.path : local.info?.name || 'klienci.csv';
     const source = github && connected ? 'Wspólna baza GitHub' : connected ? 'Połączony plik CSV' : 'Kopia w tej przeglądarce';
     $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '') + (hasPending() ? '<span class="unsaved-file">' + esc(t('Zmiany lokalne — zapisz lub eksportuj CSV')) + '</span>' : '');
-    $('identityButton').textContent = authorName ? t('Profil') + ': ' + authorName : t('Wybierz profil');
-    $('identityButton').title = t('Wybierz profil');
   }
   function adoptShared(result, info = {}) {
     base = result.records.map(r => ({ ...r })); records = [...base]; headers = result.headers;
@@ -2222,18 +2232,34 @@ dialog::backdrop {
     } else renderTable(visible);
     I18n.bindUI(document);
   }
+  function phoneHTML(record, prominent = false) {
+    const phone = record.Telefon || '';
+    if (!phone) return `<span class="muted">${esc(t('Brak numeru telefonu'))}</span>`;
+    const digitCount = phone.replace(/\D/g, '').length;
+    const simple = /^\+?[\d\s()-]{7,25}$/.test(phone) && digitCount <= 15;
+    const numbers = simple ? [phone] : [...phone.matchAll(/(?<![\d+])\+?\d[\d\s().-]*\d(?!\d)/g)].map(match => match[0]).filter(number => {
+      const count = number.replace(/\D/g, '').length;
+      return count === 9 || (number.startsWith('+') && count >= 7 && count <= 15) || (count === 11 && number.startsWith('48'));
+    });
+    const unique = [...new Set(numbers)];
+    return `<div class="phone-contact${prominent ? ' prominent' : ''}">
+      <div class="phone-numbers">${unique.map(number => {
+        const dial = number.replace(/[^+\d]/g, '');
+        return `<span class="phone-number"><a class="phone-link" href="tel:${esc(dial)}">${esc(number)}</a>${prominent ? `<button type="button" class="button copy-phone" data-copy-phone="${esc(dial)}">${esc(t('Kopiuj'))}</button>` : ''}</span>`;
+      }).join('')}</div>
+      ${!simple ? `<span class="phone-context">${esc(phone)}</span>` : ''}
+    </div>`;
+  }
+
   function contactHTML(record) {
     const phone = record.Telefon || '';
     const email = record.Email || '';
     const url = C.safeURL(record.Strona);
-    const phoneLink = /^\+?[\d\s()-]{7,25}$/.test(phone)
-      ? `<a href="tel:${esc(phone.replace(/[^+\d]/g, ''))}">${esc(phone)}</a>`
-      : esc(phone);
     const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
       : esc(email);
     const parts = [
-      phone ? `<span>${phoneLink}</span>` : '',
+      phone ? phoneHTML(record) : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
       !phone && !email && !url ? '—' : '',
@@ -2315,18 +2341,24 @@ dialog::backdrop {
           <button class="button" data-edit-client>${esc(t('Edytuj firmę'))}</button>
         </div>
       </div>
+      <div class="call-bar">
+        ${phoneHTML(record, true)}
+        <div class="call-actions">${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+      </div>
       <div class="company-grid">
         <div class="company-analysis">
           <div class="company-contact">
-            ${contactHTML(record)}
+            ${record.Strona && C.safeURL(record.Strona) ? `<a href="${esc(C.safeURL(record.Strona))}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}
+            ${record.Email ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.Email) ? `<a href="mailto:${esc(record.Email)}">${esc(record.Email)}</a>` : `<span>${esc(record.Email)}</span>`) : ''}
             <span class="muted">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}${record.Dodano ? ' · ' + esc(dateTime(record.Dodano)) : ''}</span>
             <span class="muted">${esc(t('Ostatnia edycja firmy'))}: ${esc(record.Modyfikacja ? dateTime(record.Modyfikacja) : '—')}${record.Edytowal ? ' · ' + esc(record.Edytowal) : ''}</span>
           </div>
           <div class="analysis-grid">
             ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'])}
+            ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
             ${detailBlock('Proponowane usprawnienie', record['Proponowana poprawa'])}
             ${detailBlock('Czy potrzebna jest nowa strona?', record['Ocena potrzeby zmiany'])}
-            ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
+            <details class="analysis-details"><summary>${esc(t('Źródła i pozostałe dane'))}</summary><div class="analysis-grid">
             <section class="detail-block wide">
               <h3>${esc(t('Źródła'))}${record['Data sprawdzenia zrodel'] ? ' · ' + esc(prettyDate(record['Data sprawdzenia zrodel'])) : ''}</h3>
               ${sources.map(url => `<a class="source-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)} ↗</a>`).join('')}
@@ -2335,17 +2367,19 @@ dialog::backdrop {
             ${record['Zrodlo kontaktu'] ? detailBlock('Źródło kontaktu', record['Zrodlo kontaktu']) : ''}
             ${record.Status ? detailBlock('Stan weryfikacji / kontaktu', record.Status) : ''}
             ${record.Wycena ? detailBlock('Wycena', record.Wycena) : ''}
+            </div></details>
           </div>
         </div>
         <div class="company-actions">
-          <div class="action-controls">
-            ${statusButton(record)}
-            <button type="button" class="button" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button>
-          </div>
           <div class="last-call">
             <strong>${esc(t('Ostatni zapisany telefon'))}:</strong>
             ${esc(record.Dzwoniono ? dateTime(record.Dzwoniono) + ' · ' + (record.Dzwonil || '') : t('Jeszcze nie dzwoniono'))}
           </div>
+          <div class="drawer-field">
+            <label for="actionNotes">${esc(t('Notatki z rozmowy'))}</label>
+            <textarea id="actionNotes" rows="8">${esc(record.Notatki)}</textarea>
+          </div>
+          <button type="button" class="button primary save-actions" id="saveActions">${esc(t('Zapisz'))}</button>
           <div class="drawer-field">
             <label for="actionNext">${esc(t('Następny krok'))}</label>
             <textarea id="actionNext" rows="4">${esc(record['Nastepny krok'])}</textarea>
@@ -2354,11 +2388,6 @@ dialog::backdrop {
             <label for="actionDue">${esc(t('Termin działania'))}</label>
             <input id="actionDue" type="date" value="${esc(record.Termin)}">
           </div>
-          <div class="drawer-field">
-            <label for="actionNotes">${esc(t('Twoje notatki'))}</label>
-            <textarea id="actionNotes" rows="8">${esc(record.Notatki)}</textarea>
-          </div>
-          <button type="button" class="button primary save-actions" id="saveActions">${esc(t('Zapisz działania'))}</button>
           <details class="secondary-fields">
             <summary>${esc(t('Historia i uzgodnienia'))}</summary>
             <div class="drawer-field">
@@ -2392,7 +2421,7 @@ dialog::backdrop {
   }
   const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', Oferta: 'Firma na etapie oferty', 'W realizacji': 'Trwa realizacja', Pozyskany: 'Potwierdzona współpraca', Odrzucony: 'Nie kontynuujemy kontaktu', Archiwum: 'Ukryj z głównej listy' };
   function openStatus(id) {
-    const record = byId(id); if (!record || busy) return; statusOriginal = { ...record };
+    const record = byId(id); if (!record || busy || !requireProfile()) return; statusOriginal = { ...record };
     $('statusCompanyName').textContent = record.Firma; $('statusError').hidden = true;
     $('statusOptions').innerHTML = C.stages.map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
     I18n.bindUI($('statusDialog')); $('statusDialog').showModal();
@@ -2423,7 +2452,7 @@ dialog::backdrop {
     ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true]
   ];
   function openForm(record = null) {
-    if (selected && !confirmLeavingActions()) return;
+    if (!requireProfile() || (selected && !confirmLeavingActions())) return;
     editOriginal = record ? { ...record } : null; draftId = record?.Id || C.uid();
     $('formTitle').textContent = I18n.message(record ? 'Edytuj dane firmy' : 'Dodaj nową firmę');
     $('submitForm').innerHTML = record ? 'Zapisz zmiany' + icon('check') : 'Dodaj klienta' + icon('plus');
@@ -2605,6 +2634,12 @@ dialog::backdrop {
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const copy = event.target.closest('[data-copy-phone]');
+    if (copy) {
+      try { await navigator.clipboard.writeText(copy.dataset.copyPhone); toast('Skopiowano numer telefonu.'); }
+      catch { toast('Nie udało się skopiować. Zaznacz numer i skopiuj go ręcznie.', true); }
+      return;
+    }
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
     const call = event.target.closest('[data-call]'); if (call) { await registerPhone(call.dataset.call); return; }
     if (event.target.closest('[data-close-drawer]')) closeDrawer();
@@ -2646,18 +2681,17 @@ dialog::backdrop {
   $('companiesPanel').addEventListener('drop', event => { event.preventDefault(); $('companiesPanel').classList.remove('dragover'); importCSV(event.dataTransfer.files[0]); });
   $('githubMode').onclick = () => switchConnectionMode('github'); $('fileMode').onclick = () => switchConnectionMode('file');
   $('connectGitHub').onclick = connectGitHub;
-  $('identityButton').onclick = openIdentity;
-  for (const profile of ['T', 'K']) $('profile' + profile).onclick = () => {
-    authorName = profile;
-    const resolve = identityResolve; identityResolve = null;
-    $('identityDialog').close(); resolve?.(profile); connectionUI();
-  };
-  $('identityDialog').addEventListener('cancel', event => { event.preventDefault(); });
+  $('profileSelect').value = authorName;
+  $('profileSelect').addEventListener('change', () => {
+    if (busy || githubBusy || callsInProgress.size) { $('profileSelect').value = authorName; return; }
+    authorName = ['T', 'K'].includes($('profileSelect').value) ? $('profileSelect').value : '';
+    try { localStorage.setItem('pracownia.author', authorName); } catch {}
+  });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
-    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
-    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open) closeDrawer();
-    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('identityDialog').open && !$('statusDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
+    if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
+    if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open) closeDrawer();
+    if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }
 
   });
   window.addEventListener('beforeunload', event => {
@@ -2665,7 +2699,7 @@ dialog::backdrop {
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
   document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); });
-  render(); restoreHandle(); autoLoadCSV(); openIdentity(); setInterval(pollFile, 3000);
+  render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();
 </script>
     <script>/* Appearance and an independent map view. Does not read or modify company records. */
