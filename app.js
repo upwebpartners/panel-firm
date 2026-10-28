@@ -430,10 +430,6 @@
         <td>${contactHTML(record)}</td>
         <td><span class="company-notes" data-content>${esc(record.Notatki || '—')}</span></td>
         <td>
-          <span class="cell-text">${esc(record['Nastepny krok'] || '—')}</span>
-          ${record.Termin ? `<span class="due${record.Termin < today() ? ' overdue' : ''}">${esc(prettyDate(record.Termin))}</span>` : ''}
-        </td>
-        <td>
           <button class="button call-button" type="button" data-call="${esc(record.Id)}">${esc(t('Dzwoniliśmy'))}</button>
           ${record.Dzwoniono
             ? `<small class="called-label">${esc(dateTime(record.Dzwoniono))}<br>${esc(record.Dzwonil || '')}</small>`
@@ -450,7 +446,6 @@
           <th>${esc(t('Priorytet'))}</th>
           <th>${esc(t('Kontakt'))}</th>
           <th>${esc(t('Notatki'))}</th>
-          <th>${esc(t('Następny krok'))}</th>
           <th>${esc(t('Wykonany telefon'))}</th>
         </tr></thead>
         <tbody>${rows}</tbody>

@@ -373,7 +373,7 @@ main {
   border-spacing:0;
   table-layout:fixed;
   width:100%;
-  min-width:1180px;
+  min-width:1100px;
   font-size:13px;
 }
 .client-table th {
@@ -403,9 +403,8 @@ main {
   width:auto;
 }
 .client-table th:nth-child(6) {
-  width:150px;
+  width:140px;
 }
-.client-table th:nth-child(7) { width:140px; }
 .client-table td {
   padding:11px 10px;
   vertical-align:top;
@@ -460,13 +459,6 @@ main {
   .next-step-fields .drawer-field:last-child { display:flex; align-items:center; gap:10px; }
   .next-step-fields .drawer-field:last-child label { margin:0; }
   .next-step-fields input { width:160px; max-width:100%; }
-}
-.cell-text {
-  display:-webkit-box;
-  -webkit-line-clamp:3;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-  line-height:1.5;
 }
 .company-notes {
   display:block;
@@ -548,15 +540,6 @@ main {
   color:var(--muted);
   font-size:11px;
   line-height:1.5;
-}
-.due {
-  display:block;
-  font-size:12px;
-  color:var(--muted);
-  margin-top:5px;
-}
-.overdue {
-  color:var(--danger);
 }
 .list-footer {
   display:flex;
