@@ -2236,7 +2236,7 @@ dialog::backdrop {
     const phone = record.Telefon || '';
     if (!phone) return `<span class="muted">${esc(t('Brak numeru telefonu'))}</span>`;
     const digitCount = phone.replace(/\D/g, '').length;
-    const simple = /^\+?[\d\s()-]{7,25}$/.test(phone) && digitCount <= 15;
+    const simple = /^\+?[\d\s()-]{7,25}$/.test(phone) && digitCount >= 7 && digitCount <= 15;
     const numbers = simple ? [phone] : [...phone.matchAll(/(?<![\d+])\+?\d[\d\s().-]*\d(?!\d)/g)].map(match => match[0]).filter(number => {
       const count = number.replace(/\D/g, '').length;
       return count === 9 || (number.startsWith('+') && count >= 7 && count <= 15) || (count === 11 && number.startsWith('48'));
