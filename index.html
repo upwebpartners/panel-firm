@@ -1119,6 +1119,11 @@ dialog::backdrop {
   .map-place { top: auto; bottom: 62px; max-height: 48%; right: 8px; padding: 10px; }
   .map-status { left: 8px; font-size: 11px; }
 }
+
+.gmp-attribution { display: inline-block; font: normal 400 12px Arial,sans-serif; letter-spacing: normal; white-space: nowrap; color: #5e5e5e; }
+[data-theme=dark] .gmp-attribution { color: #fff; }
+.google-preview { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); background: var(--panel); }
+.google-preview p { margin: 6px 0; font-size: 12px; }
 </style>
   </head>
   <body data-csv-url="klienci.csv">
@@ -1741,7 +1746,11 @@ dialog::backdrop {
   "Nie udało się wczytać Google Maps. Sprawdź internet.": "Could not load Google Maps. Check your connection.",
   "Google Maps nie odpowiedział. Sprawdź internet i spróbuj ponownie.": "Google Maps did not respond. Check your connection and retry.",
   "Google odrzucił klucz. Sprawdź usługi, rozliczenia i ograniczenia domeny.": "Google rejected the key. Check enabled services, billing and domain restrictions.",
-  "Filtry obejmują wczytane znaczniki. Przy filtrowaniu bazowe wizytówki Google są ukryte.": "Filters apply to loaded markers. Native Google POIs are hidden while filtering."
+  "Filtry obejmują wczytane znaczniki. Przy filtrowaniu bazowe wizytówki Google są ukryte.": "Filters apply to loaded markers. Native Google POIs are hidden while filtering.",
+  "Do weryfikacji": "To verify",
+  "Podgląd — numer nie jest zapisany w CSV": "Preview — phone is not saved in CSV",
+  "Dane Google": "Google details",
+  "Podgląd Google. Własne dane uzupełnij z niezależnego źródła.": "Google preview. Fill in your own data using an independent source."
 };
 
 /* Translate interface labels only. Company names, analyses and editable values stay intact. */
@@ -2442,6 +2451,11 @@ dialog::backdrop {
 
   function openClient(id, preserve = false, resetDraft = false) {
     const record = byId(id); if (!record) return;
+    const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    const pendingName = record.Google_place_id && record.Firma === 'Do weryfikacji — ' + record.Google_place_id;
+    const heading = pendingName ? preview?.name || t('Do weryfikacji') : record.Firma;
+    const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
+
     const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
     const same = selected === id, draft = same && preserve && !resetDraft && actionDirty() ? { next: $('actionNext').value, due: $('actionDue').value, notes: $('actionNotes').value, consent: $('actionConsent').value, original: actionOriginal } : null;
     if (!selected || !preserve) { browseIds = filteredRecords().map(r => r.Id); returnFocus = document.activeElement; }
@@ -2453,7 +2467,8 @@ dialog::backdrop {
       <div class="company-toolbar">
         <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
         <div class="company-heading">
-          <h2 id="drawerTitle">${esc(record.Firma)}</h2>
+          <h2 id="drawerTitle" data-content>${esc(heading)}</h2>
+          ${pendingName && preview?.name ? googleAttribution : ''}
           <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
         </div>
         <div class="company-pagination">
@@ -2464,11 +2479,12 @@ dialog::backdrop {
         </div>
       </div>
       <div class="call-bar">
-        ${phoneHTML(record, true)}
-        <div class="call-actions"><button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
+        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusButton(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
+          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
           <div class="company-contact">
             ${record.Strona && C.safeURL(record.Strona) ? `<a href="${esc(C.safeURL(record.Strona))}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}
             ${record.Email ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.Email) ? `<a href="mailto:${esc(record.Email)}">${esc(record.Email)}</a>` : `<span>${esc(record.Email)}</span>`) : ''}
@@ -2797,6 +2813,7 @@ dialog::backdrop {
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const preview = event.target.closest('[data-google-preview]'); if (preview) { window.GoogleMapSession?.open(preview.dataset.googlePreview); return; }
     const exclude = event.target.closest('[data-exclude]'); if (exclude) { openExclude(exclude.dataset.exclude); return; }
     const copy = event.target.closest('[data-copy-phone]');
     if (copy) {
@@ -2916,7 +2933,7 @@ dialog::backdrop {
   'use strict';
   if (typeof document === 'undefined' || !document.getElementById('businessMap')) return;
   const $ = id => document.getElementById(id), C = root.CRMCore, M = root.MapCore, t = root.I18n.t;
-  let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false;
+  let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false, waitingPlace = null;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
   const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
   const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
@@ -2954,6 +2971,7 @@ dialog::backdrop {
     map.addListener('click', event => { if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
     status('Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.');
     draw();
+    if (waitingPlace) { const id = waitingPlace; waitingPlace = null; await selectPlace(id); }
   }
   function draw() {
     if (!map) return;
@@ -3088,6 +3106,14 @@ dialog::backdrop {
     } catch (error) { status(error.message); }
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   });
+  root.GoogleMapSession = {
+    get: id => details.has(id) ? { ...places.get(id) } : null,
+    open: id => {
+      if (!root.PanelUI.showTab('map')) return;
+      if (!map) { waitingPlace = id; if (!$('googleDialog').open) settings(); }
+      else selectPlace(id);
+    },
+  };
   document.addEventListener('crm:tab', event => {
     if (event.detail.tab !== 'map') return;
     if (!map) settings(); else root.google.maps.event.trigger(map, 'resize');
