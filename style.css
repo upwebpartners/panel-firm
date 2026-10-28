@@ -388,7 +388,7 @@ main {
   box-shadow:0 1px 0 var(--border);
 }
 .client-table th:nth-child(1) {
-  width:190px;
+  width:250px;
 }
 .client-table th:nth-child(2) {
   width:172px;
