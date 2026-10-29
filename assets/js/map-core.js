@@ -37,7 +37,7 @@
   }
   function state(record) {
     if (!record) return 'nowa';
-    if (record.Mapa_status === 'wykreslona' || ['Odrzucony', 'Archiwum'].includes(record.Etap)) return 'wykreslona';
+    if (record.Mapa_status === 'wykreslona') return 'wykreslona';
     return record.Mapa_status === 'przejrzana' ? 'przejrzana' : 'dodana';
   }
   function decision(record, value, author, reason = '', at = new Date().toISOString()) {
@@ -46,14 +46,13 @@
     if (value === 'przejrzana' && record && (state(record) !== 'przejrzana' || record.Mapa_potwierdzono)) return {};
     return { Mapa_status: value, Mapa_edytowal: author, Mapa_edytowano: at,
       ...(value === 'przejrzana' ? { Mapa_potwierdzono: at } : {}),
-      ...(value === 'wykreslona' ? { Etap: 'Odrzucony', Powod_wykreslenia: reason,
-        Odrzucono: record?.Etap === 'Odrzucony' ? record.Odrzucono || record.Mapa_edytowano || '' : at } : {}),
-      ...(value === 'dodana' && (!record || state(record) !== 'dodana') ? { Etap: 'Do sprawdzenia' } : {}) };
+      ...(value === 'wykreslona' ? { Powod_wykreslenia: reason } : {}),
+      ...(value === 'dodana' ? { Powod_wykreslenia: '' } : {}) };
   }
   function draft(entity) {
     // Google values are separate from independently entered company data.
     return { Id: C.uid(), Firma: 'Do weryfikacji — ' + entity.id, Google_place_id: entity.id,
-      ...detailsPatch(entity), Etap: 'Do sprawdzenia', Notatki: '', Status: 'Dane z Google Maps — niepotwierdzone w innym źródle' };
+      ...detailsPatch(entity), Etap: 'Nowy', Notatki: '', Status: 'Dane z Google Maps — niepotwierdzone w innym źródle' };
   }
   root.MapCore = { decisionFields, googleFields, storedDetails, detailsPatch, coordinates, fromGoogle, placeURL, matchRecord, state, decision, draft };
 })(globalThis);

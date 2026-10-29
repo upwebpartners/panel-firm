@@ -10,11 +10,17 @@
     scope: 'Zakres weryfikacji', consent: 'Zgoda data i zakres', modified: 'Modyfikacja', id: 'Id',
     editor: 'Edytowal', called: 'Dzwoniono', caller: 'Dzwonil', calls: 'Historia_polaczen'
   };
-  const stages = ['Nowy', 'Do sprawdzenia', 'Rozmowa', 'Oferta', 'W realizacji', 'Pozyskany', 'Odrzucony', 'Archiwum'];
+  const stages = ['Nowy', 'Do sprawdzenia', 'Rozmowa', 'W realizacji', 'Współpraca', 'Odrzucony', 'Archiwum'];
+  const normalizeStage = value => value === 'Oferta' ? 'Rozmowa' : value === 'Pozyskany' ? 'Współpraca' : value;
   const callOutcomes = ['Zainteresowany', 'Do ponownego kontaktu', 'Prosi o ofertę', 'Brak odpowiedzi', 'Brak zainteresowania', 'Inny wynik'];
   const retiredColumns = ['Proponowana poprawa', 'Ocena potrzeby zmiany'];
   const cleanHeaders = headers => headers.filter(key => !retiredColumns.includes(key));
-  const cleanRecord = record => Object.fromEntries(Object.entries(record).filter(([key]) => !retiredColumns.includes(key)));
+  const cleanRecord = record => Object.fromEntries(Object.entries(record).filter(([key]) => !retiredColumns.includes(key)).map(([key, value]) => [key, key === 'Etap' ? normalizeStage(value) : value]));
+  function companyName(record, previewName = '') {
+    const name = String(record.Firma || '').trim();
+    return record.Google_place_id && (!name || name === 'Do weryfikacji — ' + record.Google_place_id)
+      ? previewName || record.Google_nazwa || 'Firma z mapy' : name;
+  }
   const priorities = [{ value: 'wysoki', label: 'LVL 1', description: 'Najważniejszy' }, { value: 'średni', label: 'LVL 2', description: 'Średni priorytet' }, { value: 'niski', label: 'LVL 3', description: 'Najmniej ważny' }];
   function parseCSV(text) {
     text = String(text).replace(/^\uFEFF/, '');
@@ -69,6 +75,7 @@
     return 'firma-' + (hash >>> 0).toString(16);
   }
   function csvText(records, headers = []) {
+    records = records.map(cleanRecord);
     const columns = cleanHeaders([...new Set([...headers, ...records.flatMap(Object.keys), ...extraColumns])]);
     const quote = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     return '\uFEFF' + [columns.map(quote).join(','), ...records.map(r => columns.map(k => quote(r[k])).join(','))].join('\r\n') + '\r\n';
@@ -100,6 +107,7 @@
     return { base: [...originals.values()], patches: pending, added: fresh };
   }
   function sameCompany(left, right) {
+    left = cleanRecord(left); right = cleanRecord(right);
     const ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
     return [...new Set([...Object.keys(left), ...Object.keys(right)])].every(key => ignored.includes(key) || String(left[key] ?? '') === String(right[key] ?? ''));
   }
@@ -111,16 +119,16 @@
       const currentRow = current.get(id);
       if (!currentRow) continue;
       if (reviewed.some(record => sameCompany(record, currentRow))) current.delete(id);
-      else conflicts.push({ id, name: currentRow.Firma, field: 'Usunięcie firmy — wpis zmieniła druga osoba', value: '', removal: true, current: { ...currentRow } });
+      else conflicts.push({ id, name: companyName(currentRow), field: 'Usunięcie firmy — wpis zmieniła druga osoba', value: '', removal: true, current: { ...currentRow } });
     }
     for (const [id, patch] of Object.entries(patches)) {
       if (Object.hasOwn(removed, id)) continue;
       const before = original.get(id); const after = current.get(id);
-      if (!after) { if (before) conflicts.push({ id, name: before.Firma, field: 'Usunięty w pliku', value: '' }); continue; }
+      if (!after) { if (before) conflicts.push({ id, name: companyName(before), field: 'Usunięty w pliku', value: '' }); continue; }
       for (const [key, value] of Object.entries(cleanRecord(patch))) {
         if (callColumns.includes(key) && patch.Historia_polaczen) continue;
         if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
-          conflicts.push({ id, name: after.Firma, field: key, value: after[key] });
+          conflicts.push({ id, name: companyName(after), field: key, value: after[key] });
         }
         after[key] = value;
       }
@@ -130,12 +138,12 @@
       if (Object.hasOwn(removed, record.Id)) continue;
       if (!current.has(record.Id)) {
         const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
-        if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
+        if (duplicate) conflicts.push({ id: record.Id, name: companyName(record), field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
         else current.set(record.Id, { ...record, ...(Object.hasOwn(patches, record.Id) ? patches[record.Id] : {}) });
       } else if (!original.has(record.Id)) {
         const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
         const different = [...new Set([...Object.keys(existing), ...Object.keys(record)])].some(key => !ignored.includes(key) && String(existing[key] || '') !== String(record[key] || ''));
-        if (different) conflicts.push({ id: record.Id, name: record.Firma, field: 'Nowy klient o tym samym Id', value: '' });
+        if (different) conflicts.push({ id: record.Id, name: companyName(record), field: 'Nowy klient o tym samym Id', value: '' });
       }
     }
     return { records: [...current.values()].map(cleanRecord), conflicts };
@@ -256,5 +264,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

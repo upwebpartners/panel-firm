@@ -5,14 +5,19 @@
   const C = CRMCore, F = C.fields, $ = id => document.getElementById(id);
   const t = I18n.t, ask = value => confirm(I18n.message(value));
   const seed = JSON.parse($('initial-data').textContent);
-  seed.records = seed.records.map(r => ({ ...C.cleanRecord(r), Id: r.Id || C.stableId(r), Etap: r.Etap || 'Nowy' }));
+  seed.records = seed.records.map(r => ({ ...C.cleanRecord(r), Id: r.Id || C.stableId(r), Etap: C.normalizeStage(r.Etap || 'Nowy') }));
   seed.headers = C.cleanHeaders(seed.headers);
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const SORT_STORE = 'pracownia.sort';
   const HIDE_REJECTED_STORE = 'pracownia.hide-rejected';
-  let hideRejected = false;
-  try { hideRejected = localStorage.getItem(HIDE_REJECTED_STORE) === 'true'; } catch {}
+  const HIDDEN_STAGES_STORE = 'pracownia.hidden-stages';
+  let hiddenStages = new Set(['Archiwum']);
+  try {
+    const saved = JSON.parse(localStorage.getItem(HIDDEN_STAGES_STORE) || 'null');
+    if (Array.isArray(saved) && saved.every(stage => typeof stage === 'string')) hiddenStages = new Set(saved.map(C.normalizeStage).filter(stage => C.stages.includes(stage)));
+    else if (localStorage.getItem(HIDE_REJECTED_STORE) === 'true') hiddenStages.add('Odrzucony');
+  } catch {}
   const GITHUB_SESSION_STORE = 'pracownia.github.session';
   const SORT_VERSION = 2;
   let sorting = { field: 'added', direction: 'desc' };
@@ -418,7 +423,7 @@
     const pending = pendingCalls.get(id);
     if (pending && history.some(e => e.id === pending.eventId)) { pendingCalls.delete(id); toast('Ten telefon jest już zapisany we wspólnej bazie.'); return; }
     callOriginal = pending?.original || { ...record };
-    $('callCompanyName').textContent = record.Firma;
+    $('callCompanyName').textContent = companyTitle(record).name;
     renderCallOptions(pending?.details.outcome || '');
     $('callNotes').value = pending?.details.notes || '';
     $('callError').hidden = !pending;
@@ -551,8 +556,8 @@
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
     const visible = records.filter(r => {
-      if (hideRejected && r.Etap === 'Odrzucony') return false;
-      if (!stage && r.Etap !== 'Odrzucony' && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
+      if (r.Mapa_status === 'wykreslona' || hiddenStages.has(r.Etap)) return false;
+      if (!stage && r.Mapa_status === 'przejrzana') return false;
       if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
       if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
       if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
@@ -579,10 +584,10 @@
   }
   function render() {
     refreshIndustries(); renderSorting(); connectionUI();
-    $('toggleRejected').textContent = t(hideRejected ? 'Pokaż odrzucone' : 'Ukryj odrzucone');
-    $('toggleRejected').setAttribute('aria-pressed', String(hideRejected));
+    renderHiddenStages();
     const visible = filteredRecords();
-    $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + records.length + ' firm');
+    const total = records.filter(record => record.Mapa_status !== 'wykreslona').length;
+    $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ' firm');
     if (!visible.length) {
       $('clientsContent').innerHTML = '<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>';
     } else renderTable(visible);
@@ -680,7 +685,7 @@
   function openPriority(id) {
     const record = byId(id); if (!record || busy || prioritySaving || priorityInProgress.has(id) || !requireProfile()) return;
     priorityOriginal = { ...record };
-    $('priorityCompanyName').textContent = record.Firma; $('priorityError').hidden = true;
+    $('priorityCompanyName').textContent = companyTitle(record).name; $('priorityError').hidden = true;
     renderPriorityOptions(record); $('priorityDialog').showModal();
   }
   async function changePriority(event) {
@@ -706,7 +711,7 @@
   function companyTitle(record) {
     const pending = record.Google_place_id && (!String(record.Firma || '').trim() || record.Firma === 'Do weryfikacji — ' + record.Google_place_id);
     const preview = pending ? companyPreview(record) : null;
-    return { name: pending ? preview?.name || t('Do weryfikacji') : record.Firma, google: !!(pending && preview?.name) };
+    return { name: pending && !preview?.name && !record.Google_nazwa ? t('Firma z mapy') : C.companyName(record, preview?.name), google: !!(pending && (preview?.name || record.Google_nazwa)) };
   }
   function rejectionContent(record) {
     const clock = C.rejectionClock(record, Date.now());
@@ -775,6 +780,7 @@
 
   function openClient(id, preserve = false, resetDraft = false) {
     const record = byId(id); if (!record) return;
+    if (record.Mapa_status === 'wykreslona') { if (selected === id) closeDrawer(true); return; }
     const preview = companyPreview(record);
     const title = companyTitle(record);
 
@@ -804,11 +810,11 @@
       </div>
       <div class="call-bar">
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution : ''}</div>
-        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button><button class="button" type="button" data-refresh-google="${esc(record.Google_place_id)}"${window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? ' disabled' : ''}>${esc(t(window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? 'Aktualizowanie danych…' : 'Aktualizuj z Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl z mapy'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
-          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p></section>` : ''}
+          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.phone ? phoneHTML({ Telefon: preview.phone }) : ''}${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p></section>` : ''}
           ${rejectionHTML(record)}
           <div class="company-contact">
             ${record.Adres ? `<span data-content>${esc(record.Adres)}</span>` : ''}
@@ -893,14 +899,14 @@
     if (busy || !confirmLeavingActions()) return;
     const index = browseIds.indexOf(selected), id = browseIds[index + direction]; if (id && byId(id)) openClient(id, true);
   }
-  const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', Oferta: 'Firma na etapie oferty', 'W realizacji': 'Trwa realizacja', Pozyskany: 'Potwierdzona współpraca', Odrzucony: 'Nie kontynuujemy kontaktu', Archiwum: 'Ukryj z głównej listy' };
+  const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', 'W realizacji': 'Trwa realizacja', 'Współpraca': 'Współpracujemy z firmą', Odrzucony: 'Firma odrzuciła współpracę', Archiwum: 'Ukryj z głównej listy' };
   function renderStatusOptions(record) {
     $('statusOptions').innerHTML = C.stages.map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
     I18n.bindUI($('statusDialog'));
   }
   function openStatus(id) {
     const record = byId(id); if (!record || busy || statusSaving || !requireProfile()) return; statusOriginal = { ...record };
-    $('statusCompanyName').textContent = record.Firma; $('statusError').hidden = true;
+    $('statusCompanyName').textContent = companyTitle(record).name; $('statusError').hidden = true;
     renderStatusOptions(record); $('statusDialog').showModal();
   }
   async function changeStatus(event) {
@@ -936,7 +942,7 @@
     const basic = ['name', 'url', 'city', 'phone', 'email', 'stage', 'priority', 'notes'];
     const ordered = [...formSchema.filter(row => basic.includes(row[0])), ...formSchema.filter(row => !basic.includes(row[0]))];
     $('formFields').innerHTML = '<div class="form-grid">' + ordered.map(([key, label, type, placeholder, full]) => {
-      const value = record ? val(record, key) : key === 'stage' ? 'Nowy' : '';
+      const value = record ? key === 'name' ? companyTitle(record).name : val(record, key) : key === 'stage' ? 'Nowy' : '';
       if (type === 'stage' || type === 'priority') {
         const selectedValue = type === 'priority' ? (record ? C.priorityValue(record) : '') : value;
         const options = type === 'stage' ? C.stages.map(stage => ({ value: stage, label: stage })) : [...C.priorities, { value: '', label: 'Nie ustawiono' }];
@@ -953,6 +959,7 @@
     const patch = {};
     for (const [name] of formSchema) {
       const value = String(form.get(name) || '').trim(); const key = F[name];
+      if (name === 'name' && record && value === companyTitle(record).name) continue;
       if (name === 'priority') {
         if (!['', ...C.priorities.map(item => item.value)].includes(value)) throw new Error('Wybierz poprawny priorytet.');
         if (record && C.priorityValue(record) === value) continue;
@@ -979,8 +986,7 @@
     if (!newRecord && !Object.keys(patch).length) return;
     const author = await ensureAuthor(), at = new Date().toISOString();
     const stage = newRecord?.Etap || patch.Etap;
-    const selection = stage && ['Odrzucony', 'Archiwum'].includes(stage) ? M.decision(original, 'wykreslona', author, patch.Powod_wykreslenia ?? original?.Powod_wykreslenia ?? '', at) : stage && original && M.state(original) === 'wykreslona' ? M.decision(original, 'dodana', author, '', at) : {};
-    if (stage === 'Archiwum') delete selection.Odrzucono;
+    const selection = stage === 'Odrzucony' && original?.Etap !== 'Odrzucony' ? { Odrzucono: at } : {};
     const update = { ...selection, ...patch, Modyfikacja: at, Edytowal: author };
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
     const added = newRecord ? [{ ...newRecord, ...selection, Etap: newRecord.Etap, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
@@ -1198,11 +1204,11 @@
   function openExclude(id) {
     const record = byId(id); if (!record || busy || !requireProfile()) return;
     if (M.state(record) === 'wykreslona') {
-      saveChange(id, { ...M.decision(record, 'dodana', authorName), Etap: 'Do sprawdzenia' }, { ...record })
+      saveChange(id, M.decision(record, 'dodana', authorName), { ...record })
         .then(() => { if (selected === id) openClient(id, true); }).catch(error => toast(error.message, true));
       return;
     }
-    excludeOriginal = { ...record }; $('excludeName').textContent = record.Firma;
+    excludeOriginal = { ...record }; $('excludeName').textContent = companyTitle(record).name;
     $('excludeReason').value = ''; $('excludeError').hidden = true; $('excludeDialog').showModal();
   }
   $('excludeForm').addEventListener('submit', async event => {
@@ -1220,26 +1226,34 @@
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
-    savePlaceDetails: entity => {
+    savePlaceDetails: (entity, { refresh = false } = {}) => {
       const task = placeDetailsChain.then(async () => {
         const original = records.find(record => record.Google_place_id === entity.id);
-        if (!original || !['T','K'].includes(authorName) || M.storedDetails(original)) return;
+        if (!original || !['T','K'].includes(authorName) || !refresh && M.storedDetails(original)) return;
         await saveChange(original.Id, M.detailsPatch(entity), { ...original });
       });
       placeDetailsChain = task.catch(error => { connectionError = I18n.message(error.message); connectionUI(); });
-      return placeDetailsChain;
+      return refresh ? task : placeDetailsChain;
     },
-    open: id => { if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
+    open: id => { if (!byId(id) || byId(id).Mapa_status === 'wykreslona') return false; if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
-  function rememberRejectedFilter() { try { localStorage.setItem(HIDE_REJECTED_STORE, String(hideRejected)); } catch {} }
-  $('toggleRejected').onclick = () => {
-    hideRejected = !hideRejected;
-    if (hideRejected && $('stageFilter').value === 'Odrzucony') $('stageFilter').value = '';
-    rememberRejectedFilter(); render();
-  };
+  function rememberHiddenStages() { try { localStorage.setItem(HIDDEN_STAGES_STORE, JSON.stringify([...hiddenStages])); } catch {} }
+  function renderHiddenStages() {
+    const focused = document.activeElement?.dataset?.hideStage;
+    $('hiddenStageSummary').textContent = t('Ukryj statusy') + (hiddenStages.size ? ' · ' + hiddenStages.size : '');
+    $('hiddenStageOptions').innerHTML = C.stages.map(stage => '<label class="hidden-stage-option"><input type="checkbox" data-hide-stage="' + esc(stage) + '"' + (hiddenStages.has(stage) ? ' checked' : '') + '><span>' + esc(t(stage)) + '</span></label>').join('');
+    if (focused && C.stages.includes(focused)) $('hiddenStageOptions').querySelector('[data-hide-stage="' + focused + '"]')?.focus();
+  }
+  $('hiddenStageOptions').addEventListener('change', event => {
+    const stage = event.target.dataset?.hideStage; if (!C.stages.includes(stage)) return;
+    if (event.target.checked) { hiddenStages.add(stage); if ($('stageFilter').value === stage) $('stageFilter').value = ''; }
+    else hiddenStages.delete(stage);
+    rememberHiddenStages(); render();
+  });
+  $('showAllStages').onclick = () => { hiddenStages.clear(); rememberHiddenStages(); render(); };
   for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
-    if (id === 'stageFilter' && $('stageFilter').value === 'Odrzucony') { hideRejected = false; rememberRejectedFilter(); }
+    if (id === 'stageFilter' && hiddenStages.delete($('stageFilter').value)) rememberHiddenStages();
     render();
   });
   for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
@@ -1265,10 +1279,22 @@
     if (event.target.closest('a[href]')) return;
     const item = event.target.closest('[data-client]'); if (item) { openClient(item.dataset.client); return; }
     if (event.target.closest('[data-import-csv]')) $('importButton').click();
-    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; render(); }
+    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; hiddenStages.clear(); rememberHiddenStages(); render(); }
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const refresh = event.target.closest('[data-refresh-google]');
+    if (refresh) {
+      if (!requireProfile() || window.GoogleMapSession?.isRefreshing?.(refresh.dataset.refreshGoogle)) return;
+      if (typeof window.GoogleMapSession?.refresh !== 'function') { toast('Odśwież panel przez Ctrl+Shift+R, aby zaktualizować dane Google.', true); return; }
+      refresh.disabled = true;
+      try {
+        const updated = await window.GoogleMapSession?.refresh?.(refresh.dataset.refreshGoogle);
+        if (updated) toast('Odświeżono dane Google. Własne dane firmy mają pierwszeństwo.');
+      } catch (error) { toast(error.message, true); }
+      finally { refresh.disabled = false; }
+      return;
+    }
     const remove = event.target.closest('[data-delete-client]'); if (remove) { await deleteCompany(remove.dataset.deleteClient); return; }
     const priority = event.target.closest('[data-priority]'); if (priority) { openPriority(priority.dataset.priority); return; }
     const pin = event.target.closest('[data-pin]'); if (pin) { await togglePin(pin); return; }

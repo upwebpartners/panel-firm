@@ -282,6 +282,7 @@ main {
 }
 .toolbar-actions {
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   gap:7px;
   margin-left:auto;
@@ -513,13 +514,10 @@ main {
 .stage-pill.rozmowa:before {
   background:#9672d9;
 }
-.stage-pill.oferta:before {
-  background:#c57528;
-}
 .stage-pill.w-realizacji:before {
   background:#3a9aab;
 }
-.stage-pill.pozyskany:before {
+.stage-pill.wspolpraca:before {
   background:#389464;
 }
 .stage-pill.odrzucony:before {
@@ -1261,3 +1259,7 @@ dialog::backdrop {
 [data-theme=dark] .gmp-attribution { color: #fff; }
 .google-preview { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); background: var(--panel); }
 .google-preview p { margin: 6px 0; font-size: 12px; }
+
+.hidden-stage-option { display:flex; align-items:center; gap:8px; padding:7px; font-size:13px; cursor:pointer; }
+.hidden-stage-option input { width:16px; height:16px; min-height:0; margin:0; accent-color:var(--accent); }
+.status-visibility > div { min-width:210px; }

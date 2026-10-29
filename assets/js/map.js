@@ -5,10 +5,11 @@
   const $ = id => document.getElementById(id), C = root.CRMCore, M = root.MapCore, t = root.I18n.t;
   let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false, waitingPlace = null;
   const GOOGLE_KEY_STORE = 'pracownia.google.key';
-  let initialization = null, forgottenKey = false;
+  let initialization = null, forgottenKey = false, waitingRefresh = null;
   let placesInitialization = null, hydrating = false, previewFrame = null;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
   const detailLoads = new Map(), contactErrors = new Map();
+  const refreshingPlaces = new Set();
   const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
   const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
   const filters = { nowa: 'showNew', przejrzana: 'showReviewed', dodana: 'showAdded', wykreslona: 'showExcluded' };
@@ -57,8 +58,8 @@
     if (previewFrame !== null) return;
     previewFrame = root.requestAnimationFrame(() => { previewFrame = null; document.dispatchEvent(new root.CustomEvent('crm:google-preview')); });
   }
-  async function fetchDetails(id) {
-    if (details.has(id)) return places.get(id);
+  async function fetchDetails(id, { refresh = false } = {}) {
+    if (details.has(id) && !refresh) return places.get(id);
     if (detailLoads.has(id)) return detailLoads.get(id);
     const task = (async () => {
       const place = new library.Place({ id, requestedLanguage: root.I18n.language() });
@@ -66,12 +67,23 @@
       if (root.Network) await root.Network.withTimeout(fetch); else await fetch();
       const entity = M.fromGoogle(place);
       places.set(id, entity); details.add(id); contactErrors.delete(id);
-      await root.CRM.savePlaceDetails?.(entity); return entity;
+      await root.CRM.savePlaceDetails?.(entity, { refresh }); return entity;
     })();
     detailLoads.set(id, task);
     try { return await task; }
     catch (error) { contactErrors.set(id, { retryAt: Date.now() + 60000, message: error.message }); throw error; }
     finally { detailLoads.delete(id); contactsChanged(); }
+  }
+  async function refreshPlace(id) {
+    if (refreshingPlaces.has(id)) return;
+    const apiKey = savedKey() || (forgottenKey ? '' : key);
+    if (!/^[A-Za-z0-9_-]{20,200}$/.test(apiKey)) { waitingRefresh = id; settings(); return; }
+    refreshingPlaces.add(id); contactErrors.delete(id); contactsChanged();
+    try {
+      await ensurePlaces(apiKey);
+      await fetchDetails(id, { refresh: true });
+      draw(); return true;
+    } finally { refreshingPlaces.delete(id); contactsChanged(); }
   }
   function visibleContacts() {
     return (root.CRM.visibleRecords?.() || []).filter(row => row.Google_place_id && !M.storedDetails(row) &&
@@ -133,7 +145,7 @@
       const current = record(entity), state = M.state(current);
       if (!$(filters[state]).checked) continue;
       const marker = new Marker({ map, position: { lat: entity.lat, lng: entity.lon },
-        title: (entity.name || current?.Firma || t('Firma')) + ' · ' + t(labels[state]),
+        title: (entity.name || (current ? C.companyName(current) : t('Firma z mapy'))) + ' · ' + t(labels[state]),
         icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
         label: { text: ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
       marker.addListener('click', () => selectPlace(entity.id)); markers.set(entity.id, marker);
@@ -147,7 +159,7 @@
     cardId = entity.id;
     $('mapPlace').hidden = false;
     const stateLabel = state === 'przejrzana' && !current?.Mapa_potwierdzono ? 'Starsze oznaczenie — niepotwierdzone' : labels[state];
-    $('mapPlace').innerHTML = `<div class="map-place-heading"><div><h2>${esc(entity.name || current?.Firma || t('Firma'))}</h2><span style="color:${colors[state]}">${esc(t(stateLabel))}</span>${state === 'przejrzana' && current?.Mapa_potwierdzono ? '<p class="small-copy">' + esc(t('Potwierdził')) + ': ' + esc(current.Mapa_edytowal) + ' · ' + esc(new Date(current.Mapa_potwierdzono).toLocaleString(root.I18n.locale())) + '</p>' : ''}</div><button type="button" class="icon-button" data-map-close aria-label="${esc(t('Zamknij'))}">×</button></div>
+    $('mapPlace').innerHTML = `<div class="map-place-heading"><div><h2>${esc(entity.name || (current ? C.companyName(current) : t('Firma z mapy')))}</h2><span style="color:${colors[state]}">${esc(t(stateLabel))}</span>${state === 'przejrzana' && current?.Mapa_potwierdzono ? '<p class="small-copy">' + esc(t('Potwierdził')) + ': ' + esc(current.Mapa_edytowal) + ' · ' + esc(new Date(current.Mapa_potwierdzono).toLocaleString(root.I18n.locale())) + '</p>' : ''}</div><button type="button" class="icon-button" data-map-close aria-label="${esc(t('Zamknij'))}">×</button></div>
       <p data-content>${esc(entity.address || '')}</p>
       ${entity.phone ? `<p><a href="tel:${esc(entity.phone.replace(/[^+\d]/g,''))}">${esc(entity.phone)}</a></p>` : `<p class="muted">${esc(t('Brak numeru telefonu'))}</p>`}
       ${entity.website ? `<p><a href="${esc(entity.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a></p>` : ''}
@@ -155,7 +167,7 @@
       <p class="small-copy">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p>
       <div class="map-place-actions">
         ${state === 'nowa' || state === 'przejrzana' && !current?.Mapa_potwierdzono ? `<button class="button" data-map-reviewed>${esc(t(state === 'nowa' ? 'Oznacz jako przejrzaną' : 'Potwierdź przejrzenie'))}</button>` : ''}
-        ${state === 'dodana' ? `<button class="button primary" data-map-open>${esc(t('Otwórz firmę'))}</button>` : `<button class="button primary" data-map-add>${esc(t(state === 'wykreslona' ? 'Przywróć do weryfikacji' : 'Dodaj do weryfikacji'))}</button>`}
+        ${state === 'dodana' ? `<button class="button primary" data-map-open>${esc(t('Otwórz firmę'))}</button>` : `<button class="button primary" data-map-add>${esc(t(state === 'wykreslona' ? 'Przywróć w Firmach' : 'Dodaj do firm'))}</button>`}
         ${state !== 'wykreslona' ? `<button class="button" data-map-exclude>${esc(t('Wykreśl'))}</button>` : ''}
       </div>
       ${state === 'wykreslona' ? `<p data-content>${esc(current?.Powod_wykreslenia || '')}</p>` : ''}
@@ -228,10 +240,11 @@
       }
       key = candidate; await ensurePlaces(key); rememberKey(key);
       contactErrors.clear(); $('googleKey').value = ''; $('googleDialog').close();
-      if (!$('mapPanel').hidden || waitingPlace) await initialize(key);
+      if (waitingRefresh) { const id = waitingRefresh; waitingRefresh = null; await refreshPlace(id); }
+      else if (!$('mapPanel').hidden || waitingPlace) await initialize(key);
       else void loadVisibleContacts();
     }
-    catch (error) { $('googleError').textContent = root.I18n.message(error.message); $('googleError').hidden = false; }
+    catch (error) { if (!$('googleDialog').open) settings(); $('googleError').textContent = root.I18n.message(error.message); $('googleError').hidden = false; }
     finally { $('connectGoogle').disabled = false; }
   });
   $('closeGoogle').onclick = () => $('googleDialog').close();
@@ -266,6 +279,8 @@
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   });
   root.GoogleMapSession = {
+    refresh: refreshPlace,
+    isRefreshing: id => refreshingPlaces.has(id),
     get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)),
     contactState: id => details.has(id) || M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
     loadContact: id => {
