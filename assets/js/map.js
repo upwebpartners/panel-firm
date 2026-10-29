@@ -154,10 +154,11 @@
     let loaded = 0;
     try {
       for (const row of candidates.slice(0, 50)) {
-        if (!places.has(row.Google_place_id)) {
+        if (!details.has(row.Google_place_id)) {
           const place = new library.Place({ id: row.Google_place_id });
-          await place.fetchFields({ fields: ['id','displayName','location'] });
+          await place.fetchFields({ fields: ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
           places.set(place.id, M.fromGoogle(place));
+          details.add(place.id);
         }
         loadedSaved.add(row.Google_place_id); loaded++;
       }

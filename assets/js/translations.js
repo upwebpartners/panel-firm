@@ -386,6 +386,7 @@ globalThis.CRM_MESSAGES = {
   "Zapis lokalny…": "Saving locally…",
   "Zapisano w przeglądarce": "Saved in the browser",
   "Nie zapisano lokalnie": "Not saved locally",
+  "Podgląd — dane nie są zapisane w CSV": "Preview — these details are not saved in CSV",
   "Rozłącz i zapomnij": "Disconnect and forget",
   "Łączenie z zapamiętaną bazą…": "Connecting to the remembered database…",
   "GitHub · połączenie przerwane": "GitHub · disconnected",

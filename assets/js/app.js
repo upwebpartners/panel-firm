@@ -410,7 +410,9 @@
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
       if ($('priorityFilter').value && C.priorityValue(r) !== ($('priorityFilter').value === 'none' ? '' : $('priorityFilter').value)) return false;
       if ($('pinFilter').value === 'pinned' && !C.isPinned(r) || $('pinFilter').value === 'unpinned' && C.isPinned(r)) return false;
-      return !query || C.norm([companyTitle(r).name, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
+      if (!query) return true;
+      const contact = companyContact(r);
+      return C.norm([companyTitle(r).name, r.Branza, r.Miejscowosc, contact.phone, contact.email, contact.url, contact.address, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
     });
     // Sort by the visible names, then return the unchanged canonical records.
     const originals = new Map(visible.map(record => [record.Id, record]));
@@ -454,19 +456,27 @@
     </div>`;
   }
 
-  function contactHTML(record) {
+  function companyContact(record) {
     const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
-    const phone = record.Telefon || preview?.phone || '';
-    const email = record.Email || '';
-    const url = C.safeURL(record.Strona);
+    const ownURL = C.safeURL(record.Strona), previewURL = C.safeURL(preview?.website);
+    return {
+      phone: record.Telefon || preview?.phone || '', email: record.Email || '',
+      url: ownURL || previewURL, address: record.Adres || preview?.address || '',
+      google: !!((!record.Telefon && preview?.phone) || (!ownURL && previewURL) || (!record.Adres && preview?.address))
+    };
+  }
+  function contactHTML(record) {
+    const { phone, email, url, address, google } = companyContact(record);
     const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
       : esc(email);
     const parts = [
-      phone ? phoneHTML({ Telefon: phone }) + (!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : '') : '',
+      phone ? phoneHTML({ Telefon: phone }) : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
-      !phone && !email && !url ? '—' : '',
+      address ? `<span data-content>${esc(address)}</span>` : '',
+      google ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — dane nie są zapisane w CSV')) + '</small>' : '',
+      !phone && !email && !url && !address ? '—' : '',
     ];
     return `<div class="contact-lines">${parts.join('')}</div>`;
   }
