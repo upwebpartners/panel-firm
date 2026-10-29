@@ -551,6 +551,21 @@ main {
   align-items:center;
   gap:6px;
 }
+.database-status { display:flex; align-items:center; gap:6px; min-width:0; min-height:30px; padding:3px 7px; font-size:12px; white-space:nowrap; background:var(--panel); }
+.database-status .status-dot { flex-shrink:0; }
+.pending-sync { color:#a8790b; }
+.database-status.pending .status-dot { background:#b8860b; }
+.database-status.error { color:var(--danger); }
+.sync-retry { min-height:30px; padding:3px 7px; font-size:12px; }
+@media(max-width:760px) {
+  .topbar { gap:4px; padding:0 5px; }
+  .main-tab { padding:0 8px; }
+  .appearance-controls { gap:4px; min-width:0; }
+  .profile-control > span { display:none; }
+  .database-status { max-width:130px; font-size:10px; padding:3px 4px; }
+  .database-status > span:last-child { overflow:hidden; text-overflow:ellipsis; }
+  .sync-retry { position:fixed; top:89px; right:8px; z-index:20; background:var(--panel); }
+}
 .save-progress { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
 .save-progress.saving::before { content:''; width:10px; height:10px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:save-spin .8s linear infinite; }
 .save-progress.saved { color:var(--accent); }
@@ -1190,10 +1205,11 @@ dialog::backdrop {
 .analysis-details > summary { cursor: pointer; padding: 10px 0; color: var(--muted); font-size: 12px; }
 .last-call { margin-bottom: 10px; }
 @media(max-width:760px) {
-  .main-tab { padding: 0 10px; }
+  .main-nav { flex-shrink:0; }
+  .main-tab { padding: 0 8px; }
   .appearance-controls { gap: 5px; }
   .profile-control > span { display: none; }
-  .appearance-controls .profile-control select { width: 67px; }
+  .appearance-controls .profile-control select { width: 53px; }
   .call-bar { flex-wrap: wrap; padding: 8px; gap: 8px; }
   .prominent .phone-link { font-size: 20px; }
   .call-actions { margin-left: auto; }

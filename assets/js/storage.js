@@ -9,12 +9,18 @@
     if (!object(snapshot) || !object(snapshot.patches) || !Object.values(snapshot.patches).every(stringFields) ||
         !rows(snapshot.added) || !(snapshot.imported == null || rows(snapshot.imported)) ||
         !(snapshot.meta == null || stringFields(snapshot.meta)) || !(snapshot.info == null || object(snapshot.info)) ||
+        !(snapshot.sync == null || object(snapshot.sync) && object(snapshot.sync.target) && ['owner','repo','branch','path'].every(key => typeof snapshot.sync.target[key] === 'string') && ['T','K'].includes(snapshot.sync.author)) ||
         !(snapshot.headers == null || Array.isArray(snapshot.headers) && snapshot.headers.every(header => typeof header === 'string'))) {
       throw new Error('Zapisana kopia ma nieprawidłowy format. Nie nadpisano jej. Zachowaj kopię przed naprawą.');
     }
     for (const list of [snapshot.added, snapshot.imported || []]) {
       if (new Set(list.map(row => row.Id)).size !== list.length) throw new Error('Zapisana kopia zawiera powtórzone identyfikatory. Nie nadpisano jej.');
       list.forEach(C.callHistory);
+    }
+    const batch = snapshot.sync?.inflight;
+    if (batch != null) {
+      if (!object(batch) || !rows(batch.base) || !rows(batch.added) || !object(batch.patches) || !Object.values(batch.patches).every(stringFields) || !['T','K'].includes(batch.author)) throw new Error('Nieprawidłowy zapis oczekujących zmian. Nie nadpisano kopii.');
+      [...batch.base, ...batch.added, ...Object.values(batch.patches)].forEach(C.callHistory);
     }
     Object.values(snapshot.patches).forEach(C.callHistory);
     return snapshot;

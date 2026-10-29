@@ -32,7 +32,10 @@
   let toastTimer = null;
   let saveProgress = null, progressTimer = null, progressHideTimer = null;
   let github = null, githubBusy = false, fileBusy = false, lastGitHubPoll = 0;
-  let rememberedGitHub = null, restoringGitHub = false;
+  let rememberedGitHub = null, restoringGitHub = false, changingSource = false;
+  let restoreRetryAt = 0, restoreFailures = 0;
+  let syncRunning = false, syncError = null, syncRetryTimer = null, syncFailures = 0;
+  let localWriteChain = Promise.resolve();
   let authorName = '';
   try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
   let draftId = null;
@@ -49,6 +52,102 @@
   const stagePill = record => '<span class="stage-pill ' + esc(stageSlug(record.Etap)) + '">' + esc(t(record.Etap || 'Nowy')) + '</span>';
   const byId = id => records.find(r => r.Id === id);
   const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0;
+  const hasQueued = () => !!local.sync && hasPending();
+  const targetKey = config => config ? JSON.stringify([String(config.owner || '').toLowerCase(), String(config.repo || '').toLowerCase(), config.branch, String(config.path || '').trim().replace(/^\/+/, '')]) : '';
+  const sameTarget = (a, b) => targetKey(a) === targetKey(b);
+  function writeLocal(action) {
+    const result = localWriteChain.then(action);
+    localWriteChain = result.catch(() => {}); return result;
+  }
+  function refreshCompanyView() {
+    render();
+    if (selected && byId(selected)) openClient(selected, true);
+  }
+  async function enqueueShared(target, originals, patches, added, author, at) {
+    await writeLocal(async () => {
+      if (hasQueued() && !sameTarget(local.sync.target, target)) throw new Error('Najpierw wyślij oczekujące zmiany do poprzedniej bazy.');
+      const merged = C.merge(originals, records, patches, added);
+      if (merged.conflicts.length) throw new Error('Te dane zmieniły się w panelu. Otwórz ponownie kartę firmy.');
+      busy = true;
+      try {
+        const desired = new Map(merged.records.map(record => [record.Id, record]));
+        const next = { ...local, patches: { ...local.patches }, added: [...local.added, ...added], imported: base,
+          meta: { at, by: author }, sync: { ...local.sync, target: { ...target }, author } };
+        for (const [id, patch] of Object.entries(patches)) {
+          const values = Object.fromEntries(Object.keys(patch).map(key => [key, desired.get(id)?.[key] ?? patch[key]]));
+          next.patches = { ...next.patches, [id]: { ...(next.patches[id] || {}), ...values } };
+        }
+        await persist(next, true); local = next;
+        records = C.stampFile(C.overlay(base, local.patches, local.added), at, author);
+      } finally { busy = false; connectionUI(); }
+    });
+    render(); kickSync();
+  }
+  function blockedSync(error) { return error?.code === 'CONFLICT' || [401,403,404,422].includes(error?.status); }
+  function kickSync() {
+    if (syncRetryTimer || syncError && blockedSync(syncError)) return;
+    void flushQueue();
+  }
+  async function flushQueue(resolveConflicts = false) {
+    if (syncRunning || githubBusy || !github || !connected || !hasQueued() || !sameTarget(local.sync.target, github.config)) return;
+    if (syncError && blockedSync(syncError) && !resolveConflicts) return;
+    clearTimeout(syncRetryTimer); syncRetryTimer = null;
+    const session = github; syncRunning = true; syncError = null; connectionError = ''; connectionUI();
+    try {
+      while (hasQueued() && github === session && connected) {
+        const sent = await writeLocal(async () => {
+          if (local.sync.inflight) return local.sync.inflight;
+          const batch = {
+          base: base.map(record => ({ ...record })),
+          patches: Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, { ...patch }])),
+          added: local.added.map(record => ({ ...record })), author: local.sync.author
+          };
+          const next = { ...local, sync: { ...local.sync, inflight: batch } };
+          await persist(next, true); local = next; return batch;
+        });
+        await trackSave('github', async () => {
+          const newIds = new Set(sent.added.map(record => record.Id));
+          const updates = Object.fromEntries(Object.entries(sent.patches).filter(([id]) => !newIds.has(id)));
+          const additions = C.overlay([], sent.patches, sent.added);
+          const result = resolveConflicts ? await saveShared(session, sent.base, updates, additions, sent.author, true) : await session.save(sent.base, updates, additions, sent.author);
+          await writeLocal(async () => {
+            if (github !== session || !connected) return;
+            const remaining = Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, { ...patch }]));
+            for (const [id, patch] of Object.entries(sent.patches)) {
+              for (const [key, value] of Object.entries(patch)) if (remaining[id]?.[key] === value) delete remaining[id][key];
+              if (remaining[id] && !Object.keys(remaining[id]).length) delete remaining[id];
+            }
+            const accepted = new Set(sent.added.map(record => record.Id));
+            const added = local.added.filter(record => !accepted.has(record.Id));
+            const pending = added.length || Object.keys(remaining).length;
+            const nextBase = result.records.map(record => ({ ...record }));
+            const nextHeaders = [...new Set([...result.headers, ...headers])];
+            const next = { ...local, patches: remaining, added, imported: nextBase, headers: nextHeaders,
+              sync: pending ? { ...local.sync, inflight: null } : null, meta: pending ? local.meta : C.fileMeta(nextBase),
+              info: { ...local.info, name: session.config.path, modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null } };
+            await persist(next, true);
+            base = nextBase; headers = nextHeaders; local = next;
+            records = C.overlay(base, local.patches, local.added);
+            lastGitHubPoll = Date.now(); connectionError = ''; syncFailures = 0;
+          });
+        });
+        refreshCompanyView();
+      }
+    } catch (error) {
+      if (github === session && connected) {
+        syncError = error;
+        // A reported conflict means no write occurred. A network failure may
+        // hide a successful write, so retain that exact batch for safe replay.
+        if (error.code === 'CONFLICT') await writeLocal(async () => {
+          const next = { ...local, sync: { ...local.sync, inflight: null } };
+          try { await persist(next, true); local = next; } catch { /* Keep the durable batch if local storage is unavailable. */ }
+        });
+        connectionError = error.code === 'CONFLICT' ? 'Konflikt zapisu. Lokalne zmiany są zachowane. Kliknij Porównaj zmiany.' : 'Nie wysłano zmian do GitHuba. Zostały zachowane w przeglądarce.';
+        connectionError += ' ' + I18n.message(error.message);
+        if (!blockedSync(error)) syncRetryTimer = setTimeout(() => { syncRetryTimer = null; kickSync(); }, Math.min(30000, 2000 * 2 ** Math.min(syncFailures++, 4)));
+      }
+    } finally { syncRunning = false; connectionUI(); }
+  }
 
   function dateTime(value) { const date = new Date(value); return value && Number.isFinite(+date) ? date.toLocaleString(I18n.locale(), { dateStyle: 'short', timeStyle: 'short' }) : t('brak informacji'); }
   function displayCallHistory(record) { try { return C.callHistory(record); } catch { return []; } }
@@ -68,7 +167,7 @@
     const by = meta.by || local.info?.by || '';
     const fileName = github ? github.config.path : local.info?.name || 'klienci.csv';
     const source = github && connected ? 'Wspólna baza GitHub' : connected ? 'Połączony plik CSV' : 'Kopia w tej przeglądarce';
-    $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '') + (hasPending() ? '<span class="unsaved-file">' + esc(t('Zmiany lokalne — zapisz lub eksportuj CSV')) + '</span>' : '');
+    $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '') + (hasPending() ? '<span class="unsaved-file">' + esc(t(hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : 'Zmiany lokalne — zapisz lub eksportuj CSV')) + '</span>' : '');
   }
   async function adoptShared(result, info = {}) {
     base = result.records.map(r => ({ ...r })); records = [...base]; headers = result.headers;
@@ -88,8 +187,8 @@
     let raw;
     try { raw = localStorage.getItem(GITHUB_SESSION_STORE); } catch { return false; }
     if (!raw) return false;
-    rememberedGitHub = {}; restoringGitHub = true; githubBusy = true; connectionUI();
-    let candidate;
+    rememberedGitHub = {}; restoringGitHub = true; githubBusy = true; restoreRetryAt = 0; connectionUI();
+    let candidate, reading = false;
     try {
       let session;
       try { session = JSON.parse(raw); }
@@ -97,16 +196,23 @@
       if (session?.version !== 1 || typeof session.token !== 'string' || !session.token.trim() || !session.config || !['owner', 'repo', 'branch', 'path'].every(key => typeof session.config[key] === 'string')) throw new Error('Zapisane połączenie jest nieprawidłowe. Zmień je w ustawieniach GitHuba.');
       rememberedGitHub = session;
       candidate = new GitHubCSV(session.config, session.token);
-      const result = await candidate.connect();
+      reading = true;
+      const result = await candidate.connect(); reading = false;
       if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
-      const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
-      if (plan.added.length || Object.keys(plan.patches).length) throw new Error('Masz lokalne zmiany. W ustawieniach GitHuba wybierz, czy je połączyć, czy wczytać wspólną bazę.');
-      github = candidate; connected = true; connectionError = ''; lastGitHubPoll = Date.now();
-      await adoptShared(result); render();
+      await writeLocal(async () => {
+        if (hasQueued() && !sameTarget(local.sync.target, session.config)) throw new Error('Oczekujące zmiany należą do innej bazy. Połącz poprzednie repozytorium.');
+        const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
+        if (!hasQueued() && (plan.added.length || Object.keys(plan.patches).length)) throw new Error('Masz lokalne zmiany. W ustawieniach GitHuba wybierz, czy je połączyć, czy wczytać wspólną bazę.');
+        github = candidate; connected = true; connectionError = ''; lastGitHubPoll = Date.now();
+        if (!hasQueued()) await adoptShared(result);
+      });
+      render();
+      restoreFailures = 0;
       if (selected && !actionDirty()) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); }
     } catch (error) {
       candidate?.close(); connectionError = I18n.message('Nie połączono zapamiętanej bazy. Otwórz ustawienia GitHuba.') + ' ' + I18n.message(error.message);
-    } finally { restoringGitHub = false; githubBusy = false; connectionUI(); }
+      if (reading && !blockedSync(error)) restoreRetryAt = Date.now() + Math.min(30000, 5000 * 2 ** Math.min(restoreFailures++, 3));
+    } finally { restoringGitHub = false; githubBusy = false; connectionUI(); kickSync(); }
     return true;
   }
   function updateSaveProgress() {
@@ -143,18 +249,27 @@
     };
     $('ghDataModeHint').textContent = t(hints[$('ghDataMode').value] || hints.remote);
   }
-  async function saveShared(client, originals, patches, added, author) {
+  async function saveShared(client, originals, patches, added, author, reviewFields = false) {
     let before = originals.map(record => ({ ...record }));
     const pending = Object.fromEntries(Object.entries(patches).map(([id, patch]) => [id, { ...patch }]));
     for (;;) {
       try { return await client.save(before, pending, added, author); }
       catch (error) {
-        if (error.code !== 'CONFLICT' || !error.conflicts?.length || error.conflicts.some(conflict => conflict.field !== 'Notatki' || !Object.hasOwn(pending[conflict.id] || {}, 'Notatki') || !before.some(record => record.Id === conflict.id))) throw error;
+        if (error.code !== 'CONFLICT' || !error.conflicts?.length || error.conflicts.some(conflict => (!reviewFields && conflict.field !== 'Notatki') || !Object.hasOwn(pending[conflict.id] || {}, conflict.field) || !before.some(record => record.Id === conflict.id))) throw error;
         for (const conflict of error.conflicts) {
+          if (conflict.field !== 'Notatki') {
+            const message = conflict.name + ' · ' + t(conflict.field) + '\n\n' + t('Na GitHubie:') + '\n' + String(conflict.value ?? '') + '\n\n' + t('W tej przeglądarce:') + '\n' + String(pending[conflict.id][conflict.field] ?? '') + '\n\n' + t('Zapisać swoją wersję tego pola? Anuluj zachowa obie wersje bez zmian na GitHubie.');
+            if (!confirm(message)) throw error;
+            before = before.map(record => record.Id === conflict.id ? { ...record, [conflict.field]: conflict.value } : record);
+            continue;
+          }
           const shared = String(conflict.value ?? ''), own = String(pending[conflict.id].Notatki ?? '');
           const combined = !own || shared.includes(own) ? shared : !shared || own.includes(shared) ? own : shared + '\n\n' + own;
           const message = t('Różne notatki') + ' — ' + conflict.name + '\n\n' + t('Na GitHubie:') + '\n' + (shared || t('(pusta notatka)')) + '\n\n' + t('W tej przeglądarce:') + '\n' + (own || t('(pusta notatka)')) + '\n\n' + t('Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.');
-          if (!confirm(message)) throw new Error('Przerwano zapis. Twoje lokalne zmiany zostały zachowane.');
+          if (!confirm(message)) {
+            const cancelled = new Error('Przerwano zapis. Twoje lokalne zmiany zostały zachowane.');
+            cancelled.code = 'CONFLICT'; cancelled.conflicts = error.conflicts; throw cancelled;
+          }
           pending[conflict.id] = { ...pending[conflict.id], Notatki: combined, Modyfikacja: new Date().toISOString(), Edytowal: author };
           // Rebase only the note the person has just reviewed. Other fields
           // retain their original baseline and full conflict protection.
@@ -164,9 +279,9 @@
     }
   }
   async function connectGitHub() {
-    if (busy || githubBusy) return;
+    if (busy || githubBusy || syncRunning) return;
     const controls = ['connectGitHub', 'ghDataMode', 'closeConnect', 'fileMode'];
-    controls.forEach(id => { $(id).disabled = true; }); $('connectError').hidden = true; githubBusy = true;
+    controls.forEach(id => { $(id).disabled = true; }); $('connectError').hidden = true; githubBusy = true; changingSource = true;
     let candidate;
     try {
       if (fileHandle) throw new Error('Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.');
@@ -181,6 +296,8 @@
       const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
       const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
       const token = $('ghToken').value.trim();
+      if (hasQueued() && !sameTarget(local.sync.target, config)) throw new Error('Najpierw wyślij oczekujące zmiany do poprzedniej bazy.');
+      const resume = hasQueued() && mode !== 'replace';
       candidate = new GitHubCSV(config, token); let result = await candidate.connect();
       if (mode === 'remote') {
         if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
@@ -193,7 +310,7 @@
         if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + currentRecords.length + ' firm?')) { candidate.close(); return; }
         const author = await ensureAuthor();
         result = await trackSave('github', () => candidate.save([], {}, currentRecords, author));
-      } else if (hasPending()) {
+      } else if (hasPending() && !resume) {
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (plan.added.length || Object.keys(plan.patches).length) {
           if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
@@ -204,7 +321,8 @@
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
       const remembered = rememberGitHub(config, token);
       try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}
-      $('ghToken').value = ''; await adoptShared(result); render(); $('connectDialog').close();
+      $('ghToken').value = ''; if (!resume) await adoptShared(result);
+      syncError = null; render(); $('connectDialog').close();
       if (previous && previous !== candidate) previous.close();
       if (selected) {
         if (byId(selected)) openClient(selected, true, draftBefore && draftFields.every((id, index) => $(id).value === draftBefore[index]));
@@ -212,21 +330,18 @@
       }
       toast(remembered ? 'Połączono wspólną bazę. Połączenie zostało zapamiętane w tej przeglądarce.' : 'Połączono, ale przeglądarka nie pozwoliła zapamiętać połączenia.', !remembered);
     } catch (error) { candidate?.close(); $('ghToken').value = ''; $('connectError').textContent = I18n.message(error.message); $('connectError').hidden = false; }
-    finally { githubBusy = false; controls.forEach(id => { $(id).disabled = false; }); }
+    finally { githubBusy = false; changingSource = false; controls.forEach(id => { $(id).disabled = false; }); connectionUI(); kickSync(); }
   }
   async function commitBatch(originals, patches, added, author, at) {
+    if (changingSource) throw new Error('Poczekaj na zakończenie zmiany ustawień bazy.');
+    const target = github?.config || rememberedGitHub?.config || local.sync?.target;
+    if (target) return enqueueShared(target, originals, patches, added, author, at);
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
     if (githubBusy) throw new Error('Trwa odświeżanie wspólnej bazy. Spróbuj zapisać ponownie za chwilę.');
     if (fileBusy) throw new Error('Trwa odświeżanie pliku. Spróbuj zapisać ponownie za chwilę.');
     if (rememberedGitHub && !connected) throw new Error('Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.');
     return trackSave(github ? 'github' : connected && fileHandle ? 'file' : 'browser', async () => {
-      if (github) {
-        if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
-        busy = true; connectionUI();
-        try { const result = await saveShared(github, originals, patches, added, author); await adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
-        catch (error) { connectionError = 'Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.'; throw error; }
-        finally { busy = false; connectionUI(); }
-      } else if (connected && fileHandle) {
+      if (connected && fileHandle) {
         busy = true; connectionUI();
         try {
           const text = await (await fileHandle.getFile()).text(), latest = C.parseCSV(text);
@@ -323,7 +438,7 @@
       const parsed = C.parseCSV(await file.text()); parsed.records.forEach(C.callHistory);
       if (busy || githubBusy || fileBusy) throw new Error('Poczekaj na zakończenie zapisu.');
       const plan = C.importPlan(records, parsed.records);
-      if (!connected) {
+      if (!connected && !rememberedGitHub?.config && !local.sync?.target) {
         busy = true;
         try {
           const patches = Object.assign(Object.create(null), local.patches);
@@ -381,15 +496,28 @@
     if (restoringGitHub) label = 'Łączenie z zapamiętaną bazą…';
     else if (rememberedGitHub && !connected) label = 'GitHub · połączenie przerwane';
     if (busy) label = github ? 'Zapisywanie do GitHuba…' : connected && fileHandle ? 'Zapisywanie do CSV…' : 'Zapisywanie w przeglądarce…';
-    if (connectionError) label = 'Sprawdź połączenie z CSV';
+    if (hasQueued()) label = syncRunning ? 'GitHub · wysyłanie zmian…' : 'GitHub · zmiany czekają na wysłanie';
+    if (connectionError) label = github || rememberedGitHub || hasQueued() ? 'GitHub · sprawdź połączenie' : 'Sprawdź połączenie z CSV';
     el.innerHTML = '<span class="status-dot"></span>' + esc(t(label));
-    el.title = I18n.message(connected ? (github ? 'Wspólna baza odświeża się co 15 sekund.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
+    el.title = I18n.message(connected ? (github ? 'Wspólna baza odświeża się co 3 sekundy.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
+    const target = github?.config || rememberedGitHub?.config || local.sync?.target;
+    let globalLabel = target ? connected ? 'GitHub · połączono' : 'GitHub · brak połączenia' : connected ? 'Plik CSV' : 'Baza lokalna';
+    if (restoringGitHub) globalLabel = 'GitHub · łączenie…';
+    if (hasQueued()) globalLabel = syncRunning ? 'GitHub · wysyłanie…' : 'GitHub · oczekuje na zapis';
+    if (connectionError || !storageOK) globalLabel = target ? 'GitHub · sprawdź zapis' : 'Baza · sprawdź zapis';
+    const badge = $('databaseStatus');
+    badge.innerHTML = '<span class="status-dot"></span><span>' + esc(t(globalLabel)) + '</span>';
+    badge.className = 'database-status' + (connectionError || !storageOK ? ' error' : hasQueued() ? ' pending' : connected ? ' connected' : '');
+    badge.title = (target ? target.owner + '/' + target.repo + ' · ' + target.branch + ' / ' + target.path + '\n' : '') + I18n.message(connectionError || storageError || (hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : el.title));
+    $('retrySync').hidden = !hasQueued() || syncRunning || restoringGitHub;
+    $('retrySync').textContent = t(syncError?.code === 'CONFLICT' ? 'Porównaj zmiany' : 'Ponów zapis');
+    $('connectGitHub').disabled = syncRunning || githubBusy;
     $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
     $('disconnectButton').hidden = !fileHandle && !github && !rememberedGitHub;
     $('disconnectButton').textContent = t(github || rememberedGitHub ? 'Rozłącz i zapomnij' : 'Rozłącz plik');
     $('connectionNotice').hidden = !connectionError && storageOK;
     $('connectionNotice').textContent = I18n.message(connectionError || storageError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
-    $('formSaveHint').textContent = I18n.message(rememberedGitHub && !connected ? 'Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.' : connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
+    $('formSaveHint').textContent = I18n.message(target ? 'Firma pojawi się od razu. Zapis do GitHuba odbywa się w tle.' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
     updateFileInfo();
   }
 
@@ -560,6 +688,7 @@
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(title.name)}">
         <td>
           <strong class="firm-name">${esc(title.name)}</strong>
+          ${hasQueued() && (Object.hasOwn(local.patches, record.Id) || local.added.some(item => item.Id === record.Id)) ? '<span class="firm-meta pending-sync">' + esc(t('Czeka na zapis w GitHubie')) + '</span>' : ''}
           ${title.google ? googleAttribution : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
@@ -844,7 +973,7 @@
   async function restoreHandle() {
     try {
       const db = await fileDB(); const handle = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get('csv'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); db.close();
-      if (!handle || github) return;
+      if (!handle || github || hasQueued()) return;
       fileHandle = handle;
       if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted' && !hasPending()) await establishConnection(handle);
       else connectionUI();
@@ -852,7 +981,7 @@
   }
   async function establishConnection(handle) {
     if (busy || githubBusy || fileBusy) throw new Error('Trwa poprzedni zapis. Spróbuj ponownie za chwilę.');
-    if (github || rememberedGitHub) throw new Error('Najpierw rozłącz GitHub, żeby wybrać plik na komputerze.');
+    if (github || rememberedGitHub || hasQueued()) throw new Error('Najpierw wyślij oczekujące zmiany i rozłącz GitHub, żeby wybrać plik na komputerze.');
     const previous = records;
     const file = await handle.getFile(), text = await file.text(), parsed = C.parseCSV(text);
     parsed.records.forEach(C.callHistory);
@@ -878,7 +1007,7 @@
     $('ghDataMode').value = 'remote'; updateGitHubModeHint();
     $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
     try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
-    const config = github?.config || rememberedGitHub?.config;
+    const config = github?.config || rememberedGitHub?.config || local.sync?.target;
     if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; }
     $('ghToken').value = github?.token || rememberedGitHub?.token || '';
     $('connectDialog').showModal(); switchConnectionMode(github || !fileHandle ? 'github' : 'file'); connectionUI();
@@ -906,21 +1035,33 @@
     if (busy || githubBusy) return;
     try { localStorage.removeItem(GITHUB_SESSION_STORE); localStorage.removeItem('pracownia.github.config'); }
     catch { toast('Nie udało się usunąć zapamiętanego połączenia. Sprawdź ustawienia przeglądarki.', true); return; }
-    rememberedGitHub = null;
+    rememberedGitHub = null; restoreRetryAt = 0; clearTimeout(syncRetryTimer); syncRetryTimer = null; syncError = null;
     connected = false; fileHandle = null; connectionError = ''; fileText = null;
     if (github) { github.close(); github = null; } $('ghToken').value = '';
-    local = { patches: {}, added: [], imported: records.map(r => ({ ...r })), meta: C.fileMeta(records), info: local.info }; base = [...records]; await persist();
+    await writeLocal(async () => {
+      if (!hasQueued()) {
+        local = { patches: {}, added: [], imported: records.map(r => ({ ...r })), meta: C.fileMeta(records), info: local.info }; base = [...records]; await persist();
+      }
+    });
     try { const db = await fileDB(); const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete('csv'); tx.oncomplete = () => db.close(); } catch {}
     $('connectDialog').close(); render(); toast('Rozłączono plik. Bieżąca lista zostaje w przeglądarce.');
   }
   async function pollFile() {
+    if (!connected && rememberedGitHub && restoreRetryAt && Date.now() >= restoreRetryAt && !githubBusy && !document.hidden) { await restoreGitHub(); return; }
     if (!connected || busy || githubBusy || fileBusy || document.hidden) return;
     if (github) {
-      if (Date.now() - lastGitHubPoll < 15000) return;
+      if (hasQueued() || syncRunning) { kickSync(); return; }
+      if (Date.now() - lastGitHubPoll < 3000) return;
       githubBusy = true; lastGitHubPoll = Date.now(); const session = github;
-      try { const result = await session.read(); if (github !== session || !connected) return; if (result.sha !== local.info?.sha) { await adoptShared(result, { sha: result.sha }); render(); if (selected && !actionDirty() && !$('editDialog').open) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); } } connectionError = ''; connectionUI(); }
-      catch { connectionError = 'Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejne odświeżenie za 15 s.'; connectionUI(); }
-      finally { githubBusy = false; } return;
+      try { const result = await session.read(); if (github !== session || !connected) return;
+        await writeLocal(async () => {
+          if (hasQueued() || github !== session || !connected) return;
+          if (result.sha !== local.info?.sha) { await adoptShared(result, { sha: result.sha }); render(); if (selected && !actionDirty() && !$('editDialog').open) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); } }
+          connectionError = '';
+        }); connectionUI();
+      }
+      catch { connectionError = 'Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejna próba za 3 s.'; connectionUI(); }
+      finally { githubBusy = false; kickSync(); } return;
     }
     if (!fileHandle) return;
     const session = fileHandle; fileBusy = true;
@@ -1064,6 +1205,11 @@
   $('editDialog').addEventListener('cancel', event => { event.preventDefault(); closeForm(); });
   $('editDialog').addEventListener('close', () => { editOriginal = null; });
   $('connectButton').onclick = openConnection;
+  $('databaseStatus').onclick = openConnection;
+  $('retrySync').onclick = () => {
+    if (!github || !connected || [401,403,404].includes(syncError?.status)) { openConnection(); return; }
+    void flushQueue(true);
+  };
   $('closeConnect').onclick = () => $('connectDialog').close(); $('chooseCSV').onclick = chooseCSV; $('disconnectButton').onclick = disconnect;
   $('exportButton').onclick = () => {
     const meta = local.meta || C.fileMeta(records);
@@ -1093,7 +1239,7 @@
 
   });
   window.addEventListener('beforeunload', event => {
-    if (busy || githubBusy || actionDirty() || $('editDialog').open || $('callDialog').open || (!storageOK && records.length)) { event.preventDefault(); event.returnValue = ''; }
+    if (busy || actionDirty() || $('editDialog').open || $('callDialog').open || (!storageOK && records.length)) { event.preventDefault(); event.returnValue = ''; }
   });
   window.addEventListener('storage', event => {
     if (event.key !== STORE && event.key !== null) return;
@@ -1101,6 +1247,7 @@
     connectionUI();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
+  window.addEventListener('online', () => { if (!github && rememberedGitHub && !restoringGitHub) void restoreGitHub(); else kickSync(); });
   document.addEventListener('crm:google-preview', () => { render(); if (selected) openClient(selected, true); });
   document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (saveProgress && !$('saveProgress').hidden) updateSaveProgress(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
   render(); restoreGitHub().then(found => { if (!found) restoreHandle(); }); autoLoadCSV(); setInterval(pollFile, 3000);
