@@ -376,5 +376,14 @@ globalThis.CRM_MESSAGES = {
   "Zastąpić bazę na GitHubie obecną listą?": "Replace the database on GitHub with the current list?",
   "W tym panelu:": "In this panel:",
   "Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.": "The numbers are company counts. The entire shared file will be replaced, including notes, statuses and call history.",
-  "Baza na GitHubie zmieniła się podczas łączenia. Połącz się ponownie i potwierdź zastąpienie aktualnej wersji.": "The GitHub database changed while connecting. Reconnect and confirm replacing the current version."
+  "Baza na GitHubie zmieniła się podczas łączenia. Połącz się ponownie i potwierdź zastąpienie aktualnej wersji.": "The GitHub database changed while connecting. Reconnect and confirm replacing the current version.",
+  "Zapis do GitHuba…": "Saving to GitHub…",
+  "Zapisano w bazie": "Saved to the database",
+  "Nie zapisano w bazie": "Not saved to the database",
+  "Zapis do CSV…": "Saving CSV…",
+  "Zapisano plik CSV": "CSV file saved",
+  "Nie zapisano pliku CSV": "CSV file not saved",
+  "Zapis lokalny…": "Saving locally…",
+  "Zapisano w przeglądarce": "Saved in the browser",
+  "Nie zapisano lokalnie": "Not saved locally"
 };

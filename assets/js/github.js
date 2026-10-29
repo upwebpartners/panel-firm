@@ -16,7 +16,7 @@
       if (!config.branch.trim() || /[\u0000-\u0020]/.test(config.branch)) throw new Error('Podaj nazwę gałęzi, np. main.');
       if (!token.trim()) throw new Error('Wpisz swój token GitHub w tym formularzu.');
       this.config = { owner: config.owner, repo: config.repo, branch: config.branch.trim(), path };
-      this.token = token.trim(); this.fetch = request; this.cached = null; this.login = ''; this.controllers = new Set();
+      this.token = token.trim(); this.fetch = request; this.cached = null; this.controllers = new Set();
       this.prefix = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo);
       this.fileEndpoint = this.prefix + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
     }
@@ -39,8 +39,6 @@
       } finally { if (controller) this.controllers.delete(controller); }
     }
     async connect() {
-      const user = await (await this.request('/user')).json(); this.login = user.login;
-      await this.request(this.prefix);
       return this.read(true);
     }
     async read(allowMissing = false) {
@@ -71,9 +69,16 @@
     }
     async save(base, patches, added, author) {
       for (let attempt = 0; attempt < 3; attempt++) {
-        const latest = await this.read(true);
+        const usingCached = attempt === 0 && !!this.cached;
+        let latest = usingCached ? this.cached : await this.read(true);
+        let result = C.merge(base, latest.records, patches, added);
+        // The file SHA makes a cached-version write conditional. Refresh after
+        // a collision, or before reporting a conflict against an older cache.
+        if (usingCached && result.conflicts.length) {
+          latest = await this.read(true);
+          result = C.merge(base, latest.records, patches, added);
+        }
         if (latest.missing && base.length) throw new Error('Wspólny CSV został usunięty. Zapis wstrzymany, aby nie odtworzyć niepełnej bazy.');
-        const result = C.merge(base, latest.records, patches, added);
         if (result.conflicts.length) {
           const error = new Error('Konflikt zmian: ' + result.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Zamknij edycję i odczytaj najnowszą kartę. Niczego nie nadpisano.');
           error.code = 'CONFLICT'; error.conflicts = result.conflicts; throw error;

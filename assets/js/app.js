@@ -29,6 +29,7 @@
   let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
   let priorityOriginal = null, prioritySaving = false;
   let toastTimer = null;
+  let saveProgress = null, progressTimer = null, progressHideTimer = null;
   let github = null, githubBusy = false, fileBusy = false, lastGitHubPoll = 0;
   let authorName = '';
   try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
@@ -75,6 +76,32 @@
     const gh = kind === 'github'; $('githubConnectFields').hidden = !gh; $('localConnectFields').hidden = gh;
     $('connectGitHub').hidden = !gh; $('chooseCSV').hidden = gh;
     $('githubMode').classList.toggle('selected', gh); $('fileMode').classList.toggle('selected', !gh);
+  }
+  function updateSaveProgress() {
+    if (!saveProgress) return;
+    const labels = {
+      github: { saving: 'Zapis do GitHuba…', saved: 'Zapisano w bazie', failed: 'Nie zapisano w bazie' },
+      file: { saving: 'Zapis do CSV…', saved: 'Zapisano plik CSV', failed: 'Nie zapisano pliku CSV' },
+      browser: { saving: 'Zapis lokalny…', saved: 'Zapisano w przeglądarce', failed: 'Nie zapisano lokalnie' }
+    };
+    const elapsed = saveProgress.elapsed ?? Math.max(0, Date.now() - saveProgress.startedAt);
+    $('saveProgress').hidden = false; $('saveProgress').className = 'save-progress ' + saveProgress.state;
+    $('saveProgressLabel').textContent = t(labels[saveProgress.target][saveProgress.state]);
+    $('saveProgressTime').textContent = (elapsed / 1000).toLocaleString(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' s';
+  }
+  async function trackSave(target, operation) {
+    clearInterval(progressTimer); clearTimeout(progressHideTimer);
+    saveProgress = { target, startedAt: Date.now(), state: 'saving' }; updateSaveProgress();
+    progressTimer = setInterval(updateSaveProgress, 200);
+    try {
+      const result = await operation();
+      saveProgress.state = 'saved'; return result;
+    } catch (error) { saveProgress.state = 'failed'; throw error; }
+    finally {
+      clearInterval(progressTimer); progressTimer = null;
+      saveProgress.elapsed = Math.max(0, Date.now() - saveProgress.startedAt); updateSaveProgress();
+      if (saveProgress.state === 'saved') progressHideTimer = setTimeout(() => { $('saveProgress').hidden = true; }, 6000);
+    }
   }
   function updateGitHubModeHint() {
     const hints = {
@@ -127,15 +154,17 @@
         const author = await ensureAuthor();
         const message = t('Zastąpić bazę na GitHubie obecną listą?') + '\n\n' + config.owner + '/' + config.repo + '\n' + config.branch + ' / ' + config.path + '\n\n' + t('Na GitHubie:') + ' ' + result.records.length + '\n' + t('W tym panelu:') + ' ' + currentRecords.length + '\n\n' + t('Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.');
         if (!confirm(message)) { candidate.close(); return; }
-        result = await candidate.replace(currentRecords, currentHeaders, result.sha, author);
+        result = await trackSave('github', () => candidate.replace(currentRecords, currentHeaders, result.sha, author));
       } else if (result.missing && currentRecords.length) {
         if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + currentRecords.length + ' firm?')) { candidate.close(); return; }
-        result = await candidate.save([], {}, currentRecords, await ensureAuthor());
+        const author = await ensureAuthor();
+        result = await trackSave('github', () => candidate.save([], {}, currentRecords, author));
       } else if (hasPending()) {
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (plan.added.length || Object.keys(plan.patches).length) {
           if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
-          result = await saveShared(candidate, plan.base, plan.patches, plan.added, await ensureAuthor());
+          const author = await ensureAuthor();
+          result = await trackSave('github', () => saveShared(candidate, plan.base, plan.patches, plan.added, author));
         }
       }
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
@@ -153,35 +182,37 @@
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
     if (githubBusy) throw new Error('Trwa odświeżanie wspólnej bazy. Spróbuj zapisać ponownie za chwilę.');
     if (fileBusy) throw new Error('Trwa odświeżanie pliku. Spróbuj zapisać ponownie za chwilę.');
-    if (github) {
-      if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
-      busy = true; connectionUI();
-      try { const result = await saveShared(github, originals, patches, added, author); await adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
-      catch (error) { connectionError = 'Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.'; throw error; }
-      finally { busy = false; connectionUI(); }
-    } else if (connected && fileHandle) {
-      busy = true; connectionUI();
-      try {
-        const text = await (await fileHandle.getFile()).text(), latest = C.parseCSV(text);
-        const outcome = C.merge(originals, latest.records, patches, added);
-        if (outcome.conflicts.length) throw new Error('Te same pola zmieniła druga osoba: ' + outcome.conflicts.map(x => x.field).join(', ') + '. Odśwież kartę klienta.');
-        await writeRecords(C.stampFile(outcome.records, at, author), latest.headers, text); connectionError = '';
-      } catch (error) { connectionError = 'Nie zapisano zmian do pliku. Sprawdź połączenie i spróbuj ponownie.'; throw error; }
-      finally { busy = false; connectionUI(); }
-    } else {
-      busy = true;
-      try {
-        const next = { ...local, patches: { ...local.patches }, added: [...local.added, ...added], meta: { at, by: author } };
-        for (const [id, patch] of Object.entries(patches)) {
-          if (!byId(id)) throw new Error('Tej firmy nie ma już w bazie. Odśwież listę.');
-          const previous = Object.hasOwn(next.patches, id) ? next.patches[id] : {};
-          next.patches = { ...next.patches, [id]: { ...previous, ...patch } };
-        }
-        await persist(next, true); local = next;
-        records = C.stampFile(C.overlay(base, local.patches, local.added), at, author);
-      } finally { busy = false; connectionUI(); }
-    }
-    render();
+    return trackSave(github ? 'github' : connected && fileHandle ? 'file' : 'browser', async () => {
+      if (github) {
+        if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
+        busy = true; connectionUI();
+        try { const result = await saveShared(github, originals, patches, added, author); await adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
+        catch (error) { connectionError = 'Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.'; throw error; }
+        finally { busy = false; connectionUI(); }
+      } else if (connected && fileHandle) {
+        busy = true; connectionUI();
+        try {
+          const text = await (await fileHandle.getFile()).text(), latest = C.parseCSV(text);
+          const outcome = C.merge(originals, latest.records, patches, added);
+          if (outcome.conflicts.length) throw new Error('Te same pola zmieniła druga osoba: ' + outcome.conflicts.map(x => x.field).join(', ') + '. Odśwież kartę klienta.');
+          await writeRecords(C.stampFile(outcome.records, at, author), latest.headers, text); connectionError = '';
+        } catch (error) { connectionError = 'Nie zapisano zmian do pliku. Sprawdź połączenie i spróbuj ponownie.'; throw error; }
+        finally { busy = false; connectionUI(); }
+      } else {
+        busy = true;
+        try {
+          const next = { ...local, patches: { ...local.patches }, added: [...local.added, ...added], meta: { at, by: author } };
+          for (const [id, patch] of Object.entries(patches)) {
+            if (!byId(id)) throw new Error('Tej firmy nie ma już w bazie. Odśwież listę.');
+            const previous = Object.hasOwn(next.patches, id) ? next.patches[id] : {};
+            next.patches = { ...next.patches, [id]: { ...previous, ...patch } };
+          }
+          await persist(next, true); local = next;
+          records = C.stampFile(C.overlay(base, local.patches, local.added), at, author);
+        } finally { busy = false; connectionUI(); }
+      }
+      render();
+    });
   }
   // Keep saved outcome values unchanged; use simpler labels in the interface.
   const callOutcomeLabel = outcome => ({ 'Brak odpowiedzi': 'Nie odebrał', 'Brak zainteresowania': 'Nie zainteresowany' })[outcome] || outcome;
@@ -319,7 +350,7 @@
     $('connectionNotice').hidden = !connectionError && storageOK;
     $('connectionNotice').textContent = I18n.message(connectionError || storageError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
     $('formSaveHint').textContent = I18n.message(connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
-    updateFileInfo(); I18n.bindUI(document);
+    updateFileInfo();
   }
 
   function refreshIndustries() {
@@ -384,14 +415,15 @@
   }
 
   function contactHTML(record) {
-    const phone = record.Telefon || '';
+    const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    const phone = record.Telefon || preview?.phone || '';
     const email = record.Email || '';
     const url = C.safeURL(record.Strona);
     const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
       : esc(email);
     const parts = [
-      phone ? phoneHTML(record) : '',
+      phone ? phoneHTML({ Telefon: phone }) + (!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : '') : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
       !phone && !email && !url ? '—' : '',
@@ -1014,6 +1046,6 @@
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
   document.addEventListener('crm:google-preview', () => { render(); if (selected) openClient(selected, true); });
-  document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
+  document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (saveProgress && !$('saveProgress').hidden) updateSaveProgress(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();
