@@ -339,9 +339,11 @@
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
       if ($('priorityFilter').value && C.priorityValue(r) !== ($('priorityFilter').value === 'none' ? '' : $('priorityFilter').value)) return false;
       if ($('pinFilter').value === 'pinned' && !C.isPinned(r) || $('pinFilter').value === 'unpinned' && C.isPinned(r)) return false;
-      return !query || C.norm([r.Firma, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
+      return !query || C.norm([companyTitle(r).name, r.Branza, r.Miejscowosc, r.Telefon, r.Email, r.Strona, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
     });
-    return C.sortRecords(visible, { ...sorting, locale: I18n.language() });
+    // Sort by the visible names, then return the unchanged canonical records.
+    const originals = new Map(visible.map(record => [record.Id, record]));
+    return C.sortRecords(visible.map(record => ({ ...record, Firma: companyTitle(record).name })), { ...sorting, locale: I18n.language() }).map(record => originals.get(record.Id));
   }
   function renderSorting() {
     const labels = ['updated', 'added', 'called'].includes(sorting.field) ? ['Od najstarszych', 'Od najnowszych'] :
@@ -466,11 +468,20 @@
     return updatePriority(record.Id, { Przypieta: C.isPinned(record) ? '' : 'tak' }, control);
   }
 
+  const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
+  function companyTitle(record) {
+    const pending = record.Google_place_id && (!String(record.Firma || '').trim() || record.Firma === 'Do weryfikacji — ' + record.Google_place_id);
+    const preview = pending ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    return { name: pending ? preview?.name || t('Do weryfikacji') : record.Firma, google: !!(pending && preview?.name) };
+  }
   function renderTable(items) {
-    const rows = items.map(record => `
-      <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(record.Firma)}">
+    const rows = items.map(record => {
+      const title = companyTitle(record);
+      return `
+      <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(title.name)}">
         <td>
-          <strong class="firm-name">${esc(record.Firma)}</strong>
+          <strong class="firm-name">${esc(title.name)}</strong>
+          ${title.google ? googleAttribution : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
@@ -487,7 +498,8 @@
           ${callOutcomeHTML(displayCallHistory(record).at(-1))}
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
     $('clientsContent').innerHTML = `
       <table class="client-table">
         <thead><tr>
@@ -513,9 +525,7 @@
   function openClient(id, preserve = false, resetDraft = false) {
     const record = byId(id); if (!record) return;
     const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
-    const pendingName = record.Google_place_id && record.Firma === 'Do weryfikacji — ' + record.Google_place_id;
-    const heading = pendingName ? preview?.name || t('Do weryfikacji') : record.Firma;
-    const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
+    const title = companyTitle(record);
 
     const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
     const nextEditorOpen = selected === id && preserve && !resetDraft && $('nextStepEditor')?.open;
@@ -529,8 +539,8 @@
       <div class="company-toolbar${C.isPinned(record) ? ' pinned-toolbar' : ''}">
         <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
         <div class="company-heading">
-          <h2 id="drawerTitle" data-content>${esc(heading)}</h2>
-          ${pendingName && preview?.name ? googleAttribution : ''}
+          <h2 id="drawerTitle" data-content>${esc(title.name)}</h2>
+          ${title.google ? googleAttribution : ''}
           <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
         </div>
         <div class="company-pagination">
@@ -1003,6 +1013,7 @@
     connectionUI();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
+  document.addEventListener('crm:google-preview', () => { render(); if (selected) openClient(selected, true); });
   document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();

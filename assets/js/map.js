@@ -92,6 +92,7 @@
         await place.fetchFields({ fields: ['id','displayName','formattedAddress','location','nationalPhoneNumber','websiteURI','types','businessStatus'] });
         if (version !== selectionVersion) return;
         places.set(id, M.fromGoogle(place)); details.add(id);
+        document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       }
       if (version !== selectionVersion) return;
       const entity = places.get(id); showCard(entity);
@@ -118,6 +119,7 @@
         result = await library.Place.searchNearby({ fields, language: root.I18n.language(), maxResultCount: 20, locationRestriction: { center, radius: Math.max(100, Math.min(50000, distance * 1.42)) }, rankPreference: library.SearchNearbyRankPreference.DISTANCE });
       }
       for (const place of result.places || []) { const entity = M.fromGoogle(place); if (!details.has(entity.id)) places.set(entity.id, entity); }
+      document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       draw();
       if (text.trim() && result.places?.length) map.panTo(result.places[0].location);
       status('Wyniki Google: ' + (result.places?.length || 0) + '/20. To nie jest pełna lista firm w okolicy.');
@@ -134,11 +136,12 @@
       for (const row of candidates.slice(0, 50)) {
         if (!places.has(row.Google_place_id)) {
           const place = new library.Place({ id: row.Google_place_id });
-          await place.fetchFields({ fields: ['id','location'] });
+          await place.fetchFields({ fields: ['id','displayName','location'] });
           places.set(place.id, M.fromGoogle(place));
         }
         loadedSaved.add(row.Google_place_id); loaded++;
       }
+      document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       status('Wczytano oznaczenia: ' + loaded + '. Pozostało: ' + Math.max(0, candidates.length - loaded) + '.');
     } catch (error) { status(error.message); }
     finally { pending = false; $('mapKnown').disabled = false; draw(); }
@@ -177,7 +180,7 @@
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   });
   root.GoogleMapSession = {
-    get: id => details.has(id) ? { ...places.get(id) } : null,
+    get: id => places.has(id) ? { ...places.get(id) } : null,
     open: id => {
       if (!root.PanelUI.showTab('map')) return;
       if (!map) { waitingPlace = id; if (!$('googleDialog').open) settings(); }
