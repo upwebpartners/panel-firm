@@ -12,6 +12,9 @@
   const SORT_STORE = 'pracownia.sort';
   const HIDE_REJECTED_STORE = 'pracownia.hide-rejected';
   const HIDDEN_STAGES_STORE = 'pracownia.hidden-stages';
+  const CALL_AUTO_STATUS_STORE = 'pracownia.call-auto-status';
+  let callAutoStatus = true;
+  try { callAutoStatus = localStorage.getItem(CALL_AUTO_STATUS_STORE) !== 'false'; } catch {}
   let hiddenStages = new Set(['Archiwum']);
   try {
     const saved = JSON.parse(localStorage.getItem(HIDDEN_STAGES_STORE) || 'null');
@@ -419,6 +422,7 @@
     const pending = callOriginal && pendingCalls.has(callOriginal.Id);
     $('callOutcome').disabled = callSaving || !!pending;
     $('callNotes').readOnly = callSaving || !!pending;
+    $('callAutoStatus').disabled = callSaving || !!pending;
     for (const id of ['saveCall', 'closeCall', 'cancelCall']) $(id).disabled = callSaving;
   }
   function registerPhone(id) {
@@ -430,6 +434,7 @@
     $('callCompanyName').textContent = companyTitle(record).name;
     renderCallOptions(pending?.details.outcome || '');
     $('callNotes').value = pending?.details.notes || '';
+    $('callAutoStatus').checked = pending?.autoStatus ?? callAutoStatus;
     $('callError').hidden = !pending;
     $('callError').textContent = pending ? t('Dane rozmowy zachowano. Ponów zapis, aby uniknąć zdublowania telefonu.') : '';
     $('callSaveHint').textContent = t(github || rememberedGitHub?.config || local.sync?.target ? '' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
@@ -448,6 +453,7 @@
     if (!callOriginal || callSaving || busy) return;
     const id = callOriginal.Id, pending = pendingCalls.get(id);
     const details = pending?.details || { outcome: $('callOutcome').value, notes: $('callNotes').value.trim() };
+    const autoStatus = pending?.autoStatus ?? $('callAutoStatus').checked;
     if (!C.callOutcomes.includes(details.outcome)) {
       $('callError').textContent = t('Wybierz wynik rozmowy przed zapisem.'); $('callError').hidden = false; $('callOutcome').focus(); return;
     }
@@ -456,8 +462,12 @@
     callControls(); $('callError').hidden = true;
     try {
       const author = await ensureAuthor();
-      const operation = pending || { original: callOriginal, eventId: C.uid(), details };
-      if (!pending) operation.patch = C.callPatch(callOriginal, author, new Date().toISOString(), operation.eventId, details);
+      const operation = pending || { original: callOriginal, eventId: C.uid(), details, autoStatus };
+      if (!pending) {
+        operation.patch = C.callPatch(callOriginal, author, new Date().toISOString(), operation.eventId, details);
+        const stage = autoStatus ? { 'Zainteresowany': 'Rozmowa', 'Brak zainteresowania': 'Odrzucony' }[details.outcome] : null;
+        if (stage && stage !== callOriginal.Etap) operation.patch.Etap = stage;
+      }
       pendingCalls.set(id, operation);
       await saveChange(id, operation.patch, operation.original); pendingCalls.delete(id);
       $('callDialog').close();
@@ -1458,6 +1468,12 @@
   $('priorityDialog').addEventListener('cancel', event => { if (prioritySaving) event.preventDefault(); });
   $('priorityDialog').addEventListener('close', () => { priorityOriginal = null; });
   $('callForm').addEventListener('submit', submitCall);
+  $('callAutoStatus').addEventListener('change', () => {
+    if (callSaving || callOriginal && pendingCalls.has(callOriginal.Id)) return;
+    callAutoStatus = $('callAutoStatus').checked;
+    try { localStorage.setItem(CALL_AUTO_STATUS_STORE, String(callAutoStatus)); }
+    catch { toast('Ustawienie działa teraz, ale przeglądarka nie pozwoliła zapamiętać go na później.', true); }
+  });
   $('closeCall').onclick = closeCall; $('cancelCall').onclick = closeCall;
   $('callDialog').addEventListener('cancel', event => { event.preventDefault(); return closeCall(); });
   $('callDialog').addEventListener('close', () => { callOriginal = null; });

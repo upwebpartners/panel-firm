@@ -10,7 +10,7 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=426ce78a958d">
+    <link rel="stylesheet" href="assets/css/style.css?v=7e62dac3c199">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -248,7 +248,8 @@
         <div class="connect-body call-form-body">
           <div class="drawer-field"><label for="callOutcome">Wynik rozmowy *</label><select id="callOutcome" required></select></div>
           <div class="drawer-field"><label for="callNotes">Przebieg rozmowy</label><textarea id="callNotes" rows="6" maxlength="30000" placeholder="Z kim rozmawialiście? Co ustaliliście i jaki jest następny krok?"></textarea></div>
-          <p class="small-copy">Zapis obejmuje datę, autora, wynik i opis. Etap firmy zmienisz osobno.</p>
+          <label class="call-auto-status"><input type="checkbox" id="callAutoStatus" checked aria-describedby="callAutoStatusHint"><span>Automatycznie zmieniaj status po rozmowie</span></label>
+          <p id="callAutoStatusHint" class="small-copy">Zainteresowany → Rozmowa. Nie zainteresowany → Odrzucony. Pozostałe wyniki nie zmieniają statusu. Wybór jest zapamiętany w tej przeglądarce.</p>
           <div id="callError" class="form-error" role="alert" hidden></div>
         </div>
         <div class="dialog-footer"><span id="callSaveHint"></span><div><button type="button" id="cancelCall" class="button">Anuluj</button><button type="submit" id="saveCall" class="button primary">Zapisz rozmowę</button></div></div>
@@ -440,7 +441,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=da627aa8424c"></script>
+    <script src="assets/js/translations.js?v=2b8a5f569009"></script>
     <script src="assets/js/i18n.js?v=b7685c50a1a3"></script>
     <script src="assets/js/dialogs.js?v=ea5c6ab0d442"></script>
     <script src="assets/js/core.js?v=45881e5f4eb6"></script>
@@ -450,7 +451,7 @@
     <script src="assets/js/github.js?v=8ea726c801ca"></script>
     <script src="assets/js/zone-core.js?v=5b521d21eb2a"></script>
     <script src="assets/js/zone-sync.js?v=2f263069a429"></script>
-    <script src="assets/js/app.js?v=df3a09ba57a9"></script>
+    <script src="assets/js/app.js?v=85344e04a016"></script>
     <script src="assets/js/ui.js?v=5b36d6504c72"></script>
     <script src="assets/js/map.js?v=a23c6b65a8bf"></script>
     <script src="assets/js/zone-preview.js?v=af55b8ae12e0"></script>

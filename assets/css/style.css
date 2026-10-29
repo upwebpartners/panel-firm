@@ -753,6 +753,9 @@ main {
 }
 .call-form-body select { width:100%; }
 .call-form-body textarea { min-height:140px; }
+.call-auto-status { display:flex; align-items:flex-start; gap:9px; font-size:13px; line-height:1.5; cursor:pointer; }
+.call-auto-status input { flex:0 0 auto; width:16px; height:16px; min-height:0; margin:2px 0 0; accent-color:var(--accent); }
+.call-auto-status + .small-copy { margin-top:8px; }
 .call-outcome {
   display:inline-block;
   padding:3px 8px;
