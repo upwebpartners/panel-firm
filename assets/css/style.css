@@ -1127,6 +1127,8 @@ dialog::backdrop {
   }
   .company-pagination {
     margin-left:auto;
+    flex-wrap:wrap;
+    max-width:100%;
   }
   .company-grid {
     display:block;
