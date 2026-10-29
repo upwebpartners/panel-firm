@@ -85,7 +85,10 @@
     const result = base.map(r => ({ ...r, ...patchFor(r.Id) }));
     const ids = new Set(result.map(r => r.Id));
     for (const r of added) if (!ids.has(r.Id)) { result.push({ ...r, ...patchFor(r.Id) }); ids.add(r.Id); }
-    return result.filter(record => !Object.hasOwn(removed, record.Id)).map(cleanRecord);
+    for (const [id, reviewed] of Object.entries(removed)) if (!ids.has(id)) {
+      const retained = retainedMapDecision(reviewed[0]); if (retained) result.push(retained);
+    }
+    return result.flatMap(record => Object.hasOwn(removed, record.Id) ? [retainedMapDecision(record)].filter(Boolean) : [record]).map(cleanRecord);
   }
   function sharedConnectionPlan(base, latest, patches, added) {
     const current = new Map(latest.map(record => [record.Id, record]));
@@ -97,7 +100,7 @@
       // An imported snapshot may already be in GitHub. Use it as the baseline
       // for explicit offline edits, rather than trying to create it again.
       // A different company with a colliding ID still goes through merge checks.
-      if (!shared || norm(shared.Firma.trim()) !== norm(record.Firma.trim())) { fresh.push(record); continue; }
+      if (!shared || record.Google_place_id && shared.Google_place_id && record.Google_place_id !== shared.Google_place_id || norm(shared.Firma.trim()) !== norm(record.Firma.trim())) { fresh.push(record); continue; }
       if (!originals.has(record.Id)) originals.set(record.Id, record);
       const calls = unionCalls(callHistory(record), callHistory(pending[record.Id] || {}));
       if (calls.length && JSON.stringify(unionCalls(callHistory(shared), calls)) !== JSON.stringify(callHistory(shared))) {
@@ -111,20 +114,41 @@
     const ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
     return [...new Set([...Object.keys(left), ...Object.keys(right)])].every(key => ignored.includes(key) || String(left[key] ?? '') === String(right[key] ?? ''));
   }
+  function retainedMapDecision(record) {
+    if (!record?.Google_place_id || record.Mapa_status !== 'wykreslona') return null;
+    const keys = ['Id', 'Google_place_id', 'Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Mapa_potwierdzono', 'Powod_wykreslenia', 'Dodal', 'Dodano'];
+    return { Firma: '', Etap: 'Nowy', ...Object.fromEntries(keys.filter(key => record[key] !== undefined).map(key => [key, record[key]])) };
+  }
+  function isMapDecisionOnly(record) {
+    const retained = retainedMapDecision(record);
+    return !!retained && sameCompany(record, retained);
+  }
   function merge(base, latest, patches, added, removed = {}) {
     const original = new Map(base.map(r => [r.Id, cleanRecord(r)]));
     const current = new Map(latest.map(r => [r.Id, cleanRecord(r)]));
     const conflicts = [];
     for (const [id, reviewed] of Object.entries(removed)) {
       const currentRow = current.get(id);
-      if (!currentRow) continue;
-      if (reviewed.some(record => sameCompany(record, currentRow))) current.delete(id);
+      if (!currentRow) {
+        const retained = retainedMapDecision(reviewed[0]);
+        if (retained) {
+          const duplicate = [...current.values()].find(row => row.Google_place_id === retained.Google_place_id);
+          if (duplicate) conflicts.push({ id, name: companyName(duplicate), field: 'Usunięcie firmy — wpis zmieniła druga osoba', value: '' });
+          else current.set(id, retained);
+        }
+        continue;
+      }
+      if (reviewed.some(record => sameCompany(record, currentRow))) {
+        const retained = retainedMapDecision(currentRow);
+        if (retained) current.set(id, retained); else current.delete(id);
+      }
+      else if (reviewed.some(record => { const retained = retainedMapDecision(record); return retained && sameCompany(retained, currentRow); })) continue;
       else conflicts.push({ id, name: companyName(currentRow), field: 'Usunięcie firmy — wpis zmieniła druga osoba', value: '', removal: true, current: { ...currentRow } });
     }
     for (const [id, patch] of Object.entries(patches)) {
       if (Object.hasOwn(removed, id)) continue;
       const before = original.get(id); const after = current.get(id);
-      if (!after) { if (before) conflicts.push({ id, name: companyName(before), field: 'Usunięty w pliku', value: '' }); continue; }
+      if (!after || before && !isMapDecisionOnly(before) && isMapDecisionOnly(after)) { if (before) conflicts.push({ id, name: companyName(before), field: 'Usunięty w pliku', value: '' }); continue; }
       for (const [key, value] of Object.entries(cleanRecord(patch))) {
         if (callColumns.includes(key) && patch.Historia_polaczen) continue;
         if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
@@ -137,7 +161,7 @@
     for (const record of added.map(cleanRecord)) {
       if (Object.hasOwn(removed, record.Id)) continue;
       if (!current.has(record.Id)) {
-        const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
+        const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || record.Firma?.trim() && norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: companyName(record), field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
         else current.set(record.Id, { ...record, ...(Object.hasOwn(patches, record.Id) ? patches[record.Id] : {}) });
       } else if (!original.has(record.Id)) {
@@ -248,12 +272,13 @@
     for (const row of incoming.map(cleanRecord)) {
       let match = seen.find(r => r.Id === row.Id);
       if (!match && row.Google_place_id) match = seen.find(r => r.Google_place_id === row.Google_place_id);
-      if (!match) {
+      if (!match && row.Firma?.trim()) {
         const same = seen.filter(r => norm(r.Firma.trim()) === norm(row.Firma.trim()));
         if (same.length === 1) match = same[0];
       }
       if (!match && (row.Mapa_status === 'wykreslona' || ['Odrzucony', 'Archiwum'].includes(row.Etap)) && !['T', 'K'].includes(row.Mapa_edytowal || row.Edytowal)) throw new Error('Import nie może wykreślać firm bez decyzji T lub K.');
       if (!match) { const newRow = { ...row, Id: row.Id || uid(), Etap: row.Etap || 'Nowy' }; added.push(newRow); seen.push(newRow); continue; }
+      if (isMapDecisionOnly(match)) continue;
       const patch = {};
       for (const [key, value] of Object.entries(row)) if (!workflowColumns.includes(key) && value !== '' && String(match[key] || '') !== value) patch[key] = value;
       for (const key of ['Dodal', 'Dodano', 'Google_place_id']) if (!match[key] && row[key]) patch[key] = row[key];
@@ -264,5 +289,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

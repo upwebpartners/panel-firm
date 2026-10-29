@@ -144,10 +144,11 @@
     for (const entity of places.values()) {
       const current = record(entity), state = M.state(current);
       if (!$(filters[state]).checked) continue;
+      const declined = state !== 'wykreslona' && current?.Etap === 'Odrzucony';
       const marker = new Marker({ map, position: { lat: entity.lat, lng: entity.lon },
-        title: (entity.name || (current ? C.companyName(current) : t('Firma z mapy'))) + ' · ' + t(labels[state]),
-        icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
-        label: { text: ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
+        title: (entity.name || (current ? C.companyName(current) : t('Firma z mapy'))) + ' · ' + t(declined ? 'Odrzucony — odmowa klienta' : labels[state]),
+        icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: declined ? '#b02b36' : colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
+        label: { text: declined ? 'O' : ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
       marker.addListener('click', () => selectPlace(entity.id)); markers.set(entity.id, marker);
     }
     if (selected && details.has(selected)) showCard(places.get(selected));
@@ -165,10 +166,12 @@
       ${entity.website ? `<p><a href="${esc(entity.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a></p>` : ''}
       <p><a href="${esc(M.placeURL(entity.id))}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a></p>
       <p class="small-copy">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p>
+      ${state !== 'wykreslona' && current?.Etap === 'Odrzucony' ? `<p class="map-declined">${esc(t('Odrzucony — odmowa klienta'))}</p>` : ''}
       <div class="map-place-actions">
         ${state === 'nowa' || state === 'przejrzana' && !current?.Mapa_potwierdzono ? `<button class="button" data-map-reviewed>${esc(t(state === 'nowa' ? 'Oznacz jako przejrzaną' : 'Potwierdź przejrzenie'))}</button>` : ''}
         ${state === 'dodana' ? `<button class="button primary" data-map-open>${esc(t('Otwórz firmę'))}</button>` : `<button class="button primary" data-map-add>${esc(t(state === 'wykreslona' ? 'Przywróć w Firmach' : 'Dodaj do firm'))}</button>`}
         ${state !== 'wykreslona' ? `<button class="button" data-map-exclude>${esc(t('Wykreśl'))}</button>` : ''}
+        ${state === 'wykreslona' && !C.isMapDecisionOnly(current) ? `<button class="button delete-company" data-map-delete>${esc(t('Usuń dane firmy'))}</button>` : ''}
       </div>
       ${state === 'wykreslona' ? `<p data-content>${esc(current?.Powod_wykreslenia || '')}</p>` : ''}
       <div id="mapExcludeFields" hidden><label for="mapExcludeReason">${esc(t('Powód (opcjonalnie)'))}</label><textarea id="mapExcludeReason" rows="2"></textarea><button class="button" data-map-confirm>${esc(t('Potwierdź wykreślenie'))}</button><button class="button" data-map-cancel>${esc(t('Anuluj'))}</button></div>`;
@@ -266,6 +269,7 @@
     if (!selected || pending) return;
     const entity = places.get(selected); if (!entity) return;
     if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) root.CRM.open(row.Id); return; }
+    if (event.target.closest('[data-map-delete]')) { const row = record(entity); if (row) await root.CRM.remove(row.Id); draw(); return; }
     if (event.target.closest('[data-map-exclude]')) { $('mapExcludeFields').hidden = false; $('mapExcludeReason').focus(); return; }
     if (event.target.closest('[data-map-cancel]')) { $('mapExcludeFields').hidden = true; return; }
     const add = event.target.closest('[data-map-add]'), exclude = event.target.closest('[data-map-confirm]'), reviewed = event.target.closest('[data-map-reviewed]');

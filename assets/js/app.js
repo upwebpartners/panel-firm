@@ -387,6 +387,7 @@
       } else {
         busy = true;
         try {
+          if (originals.some(original => !C.isMapDecisionOnly(original) && C.isMapDecisionOnly(byId(original.Id)))) throw new Error('Tej firmy nie ma już w bazie. Odśwież listę.');
           const next = { ...local, patches: { ...local.patches }, added: [...local.added, ...added], meta: { at, by: author } };
           for (const [id, patch] of Object.entries(patches)) {
             if (!byId(id)) throw new Error('Tej firmy nie ma już w bazie. Odśwież listę.');
@@ -994,7 +995,7 @@
   }
   async function deleteCompany(id) {
     if (!requireProfile() || deletionsInProgress.has(id)) return;
-    if (typeof C.sameCompany !== 'function' || github && github.removalVersion !== 1) { toast('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.', true); return; }
+    if (typeof C.retainedMapDecision !== 'function' || github && github.removalVersion !== 1) { toast('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.', true); return; }
     if (busy || changingSource || fileBusy) { toast('Poczekaj na zakończenie poprzedniego zapisu.', true); return; }
     const record = byId(id); if (!record) return;
     const original = { ...record };
@@ -1002,7 +1003,8 @@
     const batch = local.sync?.inflight;
     const inFlight = batch ? C.overlay(batch.base, batch.patches, batch.added, batch.removed).find(row => row.Id === id) : null;
     const versions = [original, base.find(row => row.Id === id), inFlight].filter(Boolean).map(row => ({ ...row }));
-    const message = t('Usunąć firmę na stałe?') + '\n\n' + companyTitle(original).name + '\n\n' + t('Z bieżącej bazy znikną wszystkie dane tej firmy, notatki i historia rozmów. Dotyczy to także drugiej osoby korzystającej z tej samej bazy.') + '\n\n' + t('Wcześniejsze wersje pliku pozostają w historii GitHuba.');
+    const retained = C.retainedMapDecision(original);
+    const message = t('Usunąć firmę na stałe?') + '\n\n' + companyTitle(original).name + '\n\n' + t(retained ? 'Usuniemy dane firmy, notatki i rozmowy. Zachowamy wyłącznie oznaczenie wykreślenia na mapie oraz jego historię. Dotyczy to obu osób.' : 'Z bieżącej bazy znikną wszystkie dane tej firmy, notatki i historia rozmów. Dotyczy to także drugiej osoby korzystającej z tej samej bazy.') + '\n\n' + t('Wcześniejsze wersje pliku pozostają w historii GitHuba.');
     if (!confirm(message)) return;
     deletionsInProgress.add(id);
     try {
@@ -1018,7 +1020,7 @@
             const patches = { ...local.patches }; delete patches[id];
             const added = local.added.filter(row => row.Id !== id);
             const removed = target ? { ...local.removed, [id]: versions } : {};
-            const nextBase = target ? base : base.filter(row => row.Id !== id);
+            const nextBase = target ? base : C.overlay(base, {}, [], { [id]: versions });
             const next = { ...local, patches, added, removed, imported: nextBase, meta: { at, by: author },
               sync: target ? { ...local.sync, target: { ...target }, author } : null };
             await persist(next, true); local = next; base = nextBase;
@@ -1192,8 +1194,10 @@
   async function decidePlace(entity, value, reason = '') {
     const author = await ensureAuthor();
     const existing = M.matchRecord(entity, records);
+    if (existing && local.removed?.[existing.Id] && value === 'dodana') throw new Error('Dane tej firmy są właśnie usuwane. Przywróć ją po zakończeniu zapisu.');
     if (existing?.Google_place_id && value === 'przejrzana' && (M.state(existing) !== 'przejrzana' || existing.Mapa_potwierdzono)) return existing;
     const patch = { ...M.decision(existing, value, author, reason), Google_place_id: entity.id };
+    if (existing && C.isMapDecisionOnly(existing) && value === 'dodana') Object.assign(patch, M.detailsPatch(entity), { Etap: 'Nowy' });
     if (existing) await saveChange(existing.Id, patch, { ...existing });
     else {
       const record = { ...M.draft(entity), ...patch };
@@ -1226,10 +1230,11 @@
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
+    remove: deleteCompany,
     savePlaceDetails: (entity, { refresh = false } = {}) => {
       const task = placeDetailsChain.then(async () => {
         const original = records.find(record => record.Google_place_id === entity.id);
-        if (!original || !['T','K'].includes(authorName) || !refresh && M.storedDetails(original)) return;
+        if (!original || C.isMapDecisionOnly(original) || !['T','K'].includes(authorName) || !refresh && M.storedDetails(original)) return;
         await saveChange(original.Id, M.detailsPatch(entity), { ...original });
       });
       placeDetailsChain = task.catch(error => { connectionError = I18n.message(error.message); connectionUI(); });
@@ -1281,7 +1286,62 @@
     if (event.target.closest('[data-import-csv]')) $('importButton').click();
     if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; hiddenStages.clear(); rememberHiddenStages(); render(); }
   });
-  $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
+  let menuCompanyId = null, menuCompanyRow = null;
+  function closeCompanyMenu(restoreFocus = false) {
+    $('companyMenu').hidden = true; menuCompanyId = null;
+    if (restoreFocus && menuCompanyRow?.isConnected) menuCompanyRow.focus();
+    menuCompanyRow = null;
+  }
+  function showCompanyMenu(row, x, y) {
+    const record = byId(row.dataset.client);
+    if (!record || record.Mapa_status === 'wykreslona') return;
+    menuCompanyId = record.Id; menuCompanyRow = row;
+    const menu = $('companyMenu'); $('companyMenuName').textContent = companyTitle(record).name;
+    menu.hidden = false;
+    const width = window.innerWidth || document.documentElement.clientWidth || 1024;
+    const height = window.innerHeight || document.documentElement.clientHeight || 768;
+    menu.style.left = Math.max(8, Math.min(x, width - (menu.offsetWidth || 240) - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(y, height - (menu.offsetHeight || 240) - 8)) + 'px';
+    $('companyMenu').querySelector('button')?.focus();
+  }
+  $('clientsContent').addEventListener('contextmenu', event => {
+    const row = event.target.closest('tr[data-client]');
+    if (!row) return;
+    event.preventDefault(); showCompanyMenu(row, event.clientX, event.clientY);
+  });
+  $('clientsContent').addEventListener('keydown', event => {
+    if (event.target.closest('button,a,input,select')) return;
+    const row = event.target.closest('tr[data-client]'); if (!row) return;
+    if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
+      event.preventDefault(); const rect = row.getBoundingClientRect(); showCompanyMenu(row, rect.left + 20, rect.top + 20);
+    } else if (['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); }
+  });
+  $('companyMenu').addEventListener('click', async event => {
+    const button = event.target.closest('[data-company-action]'); if (!button || !menuCompanyId) return;
+    const id = menuCompanyId; closeCompanyMenu();
+    if (!byId(id) || byId(id).Mapa_status === 'wykreslona') return;
+    if (button.dataset.companyAction === 'open') openClient(id);
+    if (button.dataset.companyAction === 'status') openStatus(id);
+    if (button.dataset.companyAction === 'priority') openPriority(id);
+    if (button.dataset.companyAction === 'exclude') openExclude(id);
+    if (button.dataset.companyAction === 'delete') await deleteCompany(id);
+  });
+  $('companyMenu').addEventListener('keydown', event => {
+    const buttons = [...$('companyMenu').querySelectorAll('button')];
+    const index = buttons.indexOf(document.activeElement);
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) && buttons.length) {
+      event.preventDefault(); buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length].focus();
+    }
+  });
+  document.addEventListener('pointerdown', event => { if (!$('companyMenu').hidden && !$('companyMenu').contains(event.target)) closeCompanyMenu(); });
+  document.addEventListener('keydown', event => {
+    if ($('companyMenu').hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCompanyMenu(true); }
+    if (event.key === 'Tab') closeCompanyMenu();
+  });
+  document.addEventListener('scroll', () => closeCompanyMenu(), true);
+  document.addEventListener('crm:tab', () => closeCompanyMenu());
+  window.addEventListener('resize', () => closeCompanyMenu());
   $('drawer').addEventListener('click', async event => {
     const refresh = event.target.closest('[data-refresh-google]');
     if (refresh) {

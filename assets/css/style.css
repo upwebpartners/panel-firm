@@ -15,6 +15,13 @@
   --header:46px;
   font:14px/1.45 Arial,Helvetica,sans-serif;
 }
+.company-menu { position:fixed; z-index:90; width:240px; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); overflow:auto; padding:6px; background:var(--panel); border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow); }
+.company-menu[hidden] { display:none; }
+.company-menu-name { padding:7px 9px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.company-menu button { display:block; width:100%; border:0; border-radius:3px; background:transparent; color:var(--text); text-align:left; padding:9px; cursor:pointer; font:inherit; }
+.company-menu button:hover,.company-menu button:focus-visible { background:var(--hover); }
+.company-menu .delete-company { color:var(--danger); }
+.map-declined { color:var(--danger); font-weight:bold; }
 :root[data-theme=dark] {
   color-scheme:dark;
   --bg:#181d24;
