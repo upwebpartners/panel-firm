@@ -89,8 +89,11 @@
         if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + records.length + ' firm?')) { candidate.close(); return; }
         result = await candidate.save([], {}, records, await ensureAuthor());
       } else if (hasPending()) {
-        if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
-        result = await candidate.save(base, local.patches, local.added, await ensureAuthor());
+        const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
+        if (plan.added.length || Object.keys(plan.patches).length) {
+          if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
+          result = await candidate.save(plan.base, plan.patches, plan.added, await ensureAuthor());
+        }
       }
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
       try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}

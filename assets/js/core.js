@@ -80,6 +80,25 @@
     for (const r of added) if (!ids.has(r.Id)) { result.push({ ...r, ...patchFor(r.Id) }); ids.add(r.Id); }
     return result.map(cleanRecord);
   }
+  function sharedConnectionPlan(base, latest, patches, added) {
+    const current = new Map(latest.map(record => [record.Id, record]));
+    const originals = new Map(base.map(record => [record.Id, record]));
+    const pending = Object.fromEntries(Object.entries(patches).map(([id, patch]) => [id, { ...patch }]));
+    const fresh = [];
+    for (const record of added) {
+      const shared = current.get(record.Id);
+      // An imported snapshot may already be in GitHub. Use it as the baseline
+      // for explicit offline edits, rather than trying to create it again.
+      // A different company with a colliding ID still goes through merge checks.
+      if (!shared || norm(shared.Firma.trim()) !== norm(record.Firma.trim())) { fresh.push(record); continue; }
+      if (!originals.has(record.Id)) originals.set(record.Id, record);
+      const calls = unionCalls(callHistory(record), callHistory(pending[record.Id] || {}));
+      if (calls.length && JSON.stringify(unionCalls(callHistory(shared), calls)) !== JSON.stringify(callHistory(shared))) {
+        pending[record.Id] = { ...pending[record.Id], ...callSummary(calls) };
+      }
+    }
+    return { base: [...originals.values()], patches: pending, added: fresh };
+  }
   function merge(base, latest, patches, added) {
     const original = new Map(base.map(r => [r.Id, cleanRecord(r)]));
     const current = new Map(latest.map(r => [r.Id, cleanRecord(r)]));
@@ -214,5 +233,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, parseCSV, csvText, overlay, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, parseCSV, csvText, overlay, sharedConnectionPlan, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);
