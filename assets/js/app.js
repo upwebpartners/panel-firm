@@ -590,11 +590,11 @@
     return {
       phone: record.Telefon || preview?.phone || '', email: record.Email || '',
       url: ownURL || previewURL, address: record.Adres || preview?.address || '',
-      google: !!((!record.Telefon && preview?.phone) || (!ownURL && previewURL) || (!record.Adres && preview?.address))
+      google: !!((!record.Telefon && preview?.phone) || (!ownURL && previewURL))
     };
   }
   function contactHTML(record) {
-    const { phone, email, url, address, google } = companyContact(record);
+    const { phone, email, url, google } = companyContact(record);
     const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
       : esc(email);
@@ -602,9 +602,8 @@
       phone ? phoneHTML({ Telefon: phone }) : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
-      address ? `<span data-content>${esc(address)}</span>` : '',
       google ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — dane nie są zapisane w CSV')) + '</small>' : '',
-      !phone && !email && !url && !address ? '—' : '',
+      !phone && !email && !url ? '—' : '',
     ];
     return `<div class="contact-lines">${parts.join('')}</div>`;
   }
@@ -766,6 +765,7 @@
         <div class="company-analysis">
           ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
           <div class="company-contact">
+            ${record.Adres ? `<span data-content>${esc(record.Adres)}</span>` : ''}
             ${record.Strona && C.safeURL(record.Strona) ? `<a href="${esc(C.safeURL(record.Strona))}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}
             ${record.Email ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.Email) ? `<a href="mailto:${esc(record.Email)}">${esc(record.Email)}</a>` : `<span>${esc(record.Email)}</span>`) : ''}
             <span class="muted">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}${record.Dodano ? ' · ' + esc(dateTime(record.Dodano)) : ''}</span>
