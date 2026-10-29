@@ -54,7 +54,7 @@
   }
   function capture(rootNode, all = false) {
     if (!rootNode || typeof document === 'undefined') return;
-    const elements = all ? [rootNode] : [...rootNode.querySelectorAll('label,.form-divider,.advanced-fields summary,button,input[placeholder],textarea[placeholder],select option,.empty-state p,.form-error,#toast')];
+    const elements = all ? [rootNode] : [...rootNode.querySelectorAll('label,legend,.form-divider,.advanced-fields summary,button,input[placeholder],textarea[placeholder],select option,.empty-state p,.form-error,#toast')];
     for (const element of elements) {
       const walker = document.createTreeWalker(element, 4);
       let node;

@@ -902,6 +902,37 @@ dialog::backdrop {
   min-height:80px;
   font-size:13px;
 }
+.form-choice-field {
+  border:0;
+  padding:0;
+  margin:0;
+  min-width:0;
+}
+.form-choice-field legend {
+  padding:0;
+  margin-bottom:6px;
+  font-size:12px;
+  font-weight:700;
+}
+.form-choices {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.form-choices .form-choice {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:32px;
+  padding:6px 9px;
+  margin:0;
+  border:1px solid var(--border);
+  border-radius:3px;
+  cursor:pointer;
+}
+.form-choice:hover { background:var(--hover); }
+.form-choice:has(input:checked) { background:var(--accent-bg); border-color:var(--accent); }
+.form-choice input { width:14px; height:14px; min-height:0; margin:0; flex-shrink:0; }
 .full,.form-divider {
   grid-column:1/-1;
 }

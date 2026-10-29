@@ -405,9 +405,6 @@
     </button>`;
   }
 
-  function priorityOptions(value) {
-    return [{ value: '', label: 'Nie ustawiono' }, ...C.priorities].map(item => `<option value="${esc(item.value)}"${item.value === value ? ' selected' : ''}>${esc(t(item.label) + (item.description ? ' — ' + t(item.description) : ''))}</option>`).join('');
-  }
   function pinButton(record) {
     const pinned = C.isPinned(record), label = t(pinned ? 'Odepnij' : 'Przypnij');
     return `<button type="button" class="button pin-button${pinned ? ' pinned' : ''}" data-pin="${esc(record.Id)}" aria-pressed="${pinned}" aria-label="${esc(label)}" title="${esc(label)}">${icon('pin')}</button>`;
@@ -677,14 +674,17 @@
     $('formTitle').textContent = I18n.message(record ? 'Edytuj dane firmy' : 'Dodaj nową firmę');
     $('submitForm').innerHTML = record ? 'Zapisz zmiany' + icon('check') : 'Dodaj klienta' + icon('plus');
     $('formError').hidden = true;
-    const basic = ['name', 'url', 'city', 'phone', 'email', 'notes'];
+    const basic = ['name', 'url', 'city', 'phone', 'email', 'stage', 'priority', 'notes'];
     const ordered = [...formSchema.filter(row => basic.includes(row[0])), ...formSchema.filter(row => !basic.includes(row[0]))];
     $('formFields').innerHTML = '<div class="form-grid">' + ordered.map(([key, label, type, placeholder, full]) => {
       const value = record ? val(record, key) : key === 'stage' ? 'Nowy' : '';
+      if (type === 'stage' || type === 'priority') {
+        const selectedValue = type === 'priority' ? (record ? C.priorityValue(record) : '') : value;
+        const options = type === 'stage' ? C.stages.map(stage => ({ value: stage, label: stage })) : [...C.priorities, { value: '', label: 'Nie ustawiono' }];
+        return '<fieldset class="form-field full form-choice-field" id="f-' + key + '"><legend>' + esc(t(label)) + '</legend><div class="form-choices">' + options.map((item, index) => '<label class="form-choice" for="f-' + key + '-' + index + '"' + (item.description ? ' title="' + esc(t(item.description)) + '"' : '') + '><input type="radio" id="f-' + key + '-' + index + '" name="' + key + '" value="' + esc(item.value) + '"' + (item.value === selectedValue ? ' checked' : '') + '><span>' + esc(t(item.label)) + '</span></label>').join('') + '</div></fieldset>';
+      }
       let input;
       if (type === 'textarea') input = '<textarea name="' + key + '" id="f-' + key + '" placeholder="' + esc(t(placeholder)) + '" maxlength="30000">' + esc(value) + '</textarea>';
-      else if (type === 'stage') input = '<select id="f-stage" name="stage">' + C.stages.map(s => '<option value="' + esc(s) + '"' + (s === value ? ' selected' : '') + '>' + esc(t(s)) + '</option>').join('') + '</select>';
-      else if (type === 'priority') input = '<select id="f-priority" name="priority">' + priorityOptions(record ? C.priorityValue(record) : '') + '</select>';
       else input = '<input id="f-' + key + '" name="' + key + '" type="' + type + '" value="' + esc(value) + '" placeholder="' + esc(t(placeholder || '')) + '"' + (key === 'name' ? ' required maxlength="250"' : ' maxlength="5000"') + '>';
       return (key === 'industry' ? '</div><details class="advanced-fields"><summary>' + esc(t('Więcej informacji (opcjonalnie)')) + '</summary><div class="form-grid">' : '') + '<div class="form-field' + (full ? ' full' : '') + '"><label for="f-' + key + '">' + esc(t(label)) + '</label>' + input + '</div>';
     }).join('') + '</div></details>';
