@@ -4,6 +4,13 @@
   if (typeof document === 'undefined' || !document.getElementById('companiesPanel')) return;
   const $ = id => document.getElementById(id), t = I18n.t;
   let theme = 'light', mainTab = 'companies', navigationVersion = 0;
+  const dropdowns = () => [...document.querySelectorAll('details[data-dropdown]')];
+  function closeMenus(except = null) {
+    for (const menu of dropdowns()) if (menu !== except) menu.open = false;
+  }
+  function dismissOutside(event) {
+    for (const menu of dropdowns()) if (menu.open && !menu.contains(event.target)) menu.open = false;
+  }
   // Preserve existing theme preferences stored by earlier versions.
   try { theme = localStorage.getItem('atlas.theme') === 'dark' ? 'dark' : 'light'; } catch {}
   function appearance() {
@@ -23,6 +30,7 @@
     if (!document.dispatchEvent(event)) return cancelled();
     for (const guard of guards) if (!await guard() || version !== navigationVersion) return cancelled();
     if (version !== navigationVersion) return cancelled();
+    closeMenus();
     for (const commit of commits) commit();
     mainTab = next;
     $('companiesPanel').hidden = mainTab !== 'companies'; $('mapPanel').hidden = mainTab !== 'map';
@@ -37,10 +45,26 @@
   }
   $('themeToggle').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('atlas.theme', theme); } catch {} appearance(); });
   $('languageToggle').addEventListener('click', () => I18n.setLanguage(I18n.language() === 'pl' ? 'en' : 'pl'));
+  // Capture pointer events before the map or its controls can stop propagation.
+  document.addEventListener('pointerdown', dismissOutside, true);
+  document.addEventListener('focusin', dismissOutside, true);
   document.addEventListener('click', event => {
-    document.querySelectorAll('.settings-menu[open]').forEach(menu => {
-      if (!menu.contains(event.target)) menu.open = false;
-    });
+    dismissOutside(event);
+    const action = event.target.closest?.('[data-close-dropdown]');
+    if (action && dropdowns().some(menu => menu.contains(action))) closeMenus();
+  }, true);
+  document.addEventListener('toggle', event => {
+    const menu = event.target;
+    if (!menu.open || !dropdowns().includes(menu)) return;
+    closeMenus(menu);
+    document.dispatchEvent(new CustomEvent('crm:menu-open'));
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || root.PanelDialogs?.isOpen() || document.querySelector?.('dialog[open]')) return;
+    const menu = dropdowns().find(item => item.open);
+    if (!menu) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    closeMenus(); menu.querySelector('summary')?.focus();
   }, true);
   document.querySelectorAll('[data-main-tab]').forEach(button => {
     button.addEventListener('click', () => showTab(button.dataset.mainTab));
@@ -51,6 +75,6 @@
   });
   document.addEventListener('crm:language', appearance);
   root.addEventListener('hashchange', () => showTab(root.location.hash === '#map' ? 'map' : 'companies'));
-  root.PanelUI = { showTab };
+  root.PanelUI = { showTab, closeMenus };
   appearance(); showTab(root.location.hash === '#map' ? 'map' : 'companies');
 })(globalThis);

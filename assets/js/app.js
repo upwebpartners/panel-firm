@@ -1358,6 +1358,7 @@
   function showCompanyMenu(row, x, y) {
     const record = byId(row.dataset.client);
     if (!record || record.Mapa_status === 'wykreslona') return;
+    window.PanelUI?.closeMenus();
     menuCompanyId = record.Id; menuCompanyRow = row;
     const menu = $('companyMenu'); $('companyMenuName').textContent = companyTitle(record).name;
     menu.hidden = false;
@@ -1396,7 +1397,9 @@
       event.preventDefault(); buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length].focus();
     }
   });
-  document.addEventListener('pointerdown', event => { if (!$('companyMenu').hidden && !$('companyMenu').contains(event.target)) closeCompanyMenu(); });
+  document.addEventListener('pointerdown', event => { if (!$('companyMenu').hidden && !$('companyMenu').contains(event.target)) closeCompanyMenu(); }, true);
+  document.addEventListener('focusin', event => { if (!$('companyMenu').hidden && !$('companyMenu').contains(event.target)) closeCompanyMenu(); }, true);
+  document.addEventListener('crm:menu-open', () => closeCompanyMenu());
   document.addEventListener('keydown', event => {
     if ($('companyMenu').hidden) return;
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCompanyMenu(true); }

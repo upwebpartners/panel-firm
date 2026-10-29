@@ -14,6 +14,7 @@
     $('confirmClose').setAttribute('aria-label',t('Zamknij'));
     $('confirmAccept').className='button '+(options.danger?'danger':'primary');
     $('confirmDialog').classList.toggle('destructive',!!options.danger);
+    $('confirmDialog').classList.toggle('has-details',!!options.sections?.length);
     $('confirmDetails').replaceChildren();
     for(const part of options.sections||[]){
       const section=document.createElement('section'),heading=document.createElement('h3'),text=document.createElement('p');
@@ -24,6 +25,7 @@
   }
   function next(){
     if(active||!queue.length)return;
+    root.PanelUI?.closeMenus();
     active=queue.shift();render();
     try{$('confirmDialog').showModal();$('confirmCancel').focus();}
     catch{finish(false);}

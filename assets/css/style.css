@@ -845,15 +845,19 @@ dialog {
 dialog::backdrop {
   background:#10182080;
 }
-.confirm-dialog { width:560px; }
-.confirm-dialog .dialog-heading { align-items:center; }
-.confirm-dialog h2 { font-size:18px; }
-.confirm-body { padding:20px; max-height:60vh; overflow:auto; }
-#confirmMessage { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.65; font-size:14px; }
-.confirm-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
-.confirm-details section { border:1px solid var(--border); padding:12px; background:var(--subtle); min-width:0; }
-.confirm-details h3 { font-size:12px; margin-bottom:8px; color:var(--muted); }
-.confirm-details p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+.confirm-dialog { width:420px; }
+.confirm-dialog.has-details { width:560px; }
+.confirm-dialog .dialog-heading { align-items:center; gap:10px; padding:10px 12px; }
+.confirm-dialog h2 { font-size:15px; }
+.confirm-dialog .icon-button { width:28px; height:28px; min-height:28px; padding:0; flex:0 0 28px; }
+.confirm-dialog .dialog-footer { padding:8px 12px; gap:8px; }
+.confirm-dialog .button { padding:5px 10px; min-height:30px; font-size:12px; }
+.confirm-body { padding:12px; max-height:60vh; overflow:auto; }
+#confirmMessage { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5; font-size:13px; }
+.confirm-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.confirm-details section { border:1px solid var(--border); padding:10px; background:var(--subtle); min-width:0; }
+.confirm-details h3 { font-size:12px; margin-bottom:6px; color:var(--muted); }
+.confirm-details p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.5; }
 .button.danger { background:var(--danger); border-color:var(--danger); color:white; }
 .button.danger:hover { filter:brightness(.9); }
 .confirm-dialog.destructive .dialog-heading { border-bottom-color:var(--danger); }
