@@ -10,10 +10,11 @@
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const SORT_STORE = 'pracownia.sort';
-  let sorting = { field: 'priority', direction: 'asc' };
+  const SORT_VERSION = 2;
+  let sorting = { field: 'added', direction: 'desc' };
   try {
     const saved = JSON.parse(localStorage.getItem(SORT_STORE) || 'null');
-    if (saved && Object.hasOwn(C.sortFields, saved.field) && ['asc', 'desc'].includes(saved.direction)) sorting = { field: saved.field, direction: saved.direction };
+    if (saved?.version === SORT_VERSION && Object.hasOwn(C.sortFields, saved.field) && ['asc', 'desc'].includes(saved.direction)) sorting = { field: saved.field, direction: saved.direction };
   } catch { /* Invalid preferences never block access to company data. */ }
   let local = { patches: {}, added: [], imported: null, meta: null, info: null };
   let storageOK = true, storageError = '', browserStore;
@@ -891,7 +892,7 @@
       if (!['asc', 'desc'].includes($('sortDirection').value)) return;
       sorting.direction = $('sortDirection').value;
     }
-    try { localStorage.setItem(SORT_STORE, JSON.stringify(sorting)); } catch {}
+    try { localStorage.setItem(SORT_STORE, JSON.stringify({ ...sorting, version: SORT_VERSION })); } catch {}
     render();
   });
   $('addClient').onclick = () => openForm();
