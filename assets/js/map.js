@@ -139,9 +139,8 @@
     if (!map) return;
     for (const marker of markers.values()) marker.setMap(null);
     markers.clear();
-    const filtering = Object.values(filters).some(id => !$(id).checked);
-    // Google cannot hide individual native POIs. In filtered mode use only loaded overlays.
-    map.setOptions({ styles: filtering ? [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }] : null });
+    // Native Google places form a separate layer from our loaded status markers.
+    map.setOptions({ styles: $('showGooglePlaces').checked ? null : [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }] });
     for (const entity of places.values()) {
       const current = record(entity), state = M.state(current);
       if (!$(filters[state]).checked) continue;
@@ -264,7 +263,7 @@
   $('mapSearchText').onclick = () => search($('mapQuery').value);
   $('mapQuery').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search($('mapQuery').value); } });
   $('mapKnown').onclick = loadSaved;
-  Object.values(filters).forEach(id => $(id).addEventListener('change', () => { draw(); status('Filtry obejmują wczytane znaczniki. Przy filtrowaniu bazowe wizytówki Google są ukryte.'); }));
+  [...Object.values(filters), 'showGooglePlaces'].forEach(id => $(id).addEventListener('change', () => { draw(); status('Zmieniono widoczność mapy.'); }));
   $('mapPlace').addEventListener('click', async event => {
     if (event.target.closest('[data-map-close]')) { selected = null; selectionVersion++; $('mapPlace').hidden = true; return; }
     if (!selected || pending) return;

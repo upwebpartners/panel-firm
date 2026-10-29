@@ -10,7 +10,7 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=7e62dac3c199">
+    <link rel="stylesheet" href="assets/css/style.css?v=3d5cc1a20740">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -197,12 +197,13 @@
           <button id="mapKnown" class="button">Wczytaj oznaczenia</button>
           <button id="zonesToggle" class="button" aria-expanded="false" aria-controls="zonesPanel">Strefy</button>
           <button id="mapSettings" class="button">Klucz Google</button>
-          <details class="map-filters"><summary>Pokaż / ukryj</summary><div>
+          <details class="map-filters"><summary>Pokaż</summary><div>
             <label><input type="checkbox" id="showNew" checked>Nowe</label>
             <label><input type="checkbox" id="showReviewed" checked>Przejrzane</label>
             <label><input type="checkbox" id="showAdded" checked>Dodane</label>
             <label><input type="checkbox" id="showExcluded" checked>Wykreślone</label>
-            <p class="small-copy map-declined">O = odmowa klienta; firma pozostaje dodana.</p>
+            <label class="map-google-places"><input type="checkbox" id="showGooglePlaces" checked>Miejsca Google</label>
+            <p class="small-copy">Nowe–Wykreślone to nasze oznaczenia. Miejsca Google to osobne ikony i nazwy na mapie.</p>
           </div></details>
         </div>
         <div class="map-status" id="mapStatus" role="status">Otwórz ustawienia mapy i podaj klucz Google.</div>
@@ -441,7 +442,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=2b8a5f569009"></script>
+    <script src="assets/js/translations.js?v=93b661aea2c3"></script>
     <script src="assets/js/i18n.js?v=b7685c50a1a3"></script>
     <script src="assets/js/dialogs.js?v=ea5c6ab0d442"></script>
     <script src="assets/js/core.js?v=45881e5f4eb6"></script>
@@ -453,7 +454,7 @@
     <script src="assets/js/zone-sync.js?v=2f263069a429"></script>
     <script src="assets/js/app.js?v=85344e04a016"></script>
     <script src="assets/js/ui.js?v=5b36d6504c72"></script>
-    <script src="assets/js/map.js?v=a23c6b65a8bf"></script>
+    <script src="assets/js/map.js?v=84b26bbb5a8d"></script>
     <script src="assets/js/zone-preview.js?v=af55b8ae12e0"></script>
     <script src="assets/js/zones.js?v=84bd2af4f5e6"></script>
   </body>

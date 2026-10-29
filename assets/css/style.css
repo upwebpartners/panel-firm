@@ -1291,6 +1291,8 @@ dialog::backdrop {
 .map-filters > div { position: absolute; right: 0; top: 100%; min-width: 170px; padding: 10px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
 .map-filters label { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
 .map-filters input { height: auto; }
+.map-filters .map-google-places { border-top:1px solid var(--border); margin-top:7px; padding-top:9px; }
+.map-filters .small-copy { max-width:220px; margin:8px 0 0; }
 .map-status { position: absolute; bottom: 34px; left: 12px; max-width: calc(100% - 72px); padding: 7px 10px; background: var(--panel); border: 1px solid var(--border); font-size: 12px; z-index: 2; box-shadow: var(--shadow); }
 .map-place { position: absolute; top: 100px; right: 12px; width: 350px; max-width: calc(100% - 24px); max-height: calc(100% - 155px); overflow: auto; padding: 14px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); z-index: 3; font-size: 13px; }
 .map-place-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
