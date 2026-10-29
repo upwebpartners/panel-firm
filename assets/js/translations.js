@@ -355,5 +355,11 @@ globalThis.CRM_MESSAGES = {
   "Nieprawidłowy CSV: tekst po zamkniętym cudzysłowie.": "Invalid CSV: text after a closing quotation mark.",
   "CSV zawiera pustą nazwę kolumny.": "The CSV contains an empty column name.",
   "Historia telefonów zawiera sprzeczne zdarzenia z tym samym identyfikatorem.": "The call history contains conflicting events with the same ID.",
-  "Podgląd Google. Własne dane uzupełnij z niezależnego źródła.": "Google preview. Fill in your own data using an independent source."
+  "Podgląd Google. Własne dane uzupełnij z niezależnego źródła.": "Google preview. Fill in your own data using an independent source.",
+  "Różne notatki": "Different notes",
+  "Na GitHubie:": "On GitHub:",
+  "W tej przeglądarce:": "In this browser:",
+  "(pusta notatka)": "(empty note)",
+  "Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.": "Combine both versions and save? Cancel keeps your local copy.",
+  "Przerwano zapis. Twoje lokalne zmiany zostały zachowane.": "Save cancelled. Your local changes have been kept."
 };

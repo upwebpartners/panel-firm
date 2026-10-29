@@ -75,7 +75,8 @@
         if (latest.missing && base.length) throw new Error('Wspólny CSV został usunięty. Zapis wstrzymany, aby nie odtworzyć niepełnej bazy.');
         const result = C.merge(base, latest.records, patches, added);
         if (result.conflicts.length) {
-          const error = new Error('Konflikt zmian: ' + result.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Zamknij edycję i odczytaj najnowszą kartę. Niczego nie nadpisano.'); error.code = 'CONFLICT'; throw error;
+          const error = new Error('Konflikt zmian: ' + result.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Zamknij edycję i odczytaj najnowszą kartę. Niczego nie nadpisano.');
+          error.code = 'CONFLICT'; error.conflicts = result.conflicts; throw error;
         }
         const at = new Date().toISOString(), next = C.stampFile(result.records, at, author), text = C.csvText(next, latest.headers);
         if (new TextEncoder().encode(text).length > 10 * 1024 * 1024) throw new Error('Baza przekracza limit 10 MB.');

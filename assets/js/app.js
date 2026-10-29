@@ -75,6 +75,26 @@
     $('connectGitHub').hidden = !gh; $('chooseCSV').hidden = gh;
     $('githubMode').classList.toggle('selected', gh); $('fileMode').classList.toggle('selected', !gh);
   }
+  async function saveShared(client, originals, patches, added, author) {
+    let before = originals.map(record => ({ ...record }));
+    const pending = Object.fromEntries(Object.entries(patches).map(([id, patch]) => [id, { ...patch }]));
+    for (;;) {
+      try { return await client.save(before, pending, added, author); }
+      catch (error) {
+        if (error.code !== 'CONFLICT' || !error.conflicts?.length || error.conflicts.some(conflict => conflict.field !== 'Notatki' || !Object.hasOwn(pending[conflict.id] || {}, 'Notatki') || !before.some(record => record.Id === conflict.id))) throw error;
+        for (const conflict of error.conflicts) {
+          const shared = String(conflict.value ?? ''), own = String(pending[conflict.id].Notatki ?? '');
+          const combined = !own || shared.includes(own) ? shared : !shared || own.includes(shared) ? own : shared + '\n\n' + own;
+          const message = t('Różne notatki') + ' — ' + conflict.name + '\n\n' + t('Na GitHubie:') + '\n' + (shared || t('(pusta notatka)')) + '\n\n' + t('W tej przeglądarce:') + '\n' + (own || t('(pusta notatka)')) + '\n\n' + t('Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.');
+          if (!confirm(message)) throw new Error('Przerwano zapis. Twoje lokalne zmiany zostały zachowane.');
+          pending[conflict.id] = { ...pending[conflict.id], Notatki: combined, Modyfikacja: new Date().toISOString(), Edytowal: author };
+          // Rebase only the note the person has just reviewed. Other fields
+          // retain their original baseline and full conflict protection.
+          before = before.map(record => record.Id === conflict.id ? { ...record, Notatki: shared } : record);
+        }
+      }
+    }
+  }
   async function connectGitHub() {
     if (busy || githubBusy) return;
     $('connectGitHub').disabled = true; $('connectError').hidden = true; githubBusy = true;
@@ -92,7 +112,7 @@
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (plan.added.length || Object.keys(plan.patches).length) {
           if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
-          result = await candidate.save(plan.base, plan.patches, plan.added, await ensureAuthor());
+          result = await saveShared(candidate, plan.base, plan.patches, plan.added, await ensureAuthor());
         }
       }
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
@@ -109,7 +129,7 @@
     if (github) {
       if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
       busy = true; connectionUI();
-      try { const result = await github.save(originals, patches, added, author); await adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
+      try { const result = await saveShared(github, originals, patches, added, author); await adoptShared(result); connectionError = ''; lastGitHubPoll = Date.now(); }
       catch (error) { connectionError = 'Zapis do GitHuba nie powiódł się. Zmiana nie jest oznaczona jako zapisana.'; throw error; }
       finally { busy = false; connectionUI(); }
     } else if (connected && fileHandle) {
