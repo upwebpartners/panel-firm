@@ -560,6 +560,8 @@ main {
 .rejection-clock { display:flex; flex-direction:column; gap:3px; margin-top:7px; font-size:11px; color:var(--muted); line-height:1.4; }
 .rejection-clock strong { color:var(--text); font-size:11px; }
 .contact-load { align-self:flex-start; padding:2px 0; color:var(--accent); font-size:11px; text-align:left; }
+.delete-company { color:var(--danger); }
+.delete-company:hover { border-color:var(--danger); }
 .database-status.pending .status-dot { background:#b8860b; }
 .database-status.error { color:var(--danger); }
 .sync-retry { min-height:30px; padding:3px 7px; font-size:12px; }

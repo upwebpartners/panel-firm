@@ -73,12 +73,12 @@
     const quote = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     return '\uFEFF' + [columns.map(quote).join(','), ...records.map(r => columns.map(k => quote(r[k])).join(','))].join('\r\n') + '\r\n';
   }
-  function overlay(base, patches, added) {
+  function overlay(base, patches, added, removed = {}) {
     const patchFor = id => Object.hasOwn(patches, id) ? patches[id] : {};
     const result = base.map(r => ({ ...r, ...patchFor(r.Id) }));
     const ids = new Set(result.map(r => r.Id));
     for (const r of added) if (!ids.has(r.Id)) { result.push({ ...r, ...patchFor(r.Id) }); ids.add(r.Id); }
-    return result.map(cleanRecord);
+    return result.filter(record => !Object.hasOwn(removed, record.Id)).map(cleanRecord);
   }
   function sharedConnectionPlan(base, latest, patches, added) {
     const current = new Map(latest.map(record => [record.Id, record]));
@@ -99,11 +99,22 @@
     }
     return { base: [...originals.values()], patches: pending, added: fresh };
   }
-  function merge(base, latest, patches, added) {
+  function sameCompany(left, right) {
+    const ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
+    return [...new Set([...Object.keys(left), ...Object.keys(right)])].every(key => ignored.includes(key) || String(left[key] ?? '') === String(right[key] ?? ''));
+  }
+  function merge(base, latest, patches, added, removed = {}) {
     const original = new Map(base.map(r => [r.Id, cleanRecord(r)]));
     const current = new Map(latest.map(r => [r.Id, cleanRecord(r)]));
     const conflicts = [];
+    for (const [id, reviewed] of Object.entries(removed)) {
+      const currentRow = current.get(id);
+      if (!currentRow) continue;
+      if (reviewed.some(record => sameCompany(record, currentRow))) current.delete(id);
+      else conflicts.push({ id, name: currentRow.Firma, field: 'Usunięcie firmy — wpis zmieniła druga osoba', value: '', removal: true, current: { ...currentRow } });
+    }
     for (const [id, patch] of Object.entries(patches)) {
+      if (Object.hasOwn(removed, id)) continue;
       const before = original.get(id); const after = current.get(id);
       if (!after) { if (before) conflicts.push({ id, name: before.Firma, field: 'Usunięty w pliku', value: '' }); continue; }
       for (const [key, value] of Object.entries(cleanRecord(patch))) {
@@ -116,6 +127,7 @@
       if (patch.Historia_polaczen) Object.assign(after, callSummary(unionCalls(callHistory(after), callHistory(patch))));
     }
     for (const record of added.map(cleanRecord)) {
+      if (Object.hasOwn(removed, record.Id)) continue;
       if (!current.has(record.Id)) {
         const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
@@ -244,5 +256,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

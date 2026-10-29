@@ -1,4 +1,18 @@
 globalThis.CRM_MESSAGES = {
+  "Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.": "Refresh the panel with Ctrl+Shift+R before deleting a company.",
+  "Usuń firmę": "Delete company",
+  "Tylko profil T lub K może usunąć firmę.": "Only profile T or K can delete a company.",
+  "Usunąć firmę na stałe?": "Permanently delete this company?",
+  "Z bieżącej bazy znikną wszystkie dane tej firmy, notatki i historia rozmów. Dotyczy to także drugiej osoby korzystającej z tej samej bazy.": "All company details, notes and call history will be removed from the current database. This also affects the other person using the same database.",
+  "Wcześniejsze wersje pliku pozostają w historii GitHuba.": "Earlier file versions remain in GitHub history.",
+  "Dane firmy zmieniły się. Otwórz ponownie kartę przed usunięciem.": "Company details changed. Reopen the card before deleting.",
+  "Nie usunięto firmy, bo druga osoba zmieniła jej dane. Otwórz ponownie kartę.": "The company was not deleted because the other person changed its details. Reopen the card.",
+  "Nie usunięto firmy, bo druga osoba zmieniła jej dane. Firma wróciła na listę. Otwórz ją i sprawdź przed ponownym usunięciem.": "The company was not deleted because the other person changed its details. It is back on the list. Open and review it before deleting again.",
+  "Usunięcie firmy — wpis zmieniła druga osoba": "Company deletion — the other person changed the record",
+  "Usunięto firmę z listy.": "Company removed from the list.",
+  "Te firmy zostały usunięte ze wspólnej bazy:": "These companies were deleted from the shared database:",
+  "Odrzucić ich oczekujące zmiany w tej przeglądarce? Anuluj zachowa lokalną kopię. Możesz ją wcześniej wyeksportować do CSV.": "Discard their pending changes in this browser? Cancel preserves the local copy. You can export it to CSV first.",
+
   "Ukryj odrzucone": "Hide rejected",
   "Pokaż odrzucone": "Show rejected",
   "Oznacz jako przejrzaną": "Mark as reviewed",

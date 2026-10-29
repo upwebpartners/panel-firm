@@ -17,6 +17,7 @@
       if (!token.trim()) throw new Error('Wpisz swój token GitHub w tym formularzu.');
       this.config = { owner: config.owner, repo: config.repo, branch: config.branch.trim(), path };
       this.token = token.trim(); this.fetch = request; this.cached = null; this.controllers = new Set();
+      this.removalVersion = 1;
       this.prefix = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo);
       this.fileEndpoint = this.prefix + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
     }
@@ -67,16 +68,18 @@
       this.cached = { ...parsed, sha: file.sha, at: info.at, by: info.by, missing: false };
       return this.cached;
     }
-    async save(base, patches, added, author) {
+    async save(base, patches, added, author, removed = {}) {
+      if (Object.keys(removed).length && !['T', 'K'].includes(author)) throw new Error('Tylko profil T lub K może usunąć firmę.');
+      if (Object.keys(removed).length && typeof C.sameCompany !== 'function') throw new Error('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.');
       for (let attempt = 0; attempt < 3; attempt++) {
         const usingCached = attempt === 0 && !!this.cached;
         let latest = usingCached ? this.cached : await this.read(true);
-        let result = C.merge(base, latest.records, patches, added);
+        let result = C.merge(base, latest.records, patches, added, removed);
         // The file SHA makes a cached-version write conditional. Refresh after
         // a collision, or before reporting a conflict against an older cache.
         if (usingCached && result.conflicts.length) {
           latest = await this.read(true);
-          result = C.merge(base, latest.records, patches, added);
+          result = C.merge(base, latest.records, patches, added, removed);
         }
         if (latest.missing && base.length) throw new Error('Wspólny CSV został usunięty. Zapis wstrzymany, aby nie odtworzyć niepełnej bazy.');
         if (result.conflicts.length) {

@@ -6,8 +6,9 @@
   const stringFields = value => object(value) && Object.values(value).every(item => typeof item === 'string');
   function validate(snapshot) {
     const rows = value => Array.isArray(value) && value.every(row => stringFields(row) && row.Id && typeof row.Firma === 'string');
+    const removals = value => value == null || object(value) && Object.entries(value).every(([id, versions]) => rows(versions) && versions.length > 0 && versions.length <= 3 && versions.every(row => row.Id === id));
     if (!object(snapshot) || !object(snapshot.patches) || !Object.values(snapshot.patches).every(stringFields) ||
-        !rows(snapshot.added) || !(snapshot.imported == null || rows(snapshot.imported)) ||
+        !rows(snapshot.added) || !removals(snapshot.removed) || !(snapshot.imported == null || rows(snapshot.imported)) ||
         !(snapshot.meta == null || stringFields(snapshot.meta)) || !(snapshot.info == null || object(snapshot.info)) ||
         !(snapshot.sync == null || object(snapshot.sync) && object(snapshot.sync.target) && ['owner','repo','branch','path'].every(key => typeof snapshot.sync.target[key] === 'string') && ['T','K'].includes(snapshot.sync.author)) ||
         !(snapshot.headers == null || Array.isArray(snapshot.headers) && snapshot.headers.every(header => typeof header === 'string'))) {
@@ -19,10 +20,12 @@
     }
     const batch = snapshot.sync?.inflight;
     if (batch != null) {
-      if (!object(batch) || !rows(batch.base) || !rows(batch.added) || !object(batch.patches) || !Object.values(batch.patches).every(stringFields) || !['T','K'].includes(batch.author)) throw new Error('Nieprawidłowy zapis oczekujących zmian. Nie nadpisano kopii.');
+      if (!object(batch) || !rows(batch.base) || !rows(batch.added) || !removals(batch.removed) || !object(batch.patches) || !Object.values(batch.patches).every(stringFields) || !['T','K'].includes(batch.author)) throw new Error('Nieprawidłowy zapis oczekujących zmian. Nie nadpisano kopii.');
       [...batch.base, ...batch.added, ...Object.values(batch.patches)].forEach(C.callHistory);
+      Object.values(batch.removed || {}).flat().forEach(C.callHistory);
     }
     Object.values(snapshot.patches).forEach(C.callHistory);
+    Object.values(snapshot.removed || {}).flat().forEach(C.callHistory);
     return snapshot;
   }
   class BrowserStore {

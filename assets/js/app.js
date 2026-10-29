@@ -24,10 +24,10 @@
   let storageOK = true, storageError = '', browserStore;
   try { browserStore = new BrowserStore(localStorage, STORE); const stored = browserStore.load(); if (stored) local = stored; }
   catch (error) { storageOK = false; storageError = error.message; }
-  local = { ...local, patches: Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, C.cleanRecord(patch)])), added: local.added.map(C.cleanRecord), imported: local.imported?.map(C.cleanRecord) || null, ...(local.headers ? { headers: C.cleanHeaders(local.headers) } : {}) };
+  local = { ...local, removed: local.removed || {}, patches: Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, C.cleanRecord(patch)])), added: local.added.map(C.cleanRecord), imported: local.imported?.map(C.cleanRecord) || null, ...(local.headers ? { headers: C.cleanHeaders(local.headers) } : {}) };
   let base = local.imported || seed.records;
   let headers = local.headers || [...new Set([...seed.headers, ...base.flatMap(Object.keys), ...local.added.flatMap(Object.keys)])];
-  let records = C.overlay(base, local.patches, local.added);
+  let records = C.overlay(base, local.patches, local.added, local.removed);
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
   let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
@@ -46,6 +46,7 @@
   const pendingCalls = new Map();
   const callsInProgress = new Set();
   const priorityInProgress = new Set();
+  const deletionsInProgress = new Set();
   let callOriginal = null, callSaving = false;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const icon = name => '<svg aria-hidden="true"><use href="#i-' + name + '"/></svg>';
@@ -56,13 +57,16 @@
   const stagePill = record => '<span class="stage-pill ' + esc(stageSlug(record.Etap)) + '">' + esc(t(record.Etap || 'Nowy')) + '</span>';
   const byId = id => records.find(r => r.Id === id);
   const companyPreview = record => (record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null) || M.storedDetails(record);
-  const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0;
+  const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0 || Object.keys(local.removed || {}).length > 0;
   const hasQueued = () => !!local.sync && hasPending();
   const targetKey = config => config ? JSON.stringify([String(config.owner || '').toLowerCase(), String(config.repo || '').toLowerCase(), config.branch, String(config.path || '').trim().replace(/^\/+/, '')]) : '';
   const sameTarget = (a, b) => targetKey(a) === targetKey(b);
   function writeLocal(action) {
     const result = localWriteChain.then(action);
     localWriteChain = result.catch(() => {}); return result;
+  }
+  function structuredRemovals(removed = {}) {
+    return Object.fromEntries(Object.entries(removed).map(([id, versions]) => [id, versions.map(record => ({ ...record }))]));
   }
   function refreshCompanyView() {
     render();
@@ -83,12 +87,12 @@
           next.patches = { ...next.patches, [id]: { ...(next.patches[id] || {}), ...values } };
         }
         await persist(next, true); local = next;
-        records = C.stampFile(C.overlay(base, local.patches, local.added), at, author);
+        records = C.stampFile(C.overlay(base, local.patches, local.added, local.removed), at, author);
       } finally { busy = false; connectionUI(); }
     });
     render(); kickSync();
   }
-  function blockedSync(error) { return error?.code === 'CONFLICT' || [401,403,404,422].includes(error?.status); }
+  function blockedSync(error) { return ['CONFLICT', 'OUTDATED_CLIENT'].includes(error?.code) || [401,403,404,422].includes(error?.status); }
   function kickSync() {
     if (syncRetryTimer || syncError && blockedSync(syncError)) return;
     void flushQueue();
@@ -105,16 +109,19 @@
           const batch = {
           base: base.map(record => ({ ...record })),
           patches: Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, { ...patch }])),
-          added: local.added.map(record => ({ ...record })), author: local.sync.author
+          added: local.added.map(record => ({ ...record })), removed: structuredRemovals(local.removed), author: local.sync.author
           };
           const next = { ...local, sync: { ...local.sync, inflight: batch } };
           await persist(next, true); local = next; return batch;
         });
+        if (Object.keys(sent.removed || {}).length && session.removalVersion !== 1) {
+          const error = new Error('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.'); error.code = 'OUTDATED_CLIENT'; throw error;
+        }
         await trackSave('github', async () => {
           const newIds = new Set(sent.added.map(record => record.Id));
           const updates = Object.fromEntries(Object.entries(sent.patches).filter(([id]) => !newIds.has(id)));
-          const additions = C.overlay([], sent.patches, sent.added);
-          const result = resolveConflicts ? await saveShared(session, sent.base, updates, additions, sent.author, true) : await session.save(sent.base, updates, additions, sent.author);
+          const additions = C.overlay([], sent.patches, sent.added, sent.removed);
+          const result = resolveConflicts ? await saveShared(session, sent.base, updates, additions, sent.author, true, sent.removed) : await session.save(sent.base, updates, additions, sent.author, sent.removed);
           await writeLocal(async () => {
             if (github !== session || !connected) return;
             const remaining = Object.fromEntries(Object.entries(local.patches).map(([id, patch]) => [id, { ...patch }]));
@@ -124,15 +131,17 @@
             }
             const accepted = new Set(sent.added.map(record => record.Id));
             const added = local.added.filter(record => !accepted.has(record.Id));
-            const pending = added.length || Object.keys(remaining).length;
+            const removed = structuredRemovals(local.removed);
+            for (const [id, versions] of Object.entries(sent.removed || {})) if (JSON.stringify(removed[id]) === JSON.stringify(versions)) delete removed[id];
+            const pending = added.length || Object.keys(remaining).length || Object.keys(removed).length;
             const nextBase = result.records.map(record => ({ ...record }));
             const nextHeaders = [...new Set([...result.headers, ...headers])];
-            const next = { ...local, patches: remaining, added, imported: nextBase, headers: nextHeaders,
+            const next = { ...local, patches: remaining, added, removed, imported: nextBase, headers: nextHeaders,
               sync: pending ? { ...local.sync, inflight: null } : null, meta: pending ? local.meta : C.fileMeta(nextBase),
               info: { ...local.info, name: session.config.path, modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null } };
             await persist(next, true);
             base = nextBase; headers = nextHeaders; local = next;
-            records = C.overlay(base, local.patches, local.added);
+            records = C.overlay(base, local.patches, local.added, local.removed);
             lastGitHubPoll = Date.now(); connectionError = ''; syncFailures = 0;
           });
         });
@@ -143,15 +152,30 @@
         syncError = error;
         // A reported conflict means no write occurred. A network failure may
         // hide a successful write, so retain that exact batch for safe replay.
+        let restoredRemoval = false;
         if (error.code === 'CONFLICT') await writeLocal(async () => {
-          const next = { ...local, sync: { ...local.sync, inflight: null } };
-          try { await persist(next, true); local = next; } catch { /* Keep the durable batch if local storage is unavailable. */ }
+          const removed = structuredRemovals(local.removed);
+          const restored = new Map((error.conflicts || []).filter(conflict => conflict.removal && conflict.current && Object.hasOwn(removed, conflict.id)).map(conflict => [conflict.id, conflict.current]));
+          for (const id of restored.keys()) delete removed[id];
+          const nextBase = base.map(record => ({ ...(restored.get(record.Id) || record) }));
+          for (const [id, record] of restored) if (!nextBase.some(row => row.Id === id)) nextBase.push({ ...record });
+          const pending = Object.keys(local.patches).length || local.added.length || Object.keys(removed).length;
+          const next = { ...local, removed, imported: nextBase, sync: pending ? { ...local.sync, inflight: null } : null };
+          try {
+            await persist(next, true); local = next; base = nextBase;
+            records = C.overlay(base, local.patches, local.added, local.removed);
+            restoredRemoval = restored.size > 0;
+          } catch { /* Keep the durable batch if local storage is unavailable. */ }
         });
         connectionError = error.code === 'CONFLICT' ? 'Konflikt zapisu. Lokalne zmiany są zachowane. Kliknij Porównaj zmiany.' : 'Nie wysłano zmian do GitHuba. Zostały zachowane w przeglądarce.';
-        connectionError += ' ' + I18n.message(error.message);
+        if (restoredRemoval) {
+          connectionError = 'Nie usunięto firmy, bo druga osoba zmieniła jej dane. Firma wróciła na listę. Otwórz ją i sprawdź przed ponownym usunięciem.';
+          if (error.conflicts.every(conflict => conflict.removal)) syncError = null;
+          refreshCompanyView();
+        } else connectionError += ' ' + I18n.message(error.message);
         if (!blockedSync(error)) syncRetryTimer = setTimeout(() => { syncRetryTimer = null; kickSync(); }, Math.min(30000, 2000 * 2 ** Math.min(syncFailures++, 4)));
       }
-    } finally { syncRunning = false; connectionUI(); }
+    } finally { syncRunning = false; connectionUI(); if (!syncError && hasQueued()) kickSync(); }
   }
 
   function dateTime(value) { const date = new Date(value); return value && Number.isFinite(+date) ? date.toLocaleString(I18n.locale(), { dateStyle: 'short', timeStyle: 'short' }) : t('brak informacji'); }
@@ -254,11 +278,11 @@
     };
     $('ghDataModeHint').textContent = t(hints[$('ghDataMode').value] || hints.remote);
   }
-  async function saveShared(client, originals, patches, added, author, reviewFields = false) {
+  async function saveShared(client, originals, patches, added, author, reviewFields = false, removed = {}) {
     let before = originals.map(record => ({ ...record }));
     const pending = Object.fromEntries(Object.entries(patches).map(([id, patch]) => [id, { ...patch }]));
     for (;;) {
-      try { return await client.save(before, pending, added, author); }
+      try { return await client.save(before, pending, added, author, removed); }
       catch (error) {
         if (error.code !== 'CONFLICT' || !error.conflicts?.length || error.conflicts.some(conflict => (!reviewFields && conflict.field !== 'Notatki') || !Object.hasOwn(pending[conflict.id] || {}, conflict.field) || !before.some(record => record.Id === conflict.id))) throw error;
         for (const conflict of error.conflicts) {
@@ -365,7 +389,7 @@
             next.patches = { ...next.patches, [id]: { ...previous, ...patch } };
           }
           await persist(next, true); local = next;
-          records = C.stampFile(C.overlay(base, local.patches, local.added), at, author);
+          records = C.stampFile(C.overlay(base, local.patches, local.added, local.removed), at, author);
         } finally { busy = false; connectionUI(); }
       }
       render();
@@ -775,6 +799,7 @@
           <span>${index + 1} / ${browseIds.length}</span>
           <button class="button" data-navigate="1" ${index >= browseIds.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Następna firma'))}">→</button>
           <button class="button" data-edit-client>${esc(t('Edytuj firmę'))}</button>
+          <button type="button" class="button delete-company" data-delete-client="${esc(record.Id)}">${esc(t('Usuń firmę'))}</button>
         </div>
       </div>
       <div class="call-bar">
@@ -960,6 +985,55 @@
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
     const added = newRecord ? [{ ...newRecord, ...selection, Etap: newRecord.Etap, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
     await commitBatch(original ? [{ ...original }] : [], newRecord ? {} : { [id]: update }, added, author, at);
+  }
+  async function deleteCompany(id) {
+    if (!requireProfile() || deletionsInProgress.has(id)) return;
+    if (typeof C.sameCompany !== 'function' || github && github.removalVersion !== 1) { toast('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.', true); return; }
+    if (busy || changingSource || fileBusy) { toast('Poczekaj na zakończenie poprzedniego zapisu.', true); return; }
+    const record = byId(id); if (!record) return;
+    const original = { ...record };
+    if (selected === id && actionOriginal && !C.sameCompany(actionOriginal, original)) { toast('Dane firmy zmieniły się. Otwórz ponownie kartę przed usunięciem.', true); return; }
+    const batch = local.sync?.inflight;
+    const inFlight = batch ? C.overlay(batch.base, batch.patches, batch.added, batch.removed).find(row => row.Id === id) : null;
+    const versions = [original, base.find(row => row.Id === id), inFlight].filter(Boolean).map(row => ({ ...row }));
+    const message = t('Usunąć firmę na stałe?') + '\n\n' + companyTitle(original).name + '\n\n' + t('Z bieżącej bazy znikną wszystkie dane tej firmy, notatki i historia rozmów. Dotyczy to także drugiej osoby korzystającej z tej samej bazy.') + '\n\n' + t('Wcześniejsze wersje pliku pozostają w historii GitHuba.');
+    if (!confirm(message)) return;
+    deletionsInProgress.add(id);
+    try {
+      const author = await ensureAuthor(), at = new Date().toISOString();
+      const target = github?.config || rememberedGitHub?.config || local.sync?.target;
+      if (rememberedGitHub && !target) throw new Error('Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.');
+      if (target || !connected || !fileHandle) {
+        await writeLocal(async () => {
+          if (!byId(id) || !C.sameCompany(original, byId(id))) throw new Error('Dane firmy zmieniły się. Otwórz ponownie kartę przed usunięciem.');
+          if (target && hasQueued() && !sameTarget(target, local.sync.target)) throw new Error('Najpierw wyślij oczekujące zmiany do poprzedniej bazy.');
+          busy = true;
+          try {
+            const patches = { ...local.patches }; delete patches[id];
+            const added = local.added.filter(row => row.Id !== id);
+            const removed = target ? { ...local.removed, [id]: versions } : {};
+            const nextBase = target ? base : base.filter(row => row.Id !== id);
+            const next = { ...local, patches, added, removed, imported: nextBase, meta: { at, by: author },
+              sync: target ? { ...local.sync, target: { ...target }, author } : null };
+            await persist(next, true); local = next; base = nextBase;
+            records = C.overlay(base, local.patches, local.added, local.removed);
+          } finally { busy = false; connectionUI(); }
+        });
+      } else {
+        busy = true;
+        try {
+          await trackSave('file', async () => {
+            const text = await (await fileHandle.getFile()).text(), latest = C.parseCSV(text);
+            const result = C.merge([original], latest.records, {}, [], { [id]: versions });
+            if (result.conflicts.length) throw new Error('Nie usunięto firmy, bo druga osoba zmieniła jej dane. Otwórz ponownie kartę.');
+            await writeRecords(C.stampFile(result.records, at, author), latest.headers, text);
+          });
+        } finally { busy = false; connectionUI(); }
+      }
+      pendingCalls.delete(id); if (selected === id) closeDrawer(true);
+      render(); kickSync(); toast('Usunięto firmę z listy.');
+    } catch (error) { toast(error.message, true); }
+    finally { deletionsInProgress.delete(id); }
   }
   async function submitForm(event) {
     event.preventDefault();
@@ -1195,6 +1269,7 @@
   });
   $('clientsContent').addEventListener('keydown', event => { if (event.target.closest('button,a,input,select')) return; const row = event.target.closest('tr[data-client]'); if (row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openClient(row.dataset.client); } });
   $('drawer').addEventListener('click', async event => {
+    const remove = event.target.closest('[data-delete-client]'); if (remove) { await deleteCompany(remove.dataset.deleteClient); return; }
     const priority = event.target.closest('[data-priority]'); if (priority) { openPriority(priority.dataset.priority); return; }
     const pin = event.target.closest('[data-pin]'); if (pin) { await togglePin(pin); return; }
     const preview = event.target.closest('[data-google-preview]'); if (preview) { window.GoogleMapSession?.open(preview.dataset.googlePreview); return; }
@@ -1254,8 +1329,29 @@
   $('editDialog').addEventListener('close', () => { editOriginal = null; });
   $('connectButton').onclick = openConnection;
   $('databaseStatus').onclick = openConnection;
-  $('retrySync').onclick = () => {
+  $('retrySync').onclick = async () => {
     if (!github || !connected || [401,403,404].includes(syncError?.status)) { openConnection(); return; }
+    const deleted = (syncError?.conflicts || []).filter(conflict => conflict.field === 'Usunięty w pliku');
+    if (deleted.length) {
+      const message = t('Te firmy zostały usunięte ze wspólnej bazy:') + '\n\n' + deleted.map(conflict => conflict.name).join('\n') + '\n\n' + t('Odrzucić ich oczekujące zmiany w tej przeglądarce? Anuluj zachowa lokalną kopię. Możesz ją wcześniej wyeksportować do CSV.');
+      if (!confirm(message)) return;
+      try {
+        const ids = new Set(deleted.map(conflict => conflict.id));
+        await writeLocal(async () => {
+          const patches = Object.fromEntries(Object.entries(local.patches).filter(([id]) => !ids.has(id)));
+          const added = local.added.filter(record => !ids.has(record.Id));
+          const removed = Object.fromEntries(Object.entries(local.removed || {}).filter(([id]) => !ids.has(id)));
+          const nextBase = base.filter(record => !ids.has(record.Id));
+          const pending = Object.keys(patches).length || added.length || Object.keys(removed).length;
+          const next = { ...local, patches, added, removed, imported: nextBase, sync: pending ? { ...local.sync, inflight: null } : null };
+          await persist(next, true); local = next; base = nextBase;
+          records = C.overlay(base, local.patches, local.added, local.removed);
+        });
+        if (selected && ids.has(selected)) closeDrawer(true);
+        syncError = null; connectionError = ''; render();
+        if (!hasQueued()) { saveProgress = null; $('saveProgress').hidden = true; }
+      } catch (error) { toast(error.message, true); return; }
+    }
     void flushQueue(true);
   };
   $('closeConnect').onclick = () => $('connectDialog').close(); $('chooseCSV').onclick = chooseCSV; $('disconnectButton').onclick = disconnect;
