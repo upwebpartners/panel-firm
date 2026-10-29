@@ -35,6 +35,7 @@
   let records = C.overlay(base, local.patches, local.added, local.removed);
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
   let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
+  let deferredCompanyRefresh = null;
   let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
   let priorityOriginal = null, prioritySaving = false;
   let toastTimer = null;
@@ -779,8 +780,16 @@
     </section>`;
   }
 
+  function editingCompanyField() {
+    const active = document.activeElement;
+    return active && $('drawer').contains(active) && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable);
+  }
   function openClient(id, preserve = false, resetDraft = false) {
     const record = byId(id); if (!record) return;
+    // Background responses must not replace the field being typed into: keep
+    // its caret, selection, undo history and composition until focus leaves.
+    if (selected === id && preserve && !resetDraft && editingCompanyField()) { deferredCompanyRefresh = id; return; }
+    deferredCompanyRefresh = null;
     if (record.Mapa_status === 'wykreslona') { if (selected === id) closeDrawer(true); return; }
     const preview = companyPreview(record);
     const title = companyTitle(record);
@@ -892,6 +901,7 @@
   function confirmLeavingActions() { return !actionDirty() || ask('Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?'); }
   function closeDrawer(force = false) {
     if (!force && !confirmLeavingActions()) return false;
+    deferredCompanyRefresh = null;
     $('drawer').hidden = true; $('companiesPanel').inert = false; $('companiesPanel').removeAttribute('aria-hidden'); selected = null; browseIds = [];
     document.dispatchEvent(new CustomEvent('crm:view'));
     if (returnFocus?.isConnected) returnFocus.focus(); return true;
@@ -1342,6 +1352,12 @@
   document.addEventListener('scroll', () => closeCompanyMenu(), true);
   document.addEventListener('crm:tab', () => closeCompanyMenu());
   window.addEventListener('resize', () => closeCompanyMenu());
+  $('drawer').addEventListener('focusout', () => {
+    Promise.resolve().then(() => {
+      const id = deferredCompanyRefresh;
+      if (id && selected === id && !$('drawer').hidden && !editingCompanyField()) openClient(id, true);
+    });
+  });
   $('drawer').addEventListener('click', async event => {
     const refresh = event.target.closest('[data-refresh-google]');
     if (refresh) {
