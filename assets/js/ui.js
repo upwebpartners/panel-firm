@@ -32,6 +32,11 @@
   }
   $('themeToggle').addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('atlas.theme', theme); } catch {} appearance(); });
   $('languageToggle').addEventListener('click', () => I18n.setLanguage(I18n.language() === 'pl' ? 'en' : 'pl'));
+  document.addEventListener('click', event => {
+    document.querySelectorAll('.settings-menu[open]').forEach(menu => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  }, true);
   document.querySelectorAll('[data-main-tab]').forEach(button => {
     button.addEventListener('click', () => showTab(button.dataset.mainTab));
     button.addEventListener('keydown', event => {
