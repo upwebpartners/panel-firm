@@ -559,12 +559,14 @@
     document.dispatchEvent(new CustomEvent('crm:connection'));
   }
 
+  function directoryRecords() {
+    const reviewed = $('stageFilter').value === '__reviewed';
+    return records.filter(record => record.Mapa_status !== 'wykreslona' && (record.Mapa_status === 'przejrzana') === reviewed);
+  }
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
-    const visible = records.filter(r => {
-      if (r.Mapa_status === 'wykreslona' || hiddenStages.has(r.Etap)) return false;
-      if (!stage && r.Mapa_status === 'przejrzana') return false;
-      if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
+    const visible = directoryRecords().filter(r => {
+      if (hiddenStages.has(r.Etap)) return false;
       if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
       if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
@@ -591,8 +593,8 @@
     renderSorting(); connectionUI();
     renderHiddenStages();
     const visible = filteredRecords();
-    const total = records.filter(record => record.Mapa_status !== 'wykreslona').length;
-    $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ' firm');
+    const total = directoryRecords().length;
+    $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ($('stageFilter').value === '__reviewed' ? ' przejrzanych miejsc' : ' firm'));
     if (!visible.length) {
       $('clientsContent').innerHTML = '<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>';
     } else renderTable(visible);

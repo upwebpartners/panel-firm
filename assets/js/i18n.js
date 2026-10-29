@@ -23,6 +23,7 @@
       [/^Wyniki Google: (\d+)\/20\. To nie jest pełna lista firm w okolicy\.$/, (_, n) => `Google results: ${n}/20. This is not a complete business directory.`],
       [/^Wczytano oznaczenia: (\d+)\. Pozostało: (\d+)\.$/, (_, a, b) => `Loaded markers: ${a}. Remaining: ${b}.`],
       [/^Wyświetlono (\d+) z (\d+) firm$/, (_, a, b) => `Showing ${a} of ${b} companies`],
+      [/^Wyświetlono (\d+) z (\d+) przejrzanych miejsc$/, (_, a, b) => `Showing ${a} of ${b} reviewed places`],
       [/^Ostatni zapis telefonu: (.*?) \((.*?)\)\. Zapisać kolejny wykonany telefon teraz\?$/, (_, at, by) => `Last recorded call: ${at} (${by}). Record another completed call now?`],
       [/^W repozytorium nie ma jeszcze tego CSV\. Zapisać w nim obecną listę (\d+) firm\?$/, (_, count) => `This CSV does not exist in the repository yet. Save the current ${count} companies there?`],
       [/^Konflikt zmian: (.+)\. Zamknij edycję i odczytaj najnowszą kartę\. Niczego nie nadpisano\.$/, (_, fields) => `Edit conflict: ${fields}. Close the editor and open the latest company card. Nothing was overwritten.`],
