@@ -361,5 +361,20 @@ globalThis.CRM_MESSAGES = {
   "W tej przeglądarce:": "In this browser:",
   "(pusta notatka)": "(empty note)",
   "Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.": "Combine both versions and save? Cancel keeps your local copy.",
-  "Przerwano zapis. Twoje lokalne zmiany zostały zachowane.": "Save cancelled. Your local changes have been kept."
+  "Przerwano zapis. Twoje lokalne zmiany zostały zachowane.": "Save cancelled. Your local changes have been kept.",
+  "Wybierz, z której bazy chcesz korzystać. Po połączeniu zmiany będą zapisywane we wspólnym CSV.": "Choose which database to use. After connecting, changes will be saved to the shared CSV.",
+  "Baza przy połączeniu": "Database when connecting",
+  "Korzystaj z bazy na GitHubie": "Use the database on GitHub",
+  "Zastąp bazę na GitHubie obecną listą": "Replace the GitHub database with the current list",
+  "Połącz zmiany z obu baz": "Merge changes from both databases",
+  "Wczyta bazę z GitHuba zamiast lokalnej kopii. Przy łączeniu niczego nie zapisze na GitHubie.": "Loads the GitHub database instead of the local copy. Connecting will not write anything to GitHub.",
+  "Wyśle całą obecną listę do GitHuba i zastąpi wspólną bazę, także notatki, statusy i rozmowy. Poprosi o potwierdzenie.": "Uploads the entire current list and replaces the shared database, including notes, statuses and calls. Asks for confirmation.",
+  "Połączy lokalne zmiany z bazą na GitHubie. W razie różnych notatek pokaże obie wersje.": "Merges local changes with the GitHub database. If notes differ, shows both versions.",
+  "Aby wysłać własną bazę, najpierw wczytaj ją przyciskiem Wczytaj CSV. Obecna lista obejmuje wszystkie firmy w panelu, również ukryte przez filtry.": "To upload your own database, first load it using Import CSV. The current list includes every company in the panel, including those hidden by filters.",
+  "Wybierz bazę przy połączeniu.": "Choose a database connection mode.",
+  "Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.": "This CSV does not exist on GitHub. Choose to replace the database with the current list to create it.",
+  "Zastąpić bazę na GitHubie obecną listą?": "Replace the database on GitHub with the current list?",
+  "W tym panelu:": "In this panel:",
+  "Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.": "The numbers are company counts. The entire shared file will be replaced, including notes, statuses and call history.",
+  "Baza na GitHubie zmieniła się podczas łączenia. Połącz się ponownie i potwierdź zastąpienie aktualnej wersji.": "The GitHub database changed while connecting. Reconnect and confirm replacing the current version."
 };

@@ -926,7 +926,7 @@ dialog::backdrop {
   font-weight:700;
   margin:12px 0 5px;
 }
-.connect-body input {
+.connect-body input, .connect-body select {
   width:100%;
 }
 .connect-body .small-copy {

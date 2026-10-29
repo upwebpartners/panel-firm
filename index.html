@@ -325,8 +325,15 @@
         </div>
         <div id="githubConnectFields">
           <p>
-            Obie osoby łączą się z tym samym repozytorium. Każda zmiana statusu, notatki i telefonu zapisuje się we wspólnym CSV.
+            Wybierz, z której bazy chcesz korzystać. Po połączeniu zmiany będą zapisywane we wspólnym CSV.
           </p>
+          <label for="ghDataMode">Baza przy połączeniu</label>
+          <select id="ghDataMode" aria-describedby="ghDataModeHint">
+            <option value="remote" selected>Korzystaj z bazy na GitHubie</option>
+            <option value="replace">Zastąp bazę na GitHubie obecną listą</option>
+            <option value="merge">Połącz zmiany z obu baz</option>
+          </select>
+          <p id="ghDataModeHint" class="small-copy">Wczyta bazę z GitHuba zamiast lokalnej kopii. Przy łączeniu niczego nie zapisze na GitHubie.</p>
           <label for="ghRepo">
             Repozytorium z danymi (może być prywatne)
           </label>
@@ -361,7 +368,7 @@
             .
           </p>
           <p class="small-copy">
-            Połączenie wczyta bazę z repozytorium. Nowych klientów z pliku AI dodasz potem przyciskiem Wczytaj CSV. Jeśli pliku jeszcze nie ma, panel pozwoli zapisać obecną listę.
+            Aby wysłać własną bazę, najpierw wczytaj ją przyciskiem Wczytaj CSV. Obecna lista obejmuje wszystkie firmy w panelu, również ukryte przez filtry.
           </p>
         </div>
         <div id="localConnectFields" hidden>

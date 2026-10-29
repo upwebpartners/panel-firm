@@ -91,6 +91,27 @@
         }
       }
     }
+    async replace(records, headers, expectedSHA, author) {
+      if (!['T', 'K'].includes(author)) throw new Error('Wybierz T lub K w nagłówku, aby zapisać zmianę.');
+      const at = new Date().toISOString(), text = C.csvText(C.stampFile(records, at, author), headers.includes('Firma') ? headers : ['Firma', ...headers]);
+      if (new TextEncoder().encode(text).length > 10 * 1024 * 1024) throw new Error('Baza przekracza limit 10 MB.');
+      const parsed = C.parseCSV(text); parsed.records.forEach(C.callHistory);
+      const changed = () => {
+        const error = new Error('Baza na GitHubie zmieniła się podczas łączenia. Połącz się ponownie i potwierdź zastąpienie aktualnej wersji.');
+        error.code = 'STALE_REPLACEMENT'; return error;
+      };
+      const latest = await this.read(true);
+      if (latest.sha !== expectedSHA) throw changed();
+      const body = { message: 'CRM: zastąpienie bazy klientów — ' + author, branch: this.config.branch, content: encode(text), ...(expectedSHA ? { sha: expectedSHA } : {}) };
+      try {
+        const response = await (await this.request(this.fileEndpoint, { method: 'PUT', body: JSON.stringify(body) })).json();
+        this.cached = { ...parsed, sha: response.content.sha, missing: false, at: response.commit?.committer?.date || at, by: author };
+        return this.cached;
+      } catch (error) {
+        if (error.status === 409 || error.status === 422 && /sha|does not match|is at/i.test(error.detail)) { this.cached = null; throw changed(); }
+        throw error;
+      }
+    }
     close() { this.token = ''; this.cached = null; for (const controller of this.controllers) controller.abort(); this.controllers.clear(); }
   }
   root.GitHubCSV = GitHubCSV;

@@ -75,6 +75,14 @@
     $('connectGitHub').hidden = !gh; $('chooseCSV').hidden = gh;
     $('githubMode').classList.toggle('selected', gh); $('fileMode').classList.toggle('selected', !gh);
   }
+  function updateGitHubModeHint() {
+    const hints = {
+      remote: 'Wczyta bazę z GitHuba zamiast lokalnej kopii. Przy łączeniu niczego nie zapisze na GitHubie.',
+      replace: 'Wyśle całą obecną listę do GitHuba i zastąpi wspólną bazę, także notatki, statusy i rozmowy. Poprosi o potwierdzenie.',
+      merge: 'Połączy lokalne zmiany z bazą na GitHubie. W razie różnych notatek pokaże obie wersje.'
+    };
+    $('ghDataModeHint').textContent = t(hints[$('ghDataMode').value] || hints.remote);
+  }
   async function saveShared(client, originals, patches, added, author) {
     let before = originals.map(record => ({ ...record }));
     const pending = Object.fromEntries(Object.entries(patches).map(([id, patch]) => [id, { ...patch }]));
@@ -97,17 +105,31 @@
   }
   async function connectGitHub() {
     if (busy || githubBusy) return;
-    $('connectGitHub').disabled = true; $('connectError').hidden = true; githubBusy = true;
+    const controls = ['connectGitHub', 'ghDataMode', 'closeConnect', 'fileMode'];
+    controls.forEach(id => { $(id).disabled = true; }); $('connectError').hidden = true; githubBusy = true;
     let candidate;
     try {
       if (connected || fileHandle || github) throw new Error('Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.');
+      const mode = $('ghDataMode').value || 'remote';
+      if (!['remote', 'replace', 'merge'].includes(mode)) throw new Error('Wybierz bazę przy połączeniu.');
+      if (selected && !confirmLeavingActions()) return;
+      const draftFields = ['actionNext', 'actionDue', 'actionNotes', 'actionConsent'];
+      const draftBefore = selected ? draftFields.map(id => $(id).value) : null;
+      const currentRecords = records.map(record => ({ ...record })), currentHeaders = [...headers];
       const raw = $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
       const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
       const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
       candidate = new GitHubCSV(config, $('ghToken').value); let result = await candidate.connect();
-      if (result.missing && records.length) {
-        if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + records.length + ' firm?')) { candidate.close(); return; }
-        result = await candidate.save([], {}, records, await ensureAuthor());
+      if (mode === 'remote') {
+        if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
+      } else if (mode === 'replace') {
+        const author = await ensureAuthor();
+        const message = t('Zastąpić bazę na GitHubie obecną listą?') + '\n\n' + config.owner + '/' + config.repo + '\n' + config.branch + ' / ' + config.path + '\n\n' + t('Na GitHubie:') + ' ' + result.records.length + '\n' + t('W tym panelu:') + ' ' + currentRecords.length + '\n\n' + t('Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.');
+        if (!confirm(message)) { candidate.close(); return; }
+        result = await candidate.replace(currentRecords, currentHeaders, result.sha, author);
+      } else if (result.missing && currentRecords.length) {
+        if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + currentRecords.length + ' firm?')) { candidate.close(); return; }
+        result = await candidate.save([], {}, currentRecords, await ensureAuthor());
       } else if (hasPending()) {
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (plan.added.length || Object.keys(plan.patches).length) {
@@ -118,9 +140,13 @@
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
       try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}
       $('ghToken').value = ''; await adoptShared(result); render(); $('connectDialog').close();
+      if (selected) {
+        if (byId(selected)) openClient(selected, true, draftBefore && draftFields.every((id, index) => $(id).value === draftBefore[index]));
+        else closeDrawer(true);
+      }
       toast('Połączono wspólną bazę. Druga osoba używa tego samego repozytorium.');
     } catch (error) { candidate?.close(); $('ghToken').value = ''; $('connectError').textContent = I18n.message(error.message); $('connectError').hidden = false; }
-    finally { githubBusy = false; $('connectGitHub').disabled = false; }
+    finally { githubBusy = false; controls.forEach(id => { $(id).disabled = false; }); }
   }
   async function commitBatch(originals, patches, added, author, at) {
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
@@ -756,6 +782,7 @@
   }
   function openConnection() {
     $('connectError').hidden = true;
+    $('ghDataMode').value = 'remote'; updateGitHubModeHint();
     $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
     try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
     $('connectDialog').showModal(); switchConnectionMode(github || !fileHandle ? 'github' : 'file'); connectionUI();
@@ -950,6 +977,8 @@
   $('companiesPanel').addEventListener('dragleave', event => { if (!event.relatedTarget || !$('companiesPanel').contains(event.relatedTarget)) $('companiesPanel').classList.remove('dragover'); });
   $('companiesPanel').addEventListener('drop', event => { event.preventDefault(); $('companiesPanel').classList.remove('dragover'); importCSV(event.dataTransfer.files[0]); });
   $('githubMode').onclick = () => switchConnectionMode('github'); $('fileMode').onclick = () => switchConnectionMode('file');
+  $('ghDataMode').addEventListener('change', updateGitHubModeHint);
+  $('connectDialog').addEventListener('cancel', event => { if (githubBusy) event.preventDefault(); });
   $('connectGitHub').onclick = connectGitHub;
   $('profileSelect').value = authorName;
   $('profileSelect').addEventListener('change', () => {
@@ -973,6 +1002,6 @@
     connectionUI();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
-  document.addEventListener('crm:language', () => { render(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
+  document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
   render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
 })();
