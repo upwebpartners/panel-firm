@@ -549,12 +549,6 @@
     updateFileInfo();
   }
 
-  function refreshIndustries() {
-    const control = $('industryFilter'), previous = control.value;
-    const groups = [...new Set(records.map(C.industry))].sort((a, b) => a.localeCompare(b, I18n.language()));
-    control.innerHTML = '<option value="">' + esc(t('Wszystkie branże')) + '</option>' + groups.map(v => '<option value="' + esc(v) + '">' + esc(t(v)) + '</option>').join('');
-    if (groups.includes(previous)) control.value = previous;
-  }
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
     const visible = records.filter(r => {
@@ -563,7 +557,6 @@
       if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
       if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
       if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
-      if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
       if ($('priorityFilter').value && C.priorityValue(r) !== ($('priorityFilter').value === 'none' ? '' : $('priorityFilter').value)) return false;
       if ($('pinFilter').value === 'pinned' && !C.isPinned(r) || $('pinFilter').value === 'unpinned' && C.isPinned(r)) return false;
@@ -585,7 +578,7 @@
     $('sortDirection').value = sorting.direction;
   }
   function render() {
-    refreshIndustries(); renderSorting(); connectionUI();
+    renderSorting(); connectionUI();
     renderHiddenStages();
     const visible = filteredRecords();
     const total = records.filter(record => record.Mapa_status !== 'wykreslona').length;
@@ -625,7 +618,7 @@
     };
   }
   function contactHTML(record) {
-    const { phone, email, url, google } = companyContact(record);
+    const { phone, email, url } = companyContact(record);
     const emailLink = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
       ? `<a href="mailto:${esc(email)}">${esc(email)}</a>`
       : esc(email);
@@ -633,7 +626,6 @@
       phone ? phoneHTML({ Telefon: phone }) : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
-      google ? googleAttribution : '',
       !phone && !email && !url ? '—' : '',
     ];
     if (record.Google_place_id && (!record.Telefon || !C.safeURL(record.Strona))) {
@@ -709,7 +701,9 @@
     return updatePriority(record.Id, { Przypieta: C.isPinned(record) ? '' : 'tak' }, control);
   }
 
-  const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
+  function googleAttribution(record) {
+    return '<a class="gmp-attribution" translate="no" href="' + esc(M.placeURL(record.Google_place_id)) + '" target="_blank" rel="noopener noreferrer">Google Maps ↗</a>';
+  }
   function companyTitle(record) {
     const pending = record.Google_place_id && (!String(record.Firma || '').trim() || record.Firma === 'Do weryfikacji — ' + record.Google_place_id);
     const preview = pending ? companyPreview(record) : null;
@@ -739,7 +733,7 @@
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(title.name)}">
         <td>
           <strong class="firm-name">${esc(title.name)}</strong>
-          ${title.google ? googleAttribution : ''}
+          ${title.google || companyContact(record).google ? googleAttribution(record) : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
@@ -807,7 +801,7 @@
         <button class="button" data-close-drawer>← ${esc(t('Firmy'))}</button>
         <div class="company-heading">
           <h2 id="drawerTitle" data-content>${esc(title.name)}</h2>
-          ${title.google ? googleAttribution : ''}
+          ${title.google ? googleAttribution(record) : ''}
           <span class="muted">${esc(record.Miejscowosc || '')} · ${esc(record.Branza || '')}</span>
         </div>
         <div class="company-pagination">
@@ -819,12 +813,12 @@
         </div>
       </div>
       <div class="call-bar">
-        <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution : ''}</div>
+        <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution(record) : ''}</div>
         <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button><button class="button" type="button" data-refresh-google="${esc(record.Google_place_id)}"${window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? ' disabled' : ''}>${esc(t(window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? 'Aktualizowanie danych…' : 'Aktualizuj z Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl z mapy'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
-          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.phone ? phoneHTML({ Telefon: preview.phone }) : ''}${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p></section>` : ''}
+          ${preview ? `<section class="google-preview">${googleAttribution(record)}<p data-content>${esc(preview.address)}</p>${preview.phone ? phoneHTML({ Telefon: preview.phone }) : ''}${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p></section>` : ''}
           ${rejectionHTML(record)}
           <div class="company-contact">
             ${record.Adres ? `<span data-content>${esc(record.Adres)}</span>` : ''}
@@ -1267,7 +1261,7 @@
     rememberHiddenStages(); render();
   });
   $('showAllStages').onclick = () => { hiddenStages.clear(); rememberHiddenStages(); render(); };
-  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+  for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
     if (id === 'stageFilter' && hiddenStages.delete($('stageFilter').value)) rememberHiddenStages();
     render();
   });
@@ -1294,7 +1288,7 @@
     if (event.target.closest('a[href]')) return;
     const item = event.target.closest('[data-client]'); if (item) { openClient(item.dataset.client); return; }
     if (event.target.closest('[data-import-csv]')) $('importButton').click();
-    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; hiddenStages.clear(); rememberHiddenStages(); render(); }
+    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; hiddenStages.clear(); rememberHiddenStages(); render(); }
   });
   let menuCompanyId = null, menuCompanyRow = null;
   function closeCompanyMenu(restoreFocus = false) {

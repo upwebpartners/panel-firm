@@ -106,7 +106,6 @@ globalThis.CRM_MESSAGES = {
   "Branża": "Industry",
   "Etap": "Stage",
   "Telefony": "Calls",
-  "Wszystkie branże": "All industries",
   "Wszystkie etapy": "All stages",
   "Wszystkie telefony": "All calls",
   "Sortuj według": "Sort by",
