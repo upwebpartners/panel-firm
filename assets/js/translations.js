@@ -385,5 +385,22 @@ globalThis.CRM_MESSAGES = {
   "Nie zapisano pliku CSV": "CSV file not saved",
   "Zapis lokalny…": "Saving locally…",
   "Zapisano w przeglądarce": "Saved in the browser",
-  "Nie zapisano lokalnie": "Not saved locally"
+  "Nie zapisano lokalnie": "Not saved locally",
+  "Rozłącz i zapomnij": "Disconnect and forget",
+  "Łączenie z zapamiętaną bazą…": "Connecting to the remembered database…",
+  "GitHub · połączenie przerwane": "GitHub · disconnected",
+  "Zapisane połączenie jest nieprawidłowe. Zmień je w ustawieniach GitHuba.": "The saved connection is invalid. Update it in the GitHub settings.",
+  "Masz lokalne zmiany. W ustawieniach GitHuba wybierz, czy je połączyć, czy wczytać wspólną bazę.": "You have local changes. In GitHub settings, choose whether to merge them or load the shared database.",
+  "Nie połączono zapamiętanej bazy. Otwórz ustawienia GitHuba.": "Could not connect to the remembered database. Open the GitHub settings.",
+  "Połączono wspólną bazę. Połączenie zostało zapamiętane w tej przeglądarce.": "Shared database connected. The connection has been remembered in this browser.",
+  "Połączono, ale przeglądarka nie pozwoliła zapamiętać połączenia.": "Connected, but the browser could not remember the connection.",
+  "Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.": "First connect to the remembered database in GitHub settings or select Disconnect and forget.",
+  "Nie udało się usunąć zapamiętanego połączenia. Sprawdź ustawienia przeglądarki.": "Could not remove the remembered connection. Check your browser settings.",
+  "Mapa działa, ale przeglądarka nie pozwoliła zapamiętać klucza. Sprawdź jej ustawienia.": "The map works, but the browser could not remember the key. Check its settings.",
+  "Zapisany klucz usunięty. Bieżąca mapa działa do zamknięcia strony.": "Saved key removed. The current map keeps working until the page is closed.",
+  "Nie udało się usunąć zapisanego klucza. Sprawdź ustawienia przeglądarki.": "Could not remove the saved key. Check your browser settings.",
+  "Usuń zapisany klucz": "Remove saved key",
+  "Zapisz klucz i uruchom mapę": "Save key and start map",
+  "Włącz Maps JavaScript API i Places API (New) oraz rozliczenia. Ogranicz klucz do adresu swojej strony i tych usług. Klucz zostanie zapamiętany w tej przeglądarce; nie trafi do CSV ani repozytorium. Zmiana klucza działającej mapy odświeży stronę.": "Enable Maps JavaScript API, Places API (New) and billing. Restrict the key to your website and these services. The key is remembered in this browser, outside CSV and repositories. Changing the key of an active map reloads the page.",
+  "Właściciel repo: token fine-grained z Contents: Read and write. Zaproszony współpracownik osobistego repo: GitHub wymaga obecnie tokenu classic z zakresem repo (szerszy dostęp). Każda osoba używa własnego tokenu. Połączenie i token zostaną zapamiętane w tej przeglądarce. Tutaj możesz je zmienić; Rozłącz i zapomnij usuwa zapisane połączenie.": "Repository owner: fine-grained token with Contents: Read and write. Invited collaborators of personal repositories currently need a classic token with repo scope (broader access). Each person uses their own token. The connection and token are remembered in this browser. You can change them here; Disconnect and forget removes the saved connection."
 };

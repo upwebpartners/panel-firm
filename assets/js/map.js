@@ -1,9 +1,11 @@
-/* Google data is session-only; only place IDs and team decisions reach CRM. */
+/* Google place data is session-only. The API key is remembered separately in browser settings. */
 (function (root) {
   'use strict';
   if (typeof document === 'undefined' || !document.getElementById('businessMap')) return;
   const $ = id => document.getElementById(id), C = root.CRMCore, M = root.MapCore, t = root.I18n.t;
   let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false, waitingPlace = null;
+  const GOOGLE_KEY_STORE = 'pracownia.google.key';
+  let initialization = null, forgottenKey = false;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
   const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
   const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
@@ -11,7 +13,15 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   function status(message) { $('mapStatus').textContent = root.I18n.message(message); }
   function record(entity) { return M.matchRecord(entity, root.CRM.records()); }
-  function settings() { $('googleError').hidden = true; $('googleDialog').showModal(); $('googleKey').focus(); }
+  function savedKey() { try { return root.localStorage.getItem(GOOGLE_KEY_STORE) || ''; } catch { return ''; } }
+  function rememberKey(value) {
+    try { root.localStorage.setItem(GOOGLE_KEY_STORE, value); forgottenKey = false; }
+    catch { throw new Error('Mapa działa, ale przeglądarka nie pozwoliła zapamiętać klucza. Sprawdź jej ustawienia.'); }
+  }
+  function settings() {
+    $('googleError').hidden = true; $('googleKey').value = savedKey() || (forgottenKey ? '' : key);
+    $('forgetGoogleKey').hidden = !savedKey(); $('googleDialog').showModal(); $('googleKey').focus();
+  }
   function loadGoogle(apiKey) {
     if (loading) return loading;
     loading = new Promise((resolve, reject) => {
@@ -32,16 +42,26 @@
   }
   async function initialize(apiKey) {
     if (map) return;
-    await loadGoogle(apiKey);
-    const maps = await root.google.maps.importLibrary('maps');
-    library = await root.google.maps.importLibrary('places');
-    Marker = (await root.google.maps.importLibrary('marker')).Marker;
-    map = new maps.Map($('businessMap'), { center: { lat: 54.2622, lng: 18.6362 }, zoom: 15,
-      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true });
-    map.addListener('click', event => { if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
-    status('Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.');
-    draw();
-    if (waitingPlace) { const id = waitingPlace; waitingPlace = null; await selectPlace(id); }
+    if (!initialization) initialization = (async () => {
+      await loadGoogle(apiKey);
+      const maps = await root.google.maps.importLibrary('maps');
+      library = await root.google.maps.importLibrary('places');
+      Marker = (await root.google.maps.importLibrary('marker')).Marker;
+      map = new maps.Map($('businessMap'), { center: { lat: 54.2622, lng: 18.6362 }, zoom: 15,
+        mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true });
+      map.addListener('click', event => { if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
+      status('Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.');
+      draw();
+      if (waitingPlace) { const id = waitingPlace; waitingPlace = null; await selectPlace(id); }
+    })();
+    try { await initialization; } catch (error) { initialization = null; throw error; }
+  }
+  async function ensureMap() {
+    if (map) { root.google.maps.event.trigger(map, 'resize'); return; }
+    const remembered = savedKey();
+    if (!/^[A-Za-z0-9_-]{20,200}$/.test(remembered)) { settings(); return; }
+    try { key = remembered; await initialize(key); }
+    catch (error) { settings(); $('googleError').textContent = root.I18n.message(error.message); $('googleError').hidden = false; }
   }
   function draw() {
     if (!map) return;
@@ -104,7 +124,7 @@
     } catch (error) { status(error.message); }
   }
   async function search(text = '') {
-    if (!map) { settings(); return; }
+    if (!map) { await ensureMap(); if (!map) return; }
     if (pending) return;
     pending = true; $('mapSearchArea').disabled = true; $('mapSearchText').disabled = true;
     try {
@@ -127,7 +147,7 @@
     finally { pending = false; $('mapSearchArea').disabled = false; $('mapSearchText').disabled = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   }
   async function loadSaved() {
-    if (!map) { settings(); return; }
+    if (!map) { await ensureMap(); if (!map) return; }
     if (pending) return;
     pending = true; $('mapKnown').disabled = true;
     const candidates = root.CRM.records().filter(r => r.Google_place_id && !loadedSaved.has(r.Google_place_id));
@@ -149,13 +169,24 @@
   $('googleForm').addEventListener('submit', async event => {
     event.preventDefault(); const candidate = $('googleKey').value.trim();
     if (!/^[A-Za-z0-9_-]{20,200}$/.test(candidate)) { $('googleError').textContent = t('Wpisz poprawny klucz API Google.'); $('googleError').hidden = false; return; }
-    if (key && key !== candidate && loading) { $('googleError').textContent = t('Aby zmienić klucz, odśwież stronę.'); $('googleError').hidden = false; return; }
     $('connectGoogle').disabled = true;
-    try { key = candidate; await initialize(key); $('googleKey').value = ''; $('googleDialog').close(); }
-    catch (error) { $('googleError').textContent = error.message; $('googleError').hidden = false; }
+    try {
+      if (key && key !== candidate && loading) {
+        rememberKey(candidate); $('googleKey').value = ''; $('googleDialog').close(); root.location.reload(); return;
+      }
+      key = candidate; await initialize(key); rememberKey(key); $('googleKey').value = ''; $('googleDialog').close();
+    }
+    catch (error) { $('googleError').textContent = root.I18n.message(error.message); $('googleError').hidden = false; }
     finally { $('connectGoogle').disabled = false; }
   });
   $('closeGoogle').onclick = () => $('googleDialog').close();
+  $('forgetGoogleKey').onclick = () => {
+    try {
+      root.localStorage.removeItem(GOOGLE_KEY_STORE); forgottenKey = true;
+      $('googleKey').value = ''; $('forgetGoogleKey').hidden = true;
+      status('Zapisany klucz usunięty. Bieżąca mapa działa do zamknięcia strony.'); $('googleDialog').close();
+    } catch { $('googleError').textContent = t('Nie udało się usunąć zapisanego klucza. Sprawdź ustawienia przeglądarki.'); $('googleError').hidden = false; }
+  };
   $('mapSettings').onclick = settings;
   $('mapSearchArea').onclick = () => search();
   $('mapSearchText').onclick = () => search($('mapQuery').value);
@@ -183,15 +214,15 @@
     get: id => places.has(id) ? { ...places.get(id) } : null,
     open: id => {
       if (!root.PanelUI.showTab('map')) return;
-      if (!map) { waitingPlace = id; if (!$('googleDialog').open) settings(); }
+      if (!map) { waitingPlace = id; ensureMap(); }
       else selectPlace(id);
     },
   };
   document.addEventListener('crm:tab', event => {
     if (event.detail.tab !== 'map') return;
-    if (!map) settings(); else root.google.maps.event.trigger(map, 'resize');
+    ensureMap();
   });
   document.addEventListener('crm:data', draw);
   document.addEventListener('crm:language', () => { if (selected && details.has(selected)) showCard(places.get(selected)); });
-  if (!$('mapPanel').hidden) settings();
+  if (!$('mapPanel').hidden) ensureMap();
 })(globalThis);

@@ -10,6 +10,7 @@
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const SORT_STORE = 'pracownia.sort';
+  const GITHUB_SESSION_STORE = 'pracownia.github.session';
   const SORT_VERSION = 2;
   let sorting = { field: 'added', direction: 'desc' };
   try {
@@ -31,6 +32,7 @@
   let toastTimer = null;
   let saveProgress = null, progressTimer = null, progressHideTimer = null;
   let github = null, githubBusy = false, fileBusy = false, lastGitHubPoll = 0;
+  let rememberedGitHub = null, restoringGitHub = false;
   let authorName = '';
   try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
   let draftId = null;
@@ -76,6 +78,36 @@
     const gh = kind === 'github'; $('githubConnectFields').hidden = !gh; $('localConnectFields').hidden = gh;
     $('connectGitHub').hidden = !gh; $('chooseCSV').hidden = gh;
     $('githubMode').classList.toggle('selected', gh); $('fileMode').classList.toggle('selected', !gh);
+  }
+  function rememberGitHub(config, token) {
+    const session = { version: 1, config: { ...config }, token };
+    try { localStorage.setItem(GITHUB_SESSION_STORE, JSON.stringify(session)); rememberedGitHub = session; return true; }
+    catch { return false; }
+  }
+  async function restoreGitHub() {
+    let raw;
+    try { raw = localStorage.getItem(GITHUB_SESSION_STORE); } catch { return false; }
+    if (!raw) return false;
+    rememberedGitHub = {}; restoringGitHub = true; githubBusy = true; connectionUI();
+    let candidate;
+    try {
+      let session;
+      try { session = JSON.parse(raw); }
+      catch { throw new Error('Zapisane połączenie jest nieprawidłowe. Zmień je w ustawieniach GitHuba.'); }
+      if (session?.version !== 1 || typeof session.token !== 'string' || !session.token.trim() || !session.config || !['owner', 'repo', 'branch', 'path'].every(key => typeof session.config[key] === 'string')) throw new Error('Zapisane połączenie jest nieprawidłowe. Zmień je w ustawieniach GitHuba.');
+      rememberedGitHub = session;
+      candidate = new GitHubCSV(session.config, session.token);
+      const result = await candidate.connect();
+      if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
+      const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
+      if (plan.added.length || Object.keys(plan.patches).length) throw new Error('Masz lokalne zmiany. W ustawieniach GitHuba wybierz, czy je połączyć, czy wczytać wspólną bazę.');
+      github = candidate; connected = true; connectionError = ''; lastGitHubPoll = Date.now();
+      await adoptShared(result); render();
+      if (selected && !actionDirty()) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); }
+    } catch (error) {
+      candidate?.close(); connectionError = I18n.message('Nie połączono zapamiętanej bazy. Otwórz ustawienia GitHuba.') + ' ' + I18n.message(error.message);
+    } finally { restoringGitHub = false; githubBusy = false; connectionUI(); }
+    return true;
   }
   function updateSaveProgress() {
     if (!saveProgress) return;
@@ -137,7 +169,8 @@
     controls.forEach(id => { $(id).disabled = true; }); $('connectError').hidden = true; githubBusy = true;
     let candidate;
     try {
-      if (connected || fileHandle || github) throw new Error('Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.');
+      if (fileHandle) throw new Error('Najpierw rozłącz obecne źródło, aby przełączyć repozytorium.');
+      const previous = github;
       const mode = $('ghDataMode').value || 'remote';
       if (!['remote', 'replace', 'merge'].includes(mode)) throw new Error('Wybierz bazę przy połączeniu.');
       if (selected && !confirmLeavingActions()) return;
@@ -147,7 +180,8 @@
       const raw = $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
       const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
       const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
-      candidate = new GitHubCSV(config, $('ghToken').value); let result = await candidate.connect();
+      const token = $('ghToken').value.trim();
+      candidate = new GitHubCSV(config, token); let result = await candidate.connect();
       if (mode === 'remote') {
         if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
       } else if (mode === 'replace') {
@@ -168,13 +202,15 @@
         }
       }
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
+      const remembered = rememberGitHub(config, token);
       try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}
       $('ghToken').value = ''; await adoptShared(result); render(); $('connectDialog').close();
+      if (previous && previous !== candidate) previous.close();
       if (selected) {
         if (byId(selected)) openClient(selected, true, draftBefore && draftFields.every((id, index) => $(id).value === draftBefore[index]));
         else closeDrawer(true);
       }
-      toast('Połączono wspólną bazę. Druga osoba używa tego samego repozytorium.');
+      toast(remembered ? 'Połączono wspólną bazę. Połączenie zostało zapamiętane w tej przeglądarce.' : 'Połączono, ale przeglądarka nie pozwoliła zapamiętać połączenia.', !remembered);
     } catch (error) { candidate?.close(); $('ghToken').value = ''; $('connectError').textContent = I18n.message(error.message); $('connectError').hidden = false; }
     finally { githubBusy = false; controls.forEach(id => { $(id).disabled = false; }); }
   }
@@ -182,6 +218,7 @@
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
     if (githubBusy) throw new Error('Trwa odświeżanie wspólnej bazy. Spróbuj zapisać ponownie za chwilę.');
     if (fileBusy) throw new Error('Trwa odświeżanie pliku. Spróbuj zapisać ponownie za chwilę.');
+    if (rememberedGitHub && !connected) throw new Error('Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.');
     return trackSave(github ? 'github' : connected && fileHandle ? 'file' : 'browser', async () => {
       if (github) {
         if (!connected) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
@@ -306,7 +343,7 @@
     } catch (error) { toast(error.message, true); }
   }
   async function autoLoadCSV() {
-    if (!storageOK || (records.length && local.info?.kind !== 'public-csv') || connected || hasPending() || !/^https?:$/.test(window.location?.protocol || '')) return;
+    if (!storageOK || (records.length && local.info?.kind !== 'public-csv') || connected || rememberedGitHub || hasPending() || !/^https?:$/.test(window.location?.protocol || '')) return;
     const previous = records;
     try {
       const response = await fetch(new URL(document.body.dataset.csvUrl || 'klienci.csv', window.location.href), { cache: 'no-store', credentials: 'omit' });
@@ -341,15 +378,18 @@
     const el = $('saveState');
     el.className = 'save-state' + (connected ? ' connected' : connectionError || !storageOK ? ' error' : '');
     let label = connected ? (github ? 'GitHub · wspólna baza' : 'Połączono z CSV · na żywo') : fileHandle ? 'Plik czeka na połączenie' : storageOK ? 'Zapis w przeglądarce' : 'Zapis lokalny niedostępny';
+    if (restoringGitHub) label = 'Łączenie z zapamiętaną bazą…';
+    else if (rememberedGitHub && !connected) label = 'GitHub · połączenie przerwane';
     if (busy) label = github ? 'Zapisywanie do GitHuba…' : connected && fileHandle ? 'Zapisywanie do CSV…' : 'Zapisywanie w przeglądarce…';
     if (connectionError) label = 'Sprawdź połączenie z CSV';
     el.innerHTML = '<span class="status-dot"></span>' + esc(t(label));
     el.title = I18n.message(connected ? (github ? 'Wspólna baza odświeża się co 15 sekund.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
     $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
-    $('disconnectButton').hidden = !fileHandle && !github;
+    $('disconnectButton').hidden = !fileHandle && !github && !rememberedGitHub;
+    $('disconnectButton').textContent = t(github || rememberedGitHub ? 'Rozłącz i zapomnij' : 'Rozłącz plik');
     $('connectionNotice').hidden = !connectionError && storageOK;
     $('connectionNotice').textContent = I18n.message(connectionError || storageError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
-    $('formSaveHint').textContent = I18n.message(connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
+    $('formSaveHint').textContent = I18n.message(rememberedGitHub && !connected ? 'Najpierw połącz zapamiętaną bazę w ustawieniach GitHuba lub wybierz Rozłącz i zapomnij.' : connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
     updateFileInfo();
   }
 
@@ -802,7 +842,7 @@
   }
   async function establishConnection(handle) {
     if (busy || githubBusy || fileBusy) throw new Error('Trwa poprzedni zapis. Spróbuj ponownie za chwilę.');
-    if (github) throw new Error('Najpierw rozłącz GitHub, żeby wybrać plik na komputerze.');
+    if (github || rememberedGitHub) throw new Error('Najpierw rozłącz GitHub, żeby wybrać plik na komputerze.');
     const previous = records;
     const file = await handle.getFile(), text = await file.text(), parsed = C.parseCSV(text);
     parsed.records.forEach(C.callHistory);
@@ -828,6 +868,9 @@
     $('ghDataMode').value = 'remote'; updateGitHubModeHint();
     $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
     try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
+    const config = github?.config || rememberedGitHub?.config;
+    if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; }
+    $('ghToken').value = github?.token || rememberedGitHub?.token || '';
     $('connectDialog').showModal(); switchConnectionMode(github || !fileHandle ? 'github' : 'file'); connectionUI();
   }
   async function chooseCSV() {
@@ -851,6 +894,9 @@
   }
   async function disconnect() {
     if (busy || githubBusy) return;
+    try { localStorage.removeItem(GITHUB_SESSION_STORE); localStorage.removeItem('pracownia.github.config'); }
+    catch { toast('Nie udało się usunąć zapamiętanego połączenia. Sprawdź ustawienia przeglądarki.', true); return; }
+    rememberedGitHub = null;
     connected = false; fileHandle = null; connectionError = ''; fileText = null;
     if (github) { github.close(); github = null; } $('ghToken').value = '';
     local = { patches: {}, added: [], imported: records.map(r => ({ ...r })), meta: C.fileMeta(records), info: local.info }; base = [...records]; await persist();
@@ -1047,5 +1093,5 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pollFile(); });
   document.addEventListener('crm:google-preview', () => { render(); if (selected) openClient(selected, true); });
   document.addEventListener('crm:language', () => { render(); updateGitHubModeHint(); if (saveProgress && !$('saveProgress').hidden) updateSaveProgress(); if (selected) openClient(selected, true); if ($('callDialog').open) renderCallOptions($('callOutcome').value); I18n.bindUI($('editDialog')); I18n.bindUI($('statusDialog')); if ($('priorityDialog').open && priorityOriginal) renderPriorityOptions(priorityOriginal); });
-  render(); restoreHandle(); autoLoadCSV(); setInterval(pollFile, 3000);
+  render(); restoreGitHub().then(found => { if (!found) restoreHandle(); }); autoLoadCSV(); setInterval(pollFile, 3000);
 })();

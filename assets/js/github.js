@@ -1,4 +1,4 @@
-/* GitHub Contents API. Token istnieje wyłącznie w pamięci otwartej karty. */
+/* GitHub Contents API. Interfejs pamięta połączenie; token nigdy nie trafia do CSV. */
 (function (root) {
   'use strict';
   const C = root.CRMCore;

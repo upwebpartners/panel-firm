@@ -211,10 +211,10 @@
     <dialog id="googleDialog" class="connect-dialog"><form id="googleForm">
       <div class="dialog-heading"><h2>Mapa Google</h2><button id="closeGoogle" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
       <div class="connect-body"><label for="googleKey">Klucz API Google Maps</label><input id="googleKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…" required>
-        <p class="small-copy">Włącz Maps JavaScript API i Places API (New) oraz rozliczenia. Ogranicz klucz do adresu swojej strony i tych usług. Klucz zostaje w pamięci karty; nie trafia do CSV ani repozytorium.</p>
+        <p class="small-copy">Włącz Maps JavaScript API i Places API (New) oraz rozliczenia. Ogranicz klucz do adresu swojej strony i tych usług. Klucz zostanie zapamiętany w tej przeglądarce; nie trafi do CSV ani repozytorium. Zmiana klucza działającej mapy odświeży stronę.</p>
         <p class="small-copy"><a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer">Ustawienia klucza w Google Cloud ↗</a></p>
         <div id="googleError" class="form-error" role="alert" hidden></div>
-      </div><div class="dialog-footer"><button type="submit" class="button primary" id="connectGoogle">Uruchom mapę</button></div>
+      </div><div class="dialog-footer"><button type="button" class="text-button" id="forgetGoogleKey" hidden>Usuń zapisany klucz</button><button type="submit" class="button primary" id="connectGoogle">Zapisz klucz i uruchom mapę</button></div>
     </form></dialog>
     <dialog id="excludeDialog" class="connect-dialog"><form id="excludeForm">
       <div class="dialog-heading"><div><h2>Wykreśl firmę</h2><p id="excludeName"></p></div><button id="closeExclude" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
@@ -360,7 +360,7 @@
           </label>
           <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="Fine-grained: Contents write; classic: repo">
           <p class="small-copy">
-            Właściciel repo: token fine-grained z Contents: Read and write. Zaproszony współpracownik osobistego repo: GitHub wymaga obecnie tokenu classic z zakresem repo (szerszy dostęp). Każda osoba używa własnego tokenu. Token zostaje tylko w pamięci karty; po odświeżeniu połącz się ponownie.
+            Właściciel repo: token fine-grained z Contents: Read and write. Zaproszony współpracownik osobistego repo: GitHub wymaga obecnie tokenu classic z zakresem repo (szerszy dostęp). Każda osoba używa własnego tokenu. Połączenie i token zostaną zapamiętane w tej przeglądarce. Tutaj możesz je zmienić; Rozłącz i zapomnij usuwa zapisane połączenie.
             <a href="https://github.com/settings/personal-access-tokens/new?name=Panel%20klientow&amp;contents=write" target="_blank" rel="noopener noreferrer">
               Token fine-grained
             </a>
