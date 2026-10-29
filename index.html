@@ -10,13 +10,16 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=60df3e0489ab">
+    <link rel="stylesheet" href="assets/css/style.css?v=e518a00826ed">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <symbol id="i-plus" viewBox="0 0 24 24">
           <path d="M12 5v14M5 12h14"/>
+        </symbol>
+        <symbol id="i-phone" viewBox="0 0 24 24">
+          <path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2a14 14 0 0 1-7-7l2-2-2-5Z"/>
         </symbol>
         <symbol id="i-search" viewBox="0 0 24 24">
           <circle cx="10.5" cy="10.5" r="7"/>
@@ -192,6 +195,7 @@
           <input id="mapQuery" type="search" placeholder="Firma lub miejsce…" aria-label="Szukaj na mapie">
           <button id="mapSearchText" class="button">Szukaj</button>
           <button id="mapKnown" class="button">Wczytaj oznaczenia</button>
+          <button id="zonesToggle" class="button" aria-expanded="false" aria-controls="zonesPanel">Strefy</button>
           <button id="mapSettings" class="button">Klucz Google</button>
           <details class="map-filters"><summary>Pokaż / ukryj</summary><div>
             <label><input type="checkbox" id="showNew" checked>Nowe</label>
@@ -203,6 +207,21 @@
         </div>
         <div class="map-status" id="mapStatus" role="status">Otwórz ustawienia mapy i podaj klucz Google.</div>
         <aside id="mapPlace" class="map-place" aria-label="Firma na mapie" hidden></aside>
+        <aside id="zonesPanel" class="zones-panel" aria-labelledby="zonesTitle" hidden>
+          <div class="map-place-heading"><h2 id="zonesTitle">Strefy</h2><button id="zonesClose" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
+          <p id="zoneSource" class="small-copy"></p>
+          <div id="zoneListView"><button id="zoneAdd" type="button" class="button primary">Dodaj strefę</button><div id="zoneList"></div></div>
+          <form id="zoneForm" hidden>
+            <p id="zoneDrawHint" class="small-copy">Klikaj na mapie kolejne punkty granicy. Potrzeba co najmniej trzech.</p>
+            <div class="zone-draw-actions"><button id="zoneCenter" type="button" class="button">Dodaj punkt ze środka mapy</button><button id="zoneUndo" type="button" class="button">Cofnij punkt</button><button id="zoneFinish" type="button" class="button">Zakończ rysowanie</button><button id="zoneRedraw" type="button" class="button" hidden>Narysuj od nowa</button></div>
+            <label for="zoneName">Nazwa strefy</label><input id="zoneName" maxlength="100" required autocomplete="off">
+            <div class="zone-fields"><div><label for="zoneColor">Kolor</label><input id="zoneColor" type="color" value="#3478c9"></div><div><label for="zoneOwner">Przypisana do</label><select id="zoneOwner"><option value="">Wspólna</option><option value="T">T</option><option value="K">K</option></select></div></div>
+            <label for="zoneStage">Praca w strefie</label><select id="zoneStage"><option value="todo">Do przejrzenia</option><option value="doing">W trakcie</option><option value="done">Gotowe</option></select>
+            <div class="zone-form-actions"><button id="zoneSave" type="submit" class="button primary">Zapisz strefę</button><button id="zoneCancel" type="button" class="button">Anuluj</button></div>
+          </form>
+          <div id="zoneError" class="form-error" role="alert" hidden></div>
+          <div id="zoneConflict" hidden></div>
+        </aside>
       </section>
     </main>
     <section class="drawer" id="drawer" role="region" aria-labelledby="drawerTitle" hidden>
@@ -416,15 +435,18 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=ce2d692d5175"></script>
+    <script src="assets/js/translations.js?v=4b3891044ca3"></script>
     <script src="assets/js/i18n.js?v=ddfb69bb4216"></script>
     <script src="assets/js/core.js?v=f13565c82c62"></script>
     <script src="assets/js/map-core.js?v=586775e25240"></script>
     <script src="assets/js/storage.js?v=c8b9ad446e86"></script>
     <script src="assets/js/network.js?v=c94e805be642"></script>
     <script src="assets/js/github.js?v=8ea726c801ca"></script>
-    <script src="assets/js/app.js?v=645da4ad2931"></script>
+    <script src="assets/js/zone-core.js?v=5b521d21eb2a"></script>
+    <script src="assets/js/zone-sync.js?v=2f263069a429"></script>
+    <script src="assets/js/app.js?v=75f378f565e4"></script>
     <script src="assets/js/ui.js?v=5d48a0319b2d"></script>
-    <script src="assets/js/map.js?v=87833e355670"></script>
+    <script src="assets/js/map.js?v=d23e3c3ba889"></script>
+    <script src="assets/js/zones.js?v=19848a89f7fe"></script>
   </body>
 </html>

@@ -252,6 +252,8 @@
   }
   function updateSaveProgress() {
     if (!saveProgress) return;
+    const zones = window.ZoneUI?.status();
+    if (zones?.pending || zones?.error) { $('saveProgress').hidden = true; return; }
     const labels = {
       github: { saving: 'Zapis do GitHuba…', saved: 'Zapisano w bazie', failed: 'Nie zapisano w bazie' },
       file: { saving: 'Zapis do CSV…', saved: 'Zapisano plik CSV', failed: 'Nie zapisano pliku CSV' },
@@ -528,17 +530,24 @@
   function connectionUI() {
     const statusHint = t(connected ? (github ? 'Wspólna baza odświeża się co 3 sekundy.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
     const target = github?.config || rememberedGitHub?.config || local.sync?.target;
+    const zones = window.ZoneUI?.status() || {};
     let globalLabel = target ? connected ? 'GitHub · połączono' : 'GitHub · brak połączenia' : connected ? 'Plik CSV' : 'Baza lokalna';
     if (restoringGitHub) globalLabel = 'GitHub · łączenie…';
     if (hasQueued()) globalLabel = syncRunning ? 'GitHub · wysyłanie…' : 'GitHub · oczekuje na zapis';
     if (connectionError || !storageOK) globalLabel = target ? 'GitHub · sprawdź zapis' : 'Baza · sprawdź zapis';
+    if (!connectionError && storageOK && (zones.pending || zones.error)) globalLabel = zones.error ? 'Strefy · sprawdź zapis' : zones.running ? 'Strefy · wysyłanie…' : 'Strefy · oczekują na zapis';
     const badge = $('databaseStatus');
     $('databaseStatusLabel').innerHTML = '<span class="status-dot"></span><span>' + esc(t(globalLabel)) + '</span>';
-    badge.className = 'database-status' + (connectionError || !storageOK ? ' error' : hasQueued() ? ' pending' : connected ? ' connected' : '');
+    badge.className = 'database-status' + (connectionError || !storageOK || zones.error ? ' error' : hasQueued() || zones.pending ? ' pending' : connected ? ' connected' : '');
     badge.title = (target ? target.owner + '/' + target.repo + ' · ' + target.branch + ' / ' + target.path + '\n' : '') + I18n.message(connectionError || storageError || (hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : statusHint));
     $('retrySync').hidden = !hasQueued() || syncRunning || restoringGitHub;
     $('retrySync').textContent = t(syncError?.code === 'CONFLICT' ? 'Porównaj zmiany' : 'Ponów zapis');
     $('retrySync').title = $('retrySync').textContent; $('retrySync').setAttribute('aria-label', $('retrySync').textContent);
+    if (zones.pending || zones.error) {
+      $('saveProgress').hidden = true;
+      badge.title += '\n' + t('Strefy') + ': ' + I18n.message(zones.error?.message || (zones.running ? 'Zapisywanie…' : 'Oczekuje na zapis'));
+      if (!zones.running) { $('retrySync').hidden = false; $('retrySync').textContent = t(zones.error?.code === 'CONFLICT' ? 'Porównaj strefy' : 'Ponów zapis'); $('retrySync').title = $('retrySync').textContent; $('retrySync').setAttribute('aria-label', $('retrySync').textContent); }
+    }
     $('connectGitHub').disabled = syncRunning || githubBusy;
     $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
     $('disconnectButton').hidden = !fileHandle && !github && !rememberedGitHub;
@@ -547,6 +556,7 @@
     $('connectionNotice').textContent = I18n.message(connectionError || storageError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
     $('formSaveHint').textContent = I18n.message(target ? '' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
     updateFileInfo();
+    document.dispatchEvent(new CustomEvent('crm:connection'));
   }
 
   function filteredRecords() {
@@ -709,6 +719,9 @@
     const preview = pending ? companyPreview(record) : null;
     return { name: pending && !preview?.name && !record.Google_nazwa ? t('Firma z mapy') : C.companyName(record, preview?.name), google: !!(pending && (preview?.name || record.Google_nazwa)) };
   }
+  function callButton(record) {
+    return `<button class="button call-button" type="button" data-call="${esc(record.Id)}" aria-label="${esc(t('Zapisz rozmowę'))}" title="${esc(t('Zapisz rozmowę'))}">${icon('phone')}</button>`;
+  }
   function rejectionContent(record) {
     const clock = C.rejectionClock(record, Date.now());
     if (!clock) return '';
@@ -743,11 +756,9 @@
         <td>${contactHTML(record)}</td>
         <td><span class="company-notes" data-content>${esc(record.Notatki || '—')}</span></td>
         <td>
-          <button class="button call-button" type="button" data-call="${esc(record.Id)}">${esc(t('Dzwoniliśmy'))}</button>
-          ${record.Dzwoniono
-            ? `<small class="called-label">${esc(dateTime(record.Dzwoniono))}<br>${esc(record.Dzwonil || '')}</small>`
-            : `<small class="muted">${esc(t('Jeszcze nie dzwoniono'))}</small>`}
-          ${callOutcomeHTML(displayCallHistory(record).at(-1))}
+          <div class="call-summary">${callButton(record)}<div class="call-summary-info">${record.Dzwoniono
+            ? `${callOutcomeHTML(displayCallHistory(record).at(-1))}<small class="called-label">${esc(dateTime(record.Dzwoniono))}<span class="call-author">${esc(record.Dzwonil || '')}</span></small>`
+            : `<small class="muted">${esc(t('Jeszcze nie dzwoniono'))}</small>`}</div></div>
         </td>
       </tr>
     `;
@@ -814,7 +825,7 @@
       </div>
       <div class="call-bar">
         <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution(record) : ''}</div>
-        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button><button class="button" type="button" data-refresh-google="${esc(record.Google_place_id)}"${window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? ' disabled' : ''}>${esc(t(window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? 'Aktualizowanie danych…' : 'Aktualizuj z Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl z mapy'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
+        <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button><button class="button" type="button" data-refresh-google="${esc(record.Google_place_id)}"${window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? ' disabled' : ''}>${esc(t(window.GoogleMapSession?.isRefreshing?.(record.Google_place_id) ? 'Aktualizowanie danych…' : 'Aktualizuj z Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl z mapy'))}</button>${statusControls(record)}${priorityControl(record)}${callButton(record)}</div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
@@ -1231,6 +1242,14 @@
   for (const id of ['closeExclude', 'cancelExclude']) $(id).onclick = () => $('excludeDialog').close();
   $('excludeDialog').addEventListener('close', () => { excludeOriginal = null; });
   window.CRM = {
+    zoneContext: () => {
+      const config = github?.config || rememberedGitHub?.config || local.sync?.target;
+      const session = connected ? github : null;
+      return { target: config ? { owner: config.owner, repo: config.repo, branch: config.branch, path: config.path.replace(/[^/]+$/, 'strefy.geojson') } : null,
+        session, request: session ? (path, options) => session.request(path, options) : null };
+    },
+    refreshConnection: connectionUI,
+    notify: toast,
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
@@ -1426,6 +1445,9 @@
   $('connectButton').onclick = openConnection;
   $('databaseStatus').onclick = openConnection;
   $('retrySync').onclick = async () => {
+    const zones = window.ZoneUI?.status();
+    if ([401,403,404].includes(zones?.error?.status)) { openConnection(); return; }
+    if (zones?.pending || zones?.error) { window.ZoneUI.retry(); return; }
     if (!github || !connected || [401,403,404].includes(syncError?.status)) { openConnection(); return; }
     const deleted = (syncError?.conflicts || []).filter(conflict => conflict.field === 'Usunięty w pliku');
     if (deleted.length) {

@@ -531,11 +531,19 @@ main {
   background:#be6670;
 }
 .call-button {
-  font-size:12px;
-  min-height:28px;
-  padding:4px 8px;
-  margin-bottom:5px;
+  width:34px;
+  min-width:34px;
+  height:34px;
+  padding:7px;
+  justify-content:center;
+  flex-shrink:0;
 }
+.call-button svg { width:18px; height:18px; }
+.call-summary { display:flex; align-items:flex-start; gap:8px; }
+.call-summary-info { min-width:0; padding-top:1px; display:flex; flex-direction:column; gap:5px; }
+.call-summary-info>.muted { line-height:1.45; }
+.call-summary-info .call-outcome { margin:0; align-self:flex-start; }
+.call-author { margin-left:5px; font-weight:600; }
 .called-label,.client-table td>small {
   display:block;
   color:var(--muted);
@@ -1270,3 +1278,27 @@ dialog::backdrop {
 .hidden-stage-option { display:flex; align-items:center; gap:8px; padding:7px; font-size:13px; cursor:pointer; }
 .hidden-stage-option input { width:16px; height:16px; min-height:0; margin:0; accent-color:var(--accent); }
 .status-visibility > div { min-width:210px; }
+
+.zones-panel { position:absolute; top:100px; left:12px; width:330px; max-width:calc(100% - 24px); max-height:calc(100% - 160px); overflow:auto; padding:14px; border:1px solid var(--border); background:var(--panel); box-shadow:var(--shadow); z-index:4; font-size:13px; }
+.zones-panel h2 { font-size:17px; }
+.zones-panel h3 { margin:14px 0 8px; font-size:15px; }
+.zones-panel h4 { margin:12px 0 5px; }
+.zone-row { padding:12px 0; border-bottom:1px solid var(--border); }
+.zone-visibility { display:flex; align-items:center; gap:8px; overflow-wrap:anywhere; }
+.zone-visibility input { width:16px; min-height:0; height:16px; margin:0; flex-shrink:0; accent-color:var(--accent); }
+.zone-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.zone-row p { margin:6px 0; }
+.zone-row-actions,.zone-form-actions,.zone-draw-actions { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:10px; }
+#zoneForm>label,.zone-fields label { display:block; margin:12px 0 5px; }
+#zoneForm>input,#zoneForm>select { width:100%; }
+.zone-fields { display:grid; grid-template-columns:70px 1fr; gap:12px; }
+.zone-fields select { width:100%; }
+.zone-fields input[type=color] { width:54px; padding:3px; }
+.zone-comparison { border:1px solid var(--border); padding:0 10px 10px; overflow-wrap:anywhere; }
+.zone-comparison p { margin:5px 0; }
+.zone-comparison details { margin:6px 0; font-size:12px; }
+.map-panel.zone-drawing:after { content:'+'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:var(--text); text-shadow:0 0 3px white; font:24px/1 Arial,sans-serif; pointer-events:none; z-index:2; }
+@media(max-width:760px) {
+  .zones-panel { top:auto; bottom:62px; left:8px; max-height:48%; width:320px; padding:10px; }
+  .call-summary { gap:6px; }
+}

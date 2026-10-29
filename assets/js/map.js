@@ -120,7 +120,8 @@
       Marker = (await root.google.maps.importLibrary('marker')).Marker;
       map = new maps.Map($('businessMap'), { center: { lat: 54.2622, lng: 18.6362 }, zoom: 15,
         mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true });
-      map.addListener('click', event => { if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
+      map.addListener('click', event => { if (root.ZoneUI?.mapClick(event)) return; if (event.placeId) { event.stop(); selectPlace(event.placeId); } });
+      document.dispatchEvent(new root.CustomEvent('crm:mapready', { detail: { map, maps } }));
       status('Kliknij firmę Google lub wyszukaj firmy w widocznym obszarze.');
       draw();
       if (waitingPlace) { const id = waitingPlace; waitingPlace = null; await selectPlace(id); }
@@ -149,7 +150,7 @@
         title: (entity.name || (current ? C.companyName(current) : t('Firma z mapy'))) + ' · ' + t(declined ? 'Odrzucony — odmowa klienta' : labels[state]),
         icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: declined ? '#b02b36' : colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
         label: { text: declined ? 'O' : ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
-      marker.addListener('click', () => selectPlace(entity.id)); markers.set(entity.id, marker);
+      marker.addListener('click', () => { if (!root.ZoneUI?.editing()) selectPlace(entity.id); }); markers.set(entity.id, marker);
     }
     if (selected && details.has(selected)) showCard(places.get(selected));
   }
@@ -283,6 +284,9 @@
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   });
   root.GoogleMapSession = {
+    ensureMap,
+    map: () => map,
+    closeCard: () => { selected = null; selectionVersion++; $('mapPlace').hidden = true; },
     refresh: refreshPlace,
     isRefreshing: id => refreshingPlaces.has(id),
     get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)),
