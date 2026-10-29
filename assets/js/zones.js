@@ -7,7 +7,8 @@
   const stageLabels={todo:'Do przejrzenia',doing:'W trakcie',done:'Gotowe'};
   const ask=(message,options)=>root.PanelDialogs.confirm(message,options);
   const discardOptions={title:'Niezapisana strefa',accept:'Porzuć zmiany',danger:true};
-  let engine,contextKey,session,map,maps,draft=null,preview=null,outline=null,formError='',conflict=null,shapeSignature='',saving=false;
+  let engine,contextKey,session,map,maps,LatLng,draft=null,preview=null,sketch=null,outline=null,formError='',conflict=null,shapeSignature='',saving=false;
+  let previewListeners=[];
   const shapes=new Map();
   function report(error){formError=error?.message||'';renderError();}
   function renderError(){const message=formError||engine?.error?.message||'';$('zoneError').textContent=root.I18n.message(message);$('zoneError').hidden=!message;}
@@ -40,19 +41,26 @@
       shapes.set(row.id,shape);
     }
   }
-  function clearPreview(){preview?.setMap(null);preview=null;outline?.setMap(null);outline=null;}
+  function clearPreview(){sketch?.dispose();sketch=null;for(const listener of previewListeners)listener?.remove();previewListeners=[];preview?.setMap(null);preview=null;outline?.setMap(null);outline=null;}
   function drawPreview(){
-    clearPreview();if(!draft||!maps)return;
+    if(!draft||!maps)return;
     const path=draft.points.map(([lng,lat])=>({lat,lng})),color=$('zoneColor').value;
-    if(draft.points.length>=3){
-      preview=new maps.Polygon({map,paths:path,strokeColor:color,fillColor:color,fillOpacity:0.22,strokeWeight:3,editable:!draft.drawing,clickable:!draft.drawing,zIndex:2});
-      if(!draft.drawing){const points=preview.getPath();for(const name of ['insert_at','set_at','remove_at'])points.addListener(name,()=>{if(!draft)return;draft.points=points.getArray().map(point=>[point.lng(),point.lat()]);hint();});}
-    }else if(path.length)preview=new maps.Polyline({map,path,strokeColor:color,strokeWeight:3,clickable:false,zIndex:2});
+    if(draft.drawing){
+      if(preview)clearPreview();
+      if(!sketch)sketch=new root.ZonePreview({map,maps,LatLng,document,enabled:()=>!document.hidden&&!root.PanelDialogs.isOpen()});
+      sketch.set(draft.points,color);
+    }else{
+      sketch?.dispose();sketch=null;
+      if(!preview){
+        preview=new maps.Polygon({map,paths:path,strokeColor:color,fillColor:color,fillOpacity:0.22,strokeWeight:3,editable:true,clickable:true,zIndex:2});
+        const points=preview.getPath();for(const name of ['insert_at','set_at','remove_at'])previewListeners.push(points.addListener(name,()=>{if(!draft)return;draft.points=points.getArray().map(point=>[point.lng(),point.lat()]);hint();}));
+      }else preview.setOptions({strokeColor:color,fillColor:color});
+    }
     hint();
   }
   function hint(){
     if(!draft)return;
-    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj na mapie kolejne punkty granicy. Potrzeba co najmniej trzech.':'Przesuwaj punkty granicy. Zmiany zapiszą się dopiero po Zapisz strefę.')+' ('+draft.points.length+')';
+    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj punkty granicy. Przerywana linia i wypełnienie pokazują podgląd do kursora. Potrzeba co najmniej trzech punktów.':'Przesuwaj punkty granicy. Zmiany zapiszą się dopiero po Zapisz strefę.')+' ('+draft.points.length+')';
     $('zoneUndo').hidden=!draft.drawing;$('zoneUndo').disabled=!draft.points.length;
     $('zoneCenter').hidden=!draft.drawing;$('mapPanel').classList.toggle('zone-drawing',draft.drawing);
     $('zoneFinish').hidden=!draft.drawing;$('zoneFinish').disabled=draft.points.length<3;
@@ -71,8 +79,10 @@
     await root.GoogleMapSession.ensureMap();map=root.GoogleMapSession.map();
     if(!map)throw Error('Najpierw uruchom mapę, podając klucz Google.');
     maps=await root.google.maps.importLibrary('maps');
-    if(!maps.Polygon||!maps.Polyline)throw Error('Odśwież panel, aby wczytać narzędzia stref.');
+    LatLng=(await root.google.maps.importLibrary('core')).LatLng;
+    if(!maps.Polygon||!maps.Polyline||!maps.OverlayView||!LatLng||!root.ZonePreview)throw Error('Odśwież panel, aby wczytać narzędzia stref.');
     open();
+    clearPreview();
     draft={id:row?.id||root.CRMCore.uid(),base:row?Z.copy(row):null,points:row?Z.copy(row.geometry.coordinates[0].slice(0,-1)):[],drawing:!row,key:contextKey};
     $('zoneName').value=row?.properties.name||'';$('zoneColor').value=row?.properties.color||'#3478c9';$('zoneOwner').value=row?.properties.owner||'';$('zoneStage').value=row?.properties.stage||'todo';
     $('zoneListView').hidden=true;$('zoneForm').hidden=false;map.setOptions({clickableIcons:false,draggableCursor:draft.drawing?'crosshair':null});shapeSignature='';drawShapes();drawPreview();

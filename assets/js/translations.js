@@ -1,4 +1,5 @@
 globalThis.CRM_MESSAGES = {
+  "Klikaj punkty granicy. Przerywana linia i wypełnienie pokazują podgląd do kursora. Potrzeba co najmniej trzech punktów.": "Click boundary points. The dashed line and fill preview the area up to the cursor. At least three points are needed.",
   "Baza zmieniła się. Sprawdź firmę i potwierdź usunięcie ponownie.": "The database changed. Review the company and confirm deletion again.",
   "Potwierdź działanie": "Confirm action",
   "Potwierdź": "Confirm",
