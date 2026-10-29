@@ -64,10 +64,13 @@
         </button>
       </nav>
       <div class="appearance-controls">
-        <button id="databaseStatus" type="button" class="database-status" aria-label="Stan bazy i ustawienia" aria-live="polite"></button>
-        <button id="retrySync" type="button" class="button sync-retry" hidden>Ponów zapis</button>
-        <div id="saveProgress" class="save-progress" role="status" aria-live="polite" hidden>
-          <span id="saveProgressLabel"></span><span id="saveProgressTime" aria-hidden="true"></span>
+        <div class="database-controls">
+          <button id="databaseStatus" type="button" class="database-status" aria-label="Stan bazy i ustawienia">
+            <span id="databaseStatusLabel" class="database-status-line" aria-live="polite"></span>
+            <span id="saveProgress" class="save-progress" role="status" aria-live="polite" hidden><span id="saveProgressLabel"></span><span id="saveProgressTime" aria-hidden="true"></span></span>
+            <span id="connectionNotice" class="visually-hidden" role="status" hidden></span>
+          </button>
+          <button id="retrySync" type="button" class="button sync-retry" hidden>Ponów zapis</button>
         </div>
         <label class="profile-control"><span>Pracuje</span><select id="profileSelect" aria-label="Kto pracuje?">
           <option value="">Profil</option><option value="T">T</option><option value="K">K</option>
@@ -123,6 +126,7 @@
               </svg>
               Eksport CSV
             </button>
+            <button id="toggleRejected" type="button" class="button" aria-pressed="false">Ukryj odrzucone</button>
             <button id="addClient" class="button">
               <svg>
                 <use href="#i-plus"/>
@@ -175,17 +179,10 @@
             </details>
           </div>
         </div>
-        <div id="connectionNotice" class="connection-notice" hidden>
-        </div>
-        <div id="fileInfo" class="file-info" aria-label="Informacje o pliku">
-        </div>
         <div id="clientsContent" class="clients-content">
         </div>
         <div class="list-footer">
           <span id="resultsLabel">
-          </span>
-          <span id="saveState">
-            Zapis w przeglądarce
           </span>
         </div>
       </section>
@@ -339,6 +336,7 @@
             <option value="merge">Połącz zmiany z obu baz</option>
           </select>
           <p id="ghDataModeHint" class="small-copy">Wczyta bazę z GitHuba zamiast lokalnej kopii. Przy łączeniu niczego nie zapisze na GitHubie.</p>
+          <div id="fileInfo" class="file-info" aria-label="Informacje o pliku"></div>
           <label for="ghRepo">
             Repozytorium z danymi (może być prywatne)
           </label>
@@ -409,7 +407,7 @@
     <input type="file" accept=".csv,text/csv" id="importFile" hidden>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
-    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono"], "records": []}</script>
+    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
     <script src="assets/js/translations.js"></script>
     <script src="assets/js/i18n.js"></script>
     <script src="assets/js/core.js"></script>

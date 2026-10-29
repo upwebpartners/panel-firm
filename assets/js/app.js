@@ -10,6 +10,9 @@
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const SORT_STORE = 'pracownia.sort';
+  const HIDE_REJECTED_STORE = 'pracownia.hide-rejected';
+  let hideRejected = false;
+  try { hideRejected = localStorage.getItem(HIDE_REJECTED_STORE) === 'true'; } catch {}
   const GITHUB_SESSION_STORE = 'pracownia.github.session';
   const SORT_VERSION = 2;
   let sorting = { field: 'added', direction: 'desc' };
@@ -36,6 +39,7 @@
   let restoreRetryAt = 0, restoreFailures = 0;
   let syncRunning = false, syncError = null, syncRetryTimer = null, syncFailures = 0;
   let localWriteChain = Promise.resolve();
+  let placeDetailsChain = Promise.resolve();
   let authorName = '';
   try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
   let draftId = null;
@@ -51,6 +55,7 @@
   const stageSlug = value => C.norm(value).replace(/\s+/g, '-');
   const stagePill = record => '<span class="stage-pill ' + esc(stageSlug(record.Etap)) + '">' + esc(t(record.Etap || 'Nowy')) + '</span>';
   const byId = id => records.find(r => r.Id === id);
+  const companyPreview = record => (record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null) || M.storedDetails(record);
   const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0;
   const hasQueued = () => !!local.sync && hasPending();
   const targetKey = config => config ? JSON.stringify([String(config.owner || '').toLowerCase(), String(config.repo || '').toLowerCase(), config.branch, String(config.path || '').trim().replace(/^\/+/, '')]) : '';
@@ -167,7 +172,7 @@
     const by = meta.by || local.info?.by || '';
     const fileName = github ? github.config.path : local.info?.name || 'klienci.csv';
     const source = github && connected ? 'Wspólna baza GitHub' : connected ? 'Połączony plik CSV' : 'Kopia w tej przeglądarce';
-    $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '') + (hasPending() ? '<span class="unsaved-file">' + esc(t(hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : 'Zmiany lokalne — zapisz lub eksportuj CSV')) + '</span>' : '');
+    $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '');
   }
   async function adoptShared(result, info = {}) {
     base = result.records.map(r => ({ ...r })); records = [...base]; headers = result.headers;
@@ -394,7 +399,7 @@
     $('callNotes').value = pending?.details.notes || '';
     $('callError').hidden = !pending;
     $('callError').textContent = pending ? t('Dane rozmowy zachowano. Ponów zapis, aby uniknąć zdublowania telefonu.') : '';
-    $('callSaveHint').textContent = t(connected ? (github ? 'Zmiany zapiszą się we wspólnym CSV na GitHubie.' : 'Zmiany zapiszą się w klienci.csv.') : 'Zmiany zapiszą się w tej przeglądarce.');
+    $('callSaveHint').textContent = t(github || rememberedGitHub?.config || local.sync?.target ? '' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
     callControls(); $('callDialog').showModal();
     $(pending ? 'saveCall' : 'callOutcome').focus();
   }
@@ -490,34 +495,26 @@
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
   function connectionUI() {
-    const el = $('saveState');
-    el.className = 'save-state' + (connected ? ' connected' : connectionError || !storageOK ? ' error' : '');
-    let label = connected ? (github ? 'GitHub · wspólna baza' : 'Połączono z CSV · na żywo') : fileHandle ? 'Plik czeka na połączenie' : storageOK ? 'Zapis w przeglądarce' : 'Zapis lokalny niedostępny';
-    if (restoringGitHub) label = 'Łączenie z zapamiętaną bazą…';
-    else if (rememberedGitHub && !connected) label = 'GitHub · połączenie przerwane';
-    if (busy) label = github ? 'Zapisywanie do GitHuba…' : connected && fileHandle ? 'Zapisywanie do CSV…' : 'Zapisywanie w przeglądarce…';
-    if (hasQueued()) label = syncRunning ? 'GitHub · wysyłanie zmian…' : 'GitHub · zmiany czekają na wysłanie';
-    if (connectionError) label = github || rememberedGitHub || hasQueued() ? 'GitHub · sprawdź połączenie' : 'Sprawdź połączenie z CSV';
-    el.innerHTML = '<span class="status-dot"></span>' + esc(t(label));
-    el.title = I18n.message(connected ? (github ? 'Wspólna baza odświeża się co 3 sekundy.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
+    const statusHint = t(connected ? (github ? 'Wspólna baza odświeża się co 3 sekundy.' : 'Zmiany pliku sprawdzane co 3 sekundy.') : 'Połącz CSV, żeby panel i asystent pracowali na tej samej liście.');
     const target = github?.config || rememberedGitHub?.config || local.sync?.target;
     let globalLabel = target ? connected ? 'GitHub · połączono' : 'GitHub · brak połączenia' : connected ? 'Plik CSV' : 'Baza lokalna';
     if (restoringGitHub) globalLabel = 'GitHub · łączenie…';
     if (hasQueued()) globalLabel = syncRunning ? 'GitHub · wysyłanie…' : 'GitHub · oczekuje na zapis';
     if (connectionError || !storageOK) globalLabel = target ? 'GitHub · sprawdź zapis' : 'Baza · sprawdź zapis';
     const badge = $('databaseStatus');
-    badge.innerHTML = '<span class="status-dot"></span><span>' + esc(t(globalLabel)) + '</span>';
+    $('databaseStatusLabel').innerHTML = '<span class="status-dot"></span><span>' + esc(t(globalLabel)) + '</span>';
     badge.className = 'database-status' + (connectionError || !storageOK ? ' error' : hasQueued() ? ' pending' : connected ? ' connected' : '');
-    badge.title = (target ? target.owner + '/' + target.repo + ' · ' + target.branch + ' / ' + target.path + '\n' : '') + I18n.message(connectionError || storageError || (hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : el.title));
+    badge.title = (target ? target.owner + '/' + target.repo + ' · ' + target.branch + ' / ' + target.path + '\n' : '') + I18n.message(connectionError || storageError || (hasQueued() ? 'Zmiany są zachowane w przeglądarce i zostaną wysłane w tle.' : statusHint));
     $('retrySync').hidden = !hasQueued() || syncRunning || restoringGitHub;
     $('retrySync').textContent = t(syncError?.code === 'CONFLICT' ? 'Porównaj zmiany' : 'Ponów zapis');
+    $('retrySync').title = $('retrySync').textContent; $('retrySync').setAttribute('aria-label', $('retrySync').textContent);
     $('connectGitHub').disabled = syncRunning || githubBusy;
     $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
     $('disconnectButton').hidden = !fileHandle && !github && !rememberedGitHub;
     $('disconnectButton').textContent = t(github || rememberedGitHub ? 'Rozłącz i zapomnij' : 'Rozłącz plik');
     $('connectionNotice').hidden = !connectionError && storageOK;
     $('connectionNotice').textContent = I18n.message(connectionError || storageError || 'Zapis w przeglądarce jest niedostępny. Połącz CSV lub eksportuj zmiany przed zamknięciem.');
-    $('formSaveHint').textContent = I18n.message(target ? 'Firma pojawi się od razu. Zapis do GitHuba odbywa się w tle.' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
+    $('formSaveHint').textContent = I18n.message(target ? '' : connected ? 'Zmiany zapiszą się w klienci.csv.' : 'Zmiany zapiszą się w tej przeglądarce.');
     updateFileInfo();
   }
 
@@ -530,6 +527,7 @@
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
     const visible = records.filter(r => {
+      if (hideRejected && r.Etap === 'Odrzucony') return false;
       if (!stage && r.Etap !== 'Odrzucony' && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
       if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
       if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
@@ -557,6 +555,8 @@
   }
   function render() {
     refreshIndustries(); renderSorting(); connectionUI();
+    $('toggleRejected').textContent = t(hideRejected ? 'Pokaż odrzucone' : 'Ukryj odrzucone');
+    $('toggleRejected').setAttribute('aria-pressed', String(hideRejected));
     const visible = filteredRecords();
     $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + records.length + ' firm');
     if (!visible.length) {
@@ -585,7 +585,7 @@
   }
 
   function companyContact(record) {
-    const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    const preview = companyPreview(record);
     const ownURL = C.safeURL(record.Strona), previewURL = C.safeURL(preview?.website);
     return {
       phone: record.Telefon || preview?.phone || '', email: record.Email || '',
@@ -602,11 +602,11 @@
       phone ? phoneHTML({ Telefon: phone }) : '',
       email ? `<span>${emailLink}</span>` : '',
       url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url.split('/')[2])} ↗</a>` : '',
-      google ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — dane nie są zapisane w CSV')) + '</small>' : '',
+      google ? googleAttribution : '',
       !phone && !email && !url ? '—' : '',
     ];
     if (record.Google_place_id && (!record.Telefon || !C.safeURL(record.Strona))) {
-      const state = window.GoogleMapSession?.contactState?.(record.Google_place_id);
+      const state = M.storedDetails(record) ? 'ready' : window.GoogleMapSession?.contactState?.(record.Google_place_id);
       if (state !== 'ready') parts.push(state === 'loading' ? '<small class="muted">' + esc(t('Pobieranie kontaktu…')) + '</small>' : '<button type="button" class="text-button contact-load" data-load-contact="' + esc(record.Google_place_id) + '">' + esc(t(state === 'key' ? 'Ustaw klucz Google — kontakt' : state === 'failed' ? 'Ponów pobranie kontaktu' : 'Wczytaj kontakt z mapy')) + '</button>');
     }
     return `<div class="contact-lines">${parts.join('')}</div>`;
@@ -681,7 +681,7 @@
   const googleAttribution = '<span class="gmp-attribution" translate="no">Google Maps</span>';
   function companyTitle(record) {
     const pending = record.Google_place_id && (!String(record.Firma || '').trim() || record.Firma === 'Do weryfikacji — ' + record.Google_place_id);
-    const preview = pending ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    const preview = pending ? companyPreview(record) : null;
     return { name: pending ? preview?.name || t('Do weryfikacji') : record.Firma, google: !!(pending && preview?.name) };
   }
   function rejectionContent(record) {
@@ -708,7 +708,6 @@
       <tr class="client-row${C.isPinned(record) ? ' pinned-row' : ''}" tabindex="0" data-client="${esc(record.Id)}" aria-label="${esc(t('Otwórz'))} ${esc(title.name)}">
         <td>
           <strong class="firm-name">${esc(title.name)}</strong>
-          ${hasQueued() && (Object.hasOwn(local.patches, record.Id) || local.added.some(item => item.Id === record.Id)) ? '<span class="firm-meta pending-sync">' + esc(t('Czeka na zapis w GitHubie')) + '</span>' : ''}
           ${title.google ? googleAttribution : ''}
           <span class="firm-meta">${esc(t(C.industry(record)))} · ${esc(record.Miejscowosc || '')}</span>
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
@@ -752,7 +751,7 @@
 
   function openClient(id, preserve = false, resetDraft = false) {
     const record = byId(id); if (!record) return;
-    const preview = record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null;
+    const preview = companyPreview(record);
     const title = companyTitle(record);
 
     const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
@@ -779,12 +778,12 @@
         </div>
       </div>
       <div class="call-bar">
-        <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution + '<small class="muted"> · ' + esc(t('Podgląd — numer nie jest zapisany w CSV')) + '</small>' : ''}</div>
+        <div>${phoneHTML({ Telefon: record.Telefon || preview?.phone || '' }, true)}${!record.Telefon && preview?.phone ? googleAttribution : ''}</div>
         <div class="call-actions">${record.Google_place_id ? `<button class="button" type="button" data-google-preview="${esc(record.Google_place_id)}">${esc(t('Dane Google'))}</button>` : ''}<button class="button" type="button" data-exclude="${esc(id)}">${esc(t(M.state(record) === 'wykreslona' ? 'Przywróć' : 'Wykreśl'))}</button>${statusControls(record)}${priorityControl(record)}<button type="button" class="button primary" data-call="${esc(id)}">${esc(t('Dzwoniliśmy'))}</button></div>
       </div>
       <div class="company-grid">
         <div class="company-analysis">
-          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
+          ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p></section>` : ''}
           ${rejectionHTML(record)}
           <div class="company-contact">
             ${record.Adres ? `<span data-content>${esc(record.Adres)}</span>` : ''}
@@ -1029,7 +1028,8 @@
     return true;
   }
   function openConnection() {
-    $('connectError').hidden = true;
+    $('connectError').textContent = I18n.message(connectionError || storageError || '');
+    $('connectError').hidden = !connectionError && !storageError;
     $('ghDataMode').value = 'remote'; updateGitHubModeHint();
     $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
     try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
@@ -1112,7 +1112,7 @@
   async function decidePlace(entity, value, reason = '') {
     const author = await ensureAuthor();
     const existing = M.matchRecord(entity, records);
-    if (existing?.Google_place_id && value === 'przejrzana') return existing;
+    if (existing?.Google_place_id && value === 'przejrzana' && (M.state(existing) !== 'przejrzana' || existing.Mapa_potwierdzono)) return existing;
     const patch = { ...M.decision(existing, value, author, reason), Google_place_id: entity.id };
     if (existing) await saveChange(existing.Id, patch, { ...existing });
     else {
@@ -1146,10 +1146,28 @@
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
+    savePlaceDetails: entity => {
+      const task = placeDetailsChain.then(async () => {
+        const original = records.find(record => record.Google_place_id === entity.id);
+        if (!original || !['T','K'].includes(authorName) || M.storedDetails(original)) return;
+        await saveChange(original.Id, M.detailsPatch(entity), { ...original });
+      });
+      placeDetailsChain = task.catch(error => { connectionError = I18n.message(error.message); connectionUI(); });
+      return placeDetailsChain;
+    },
     open: id => { if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
-  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+  function rememberRejectedFilter() { try { localStorage.setItem(HIDE_REJECTED_STORE, String(hideRejected)); } catch {} }
+  $('toggleRejected').onclick = () => {
+    hideRejected = !hideRejected;
+    if (hideRejected && $('stageFilter').value === 'Odrzucony') $('stageFilter').value = '';
+    rememberRejectedFilter(); render();
+  };
+  for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+    if (id === 'stageFilter' && $('stageFilter').value === 'Odrzucony') { hideRejected = false; rememberRejectedFilter(); }
+    render();
+  });
   for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
     if (id === 'sortField') {
       const field = $('sortField').value;
@@ -1260,6 +1278,7 @@
     if (busy || changingSource || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
     authorName = ['T', 'K'].includes($('profileSelect').value) ? $('profileSelect').value : '';
     try { localStorage.setItem('pracownia.author', authorName); } catch {}
+    document.dispatchEvent(new CustomEvent('crm:profile'));
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;

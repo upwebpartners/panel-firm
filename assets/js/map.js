@@ -1,4 +1,4 @@
-/* Google place data is session-only. The API key is remembered separately in browser settings. */
+/* Google details are attributed separately in CSV; the API key stays in browser settings. */
 (function (root) {
   'use strict';
   if (typeof document === 'undefined' || !document.getElementById('businessMap')) return;
@@ -65,7 +65,8 @@
       const fetch = () => place.fetchFields({ fields: ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
       if (root.Network) await root.Network.withTimeout(fetch); else await fetch();
       const entity = M.fromGoogle(place);
-      places.set(id, entity); details.add(id); contactErrors.delete(id); return entity;
+      places.set(id, entity); details.add(id); contactErrors.delete(id);
+      await root.CRM.savePlaceDetails?.(entity); return entity;
     })();
     detailLoads.set(id, task);
     try { return await task; }
@@ -73,7 +74,7 @@
     finally { detailLoads.delete(id); contactsChanged(); }
   }
   function visibleContacts() {
-    return (root.CRM.visibleRecords?.() || []).filter(row => row.Google_place_id &&
+    return (root.CRM.visibleRecords?.() || []).filter(row => row.Google_place_id && !M.storedDetails(row) &&
       (!row.Telefon || !C.safeURL(row.Strona) || !row.Firma || row.Firma === 'Do weryfikacji — ' + row.Google_place_id));
   }
   async function loadVisibleContacts() {
@@ -145,13 +146,15 @@
     const draft = cardId === entity.id && oldFields && oldReason ? { visible: !oldFields.hidden, value: oldReason.value } : null;
     cardId = entity.id;
     $('mapPlace').hidden = false;
-    $('mapPlace').innerHTML = `<div class="map-place-heading"><div><h2>${esc(entity.name || current?.Firma || t('Firma'))}</h2><span style="color:${colors[state]}">${esc(t(labels[state]))}</span></div><button type="button" class="icon-button" data-map-close aria-label="${esc(t('Zamknij'))}">×</button></div>
+    const stateLabel = state === 'przejrzana' && !current?.Mapa_potwierdzono ? 'Starsze oznaczenie — niepotwierdzone' : labels[state];
+    $('mapPlace').innerHTML = `<div class="map-place-heading"><div><h2>${esc(entity.name || current?.Firma || t('Firma'))}</h2><span style="color:${colors[state]}">${esc(t(stateLabel))}</span>${state === 'przejrzana' && current?.Mapa_potwierdzono ? '<p class="small-copy">' + esc(t('Potwierdził')) + ': ' + esc(current.Mapa_edytowal) + ' · ' + esc(new Date(current.Mapa_potwierdzono).toLocaleString(root.I18n.locale())) + '</p>' : ''}</div><button type="button" class="icon-button" data-map-close aria-label="${esc(t('Zamknij'))}">×</button></div>
       <p data-content>${esc(entity.address || '')}</p>
       ${entity.phone ? `<p><a href="tel:${esc(entity.phone.replace(/[^+\d]/g,''))}">${esc(entity.phone)}</a></p>` : `<p class="muted">${esc(t('Brak numeru telefonu'))}</p>`}
       ${entity.website ? `<p><a href="${esc(entity.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a></p>` : ''}
       <p><a href="${esc(M.placeURL(entity.id))}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a></p>
-      <p class="small-copy">${esc(t('Podgląd Google. W CSV zapisujemy identyfikator, własne dane i decyzje. Dane firmy potwierdź z niezależnego źródła.'))}</p>
+      <p class="small-copy">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p>
       <div class="map-place-actions">
+        ${state === 'nowa' || state === 'przejrzana' && !current?.Mapa_potwierdzono ? `<button class="button" data-map-reviewed>${esc(t(state === 'nowa' ? 'Oznacz jako przejrzaną' : 'Potwierdź przejrzenie'))}</button>` : ''}
         ${state === 'dodana' ? `<button class="button primary" data-map-open>${esc(t('Otwórz firmę'))}</button>` : `<button class="button primary" data-map-add>${esc(t(state === 'wykreslona' ? 'Przywróć do weryfikacji' : 'Dodaj do weryfikacji'))}</button>`}
         ${state !== 'wykreslona' ? `<button class="button" data-map-exclude>${esc(t('Wykreśl'))}</button>` : ''}
       </div>
@@ -171,10 +174,6 @@
       }
       if (version !== selectionVersion) return;
       const entity = places.get(id); showCard(entity);
-      if (!record(entity) && ['T','K'].includes(root.CRM.profile())) {
-        await root.CRM.decidePlace(entity, 'przejrzana');
-        if (selected === id) draw();
-      }
       status('Dane Google — sprawdź aktualność przed zapisaniem własnych danych firmy.');
     } catch (error) { status(error.message); }
   }
@@ -256,19 +255,19 @@
     if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) root.CRM.open(row.Id); return; }
     if (event.target.closest('[data-map-exclude]')) { $('mapExcludeFields').hidden = false; $('mapExcludeReason').focus(); return; }
     if (event.target.closest('[data-map-cancel]')) { $('mapExcludeFields').hidden = true; return; }
-    const add = event.target.closest('[data-map-add]'), exclude = event.target.closest('[data-map-confirm]');
-    if (!add && !exclude) return;
+    const add = event.target.closest('[data-map-add]'), exclude = event.target.closest('[data-map-confirm]'), reviewed = event.target.closest('[data-map-reviewed]');
+    if (!add && !exclude && !reviewed) return;
     pending = true; $('mapPlace').querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
-      const row = await root.CRM.decidePlace(entity, add ? 'dodana' : 'wykreslona', exclude ? $('mapExcludeReason').value.trim() : '');
+      const row = await root.CRM.decidePlace(entity, add ? 'dodana' : reviewed ? 'przejrzana' : 'wykreslona', exclude ? $('mapExcludeReason').value.trim() : '');
       if (add) root.CRM.open(row.Id);
       draw();
     } catch (error) { status(error.message); }
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
   });
   root.GoogleMapSession = {
-    get: id => places.has(id) ? { ...places.get(id) } : null,
-    contactState: id => details.has(id) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
+    get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)),
+    contactState: id => details.has(id) || M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
     loadContact: id => {
       if (!savedKey() && (!key || forgottenKey)) { settings(); return; }
       contactErrors.delete(id); void loadVisibleContacts();
@@ -285,6 +284,9 @@
   });
   document.addEventListener('crm:data', () => { draw(); void loadVisibleContacts(); });
   document.addEventListener('crm:view', () => { void loadVisibleContacts(); });
+  document.addEventListener('crm:profile', () => {
+    for (const row of root.CRM.visibleRecords?.() || []) if (!M.storedDetails(row) && details.has(row.Google_place_id)) void root.CRM.savePlaceDetails?.(places.get(row.Google_place_id));
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void loadVisibleContacts(); });
   document.addEventListener('crm:language', () => { if (selected && details.has(selected)) showCard(places.get(selected)); });
   if (!$('mapPanel').hidden) ensureMap();

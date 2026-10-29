@@ -551,9 +551,12 @@ main {
   align-items:center;
   gap:6px;
 }
-.database-status { display:flex; align-items:center; gap:6px; min-width:0; min-height:30px; padding:3px 7px; font-size:12px; white-space:nowrap; background:var(--panel); }
+.database-controls { display:flex; align-items:center; gap:5px; min-width:0; }
+.visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.database-status-line { display:flex; align-items:center; gap:6px; max-width:100%; }
+.database-status { display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; min-height:30px; padding:3px 7px; font-size:12px; white-space:nowrap; background:var(--panel); }
 .database-status .status-dot { flex-shrink:0; }
-.pending-sync { color:#a8790b; }
+
 .rejection-clock { display:flex; flex-direction:column; gap:3px; margin-top:7px; font-size:11px; color:var(--muted); line-height:1.4; }
 .rejection-clock strong { color:var(--text); font-size:11px; }
 .contact-load { align-self:flex-start; padding:2px 0; color:var(--accent); font-size:11px; text-align:left; }
@@ -567,16 +570,19 @@ main {
   .profile-control > span { display:none; }
   .database-status { max-width:130px; font-size:10px; padding:3px 4px; }
   .database-status > span:last-child { overflow:hidden; text-overflow:ellipsis; }
-  .sync-retry { position:fixed; top:89px; right:8px; z-index:20; background:var(--panel); }
+  .database-controls { flex:1; }
+  .sync-retry { width:26px; padding:2px; font-size:0; }
+  .sync-retry::before { content:"↻"; font-size:17px; }
+  .database-status-line { font-size:10px; }
 }
-.save-progress { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.save-progress { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--muted); }
 .save-progress.saving::before { content:''; width:10px; height:10px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:save-spin .8s linear infinite; }
 .save-progress.saved { color:var(--accent); }
 .save-progress.failed { color:var(--danger); }
 #saveProgressTime { font-variant-numeric:tabular-nums; white-space:nowrap; }
 @keyframes save-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .save-progress.saving::before { animation:none; } }
-@media(max-width:760px) { .save-progress { position:fixed; top:53px; right:8px; z-index:20; max-width:calc(100% - 16px); padding:6px 8px; background:var(--panel); border:1px solid var(--border); border-radius:3px; box-shadow:var(--shadow); } }
+@media(max-width:760px) { .database-status-line > span:last-child, #saveProgressLabel { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .save-progress { max-width:100%; font-size:9px; } }
 .status-dot {
   width:6px;
   height:6px;

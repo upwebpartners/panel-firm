@@ -108,7 +108,7 @@
       if (!after) { if (before) conflicts.push({ id, name: before.Firma, field: 'Usunięty w pliku', value: '' }); continue; }
       for (const [key, value] of Object.entries(cleanRecord(patch))) {
         if (callColumns.includes(key) && patch.Historia_polaczen) continue;
-        if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
+        if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
           conflicts.push({ id, name: after.Firma, field: key, value: after[key] });
         }
         after[key] = value;
@@ -121,7 +121,7 @@
         if (duplicate) conflicts.push({ id: record.Id, name: record.Firma, field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
         else current.set(record.Id, { ...record, ...(Object.hasOwn(patches, record.Id) ? patches[record.Id] : {}) });
       } else if (!original.has(record.Id)) {
-        const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal'];
+        const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
         const different = [...new Set([...Object.keys(existing), ...Object.keys(record)])].some(key => !ignored.includes(key) && String(existing[key] || '') !== String(record[key] || ''));
         if (different) conflicts.push({ id: record.Id, name: record.Firma, field: 'Nowy klient o tym samym Id', value: '' });
       }
@@ -181,8 +181,9 @@
       remainingDays: Math.floor(Math.ceil(left / 3600000) / 24), remainingHours: Math.ceil(left / 3600000) % 24,
       remainingTotalHours: Math.ceil(left / 3600000), expired: left === 0 };
   }
-  const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono'];
-  const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
+  const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono', 'Mapa_potwierdzono'];
+  const googleColumns = ['Google_nazwa', 'Google_telefon', 'Google_strona', 'Google_adres', 'Google_pobrano'];
+  const extraColumns = [...selectionColumns, ...googleColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
   const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
   function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
   function callHistory(record) {

@@ -1,4 +1,12 @@
 globalThis.CRM_MESSAGES = {
+  "Ukryj odrzucone": "Hide rejected",
+  "Pokaż odrzucone": "Show rejected",
+  "Oznacz jako przejrzaną": "Mark as reviewed",
+  "Potwierdź przejrzenie": "Confirm review",
+  "Starsze oznaczenie — niepotwierdzone": "Older marker — unconfirmed",
+  "Potwierdził": "Confirmed by",
+  "Dane z Google Maps — niepotwierdzone w innym źródle": "Google Maps data — not confirmed against another source",
+
   "Pobieranie kontaktu…": "Loading contact…",
   "Ustaw klucz Google — kontakt": "Set Google key — contact",
   "Ponów pobranie kontaktu": "Retry loading contact",

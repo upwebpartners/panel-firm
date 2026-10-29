@@ -1,8 +1,18 @@
-/* Selection data belongs to the team. Google place details stay in memory. */
+/* Human decisions and separately attributed Google details in the shared CSV. */
 (function (root) {
   'use strict';
   const C = root.CRMCore;
-  const decisionFields = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono'];
+  const decisionFields = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono', 'Mapa_potwierdzono'];
+  const googleFields = ['Google_nazwa', 'Google_telefon', 'Google_strona', 'Google_adres', 'Google_pobrano'];
+  function storedDetails(record) {
+    if (!record?.Google_place_id || !record.Google_pobrano) return null;
+    return { id: record.Google_place_id, name: record.Google_nazwa || '', phone: record.Google_telefon || '',
+      website: C.safeURL(record.Google_strona), address: record.Google_adres || '' };
+  }
+  function detailsPatch(entity, at = new Date().toISOString()) {
+    return { Google_nazwa: String(entity.name || ''), Google_telefon: String(entity.phone || ''),
+      Google_strona: C.safeURL(entity.website), Google_adres: String(entity.address || ''), Google_pobrano: at };
+  }
   function coordinates(value) {
     const lat = value.lat ?? value.Lat, lon = value.lon ?? value.Lon;
     if (lat === '' || lon === '' || lat == null || lon == null) return null;
@@ -33,16 +43,17 @@
   function decision(record, value, author, reason = '', at = new Date().toISOString()) {
     if (!['T', 'K'].includes(author)) throw new Error('Tylko profil T lub K może zmienić wybór firmy.');
     if (!['przejrzana', 'dodana', 'wykreslona'].includes(value)) throw new Error('Nieprawidłowy wybór firmy.');
-    if (value === 'przejrzana' && record && state(record) !== 'nowa') return {};
+    if (value === 'przejrzana' && record && (state(record) !== 'przejrzana' || record.Mapa_potwierdzono)) return {};
     return { Mapa_status: value, Mapa_edytowal: author, Mapa_edytowano: at,
+      ...(value === 'przejrzana' ? { Mapa_potwierdzono: at } : {}),
       ...(value === 'wykreslona' ? { Etap: 'Odrzucony', Powod_wykreslenia: reason,
         Odrzucono: record?.Etap === 'Odrzucony' ? record.Odrzucono || record.Mapa_edytowano || '' : at } : {}),
       ...(value === 'dodana' && (!record || state(record) !== 'dodana') ? { Etap: 'Do sprawdzenia' } : {}) };
   }
   function draft(entity) {
-    // Do not persist Google names, phones, addresses, types or coordinates in CSV.
+    // Google values are separate from independently entered company data.
     return { Id: C.uid(), Firma: 'Do weryfikacji — ' + entity.id, Google_place_id: entity.id,
-      Etap: 'Do sprawdzenia', Notatki: '', Status: 'Miejsce z mapy — uzupełnij dane z niezależnego źródła' };
+      ...detailsPatch(entity), Etap: 'Do sprawdzenia', Notatki: '', Status: 'Dane z Google Maps — niepotwierdzone w innym źródle' };
   }
-  root.MapCore = { decisionFields, coordinates, fromGoogle, placeURL, matchRecord, state, decision, draft };
+  root.MapCore = { decisionFields, googleFields, storedDetails, detailsPatch, coordinates, fromGoogle, placeURL, matchRecord, state, decision, draft };
 })(globalThis);
