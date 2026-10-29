@@ -460,10 +460,9 @@ main {
 [data-theme=dark] .priority-trigger.wysoki { color:#e6a0a0; }
 .priority-trigger:hover { outline:1px solid var(--accent); background:var(--hover); }
 .next-step-date { display:block; margin-top:10px; color:var(--muted); }
-.next-step-editor { margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
-.next-step-editor>summary { cursor:pointer; color:var(--muted); font-size:12px; }
-.next-step-editor[open]>summary { margin-bottom:12px; }
-.next-step-editor input[type=date] { width:180px; max-width:100%; }
+.detail-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.detail-heading h3 { margin:0; }
+.detail-heading .text-button { flex-shrink:0; font-size:12px; }
 .company-notes {
   display:block;
   white-space:pre-wrap;
@@ -848,6 +847,30 @@ dialog::backdrop {
 }
 .edit-dialog {
   width:840px;
+}
+#formFields { border:0; padding:0; margin:0; min-width:0; }
+.edit-dialog.company-edit-mode { width:1200px; height:calc(100dvh - 40px); }
+.company-edit-mode #clientForm { min-height:100%; display:flex; flex-direction:column; }
+.company-edit-mode .dialog-heading { position:sticky; top:0; z-index:2; }
+.company-edit-mode .dialog-footer { margin-top:auto; z-index:2; }
+.company-edit-mode #formFields { flex:1; }
+.company-edit-layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr); gap:20px; padding:20px; align-items:start; }
+.company-edit-section { min-width:0; border:1px solid var(--border); background:var(--panel); }
+.company-edit-section>h3 { padding:12px 16px; background:var(--subtle); border-bottom:1px solid var(--border); font-size:14px; }
+.company-edit-section .form-grid { padding:16px; }
+.company-edit-source { padding:12px 16px 0; color:var(--muted); font-size:12px; line-height:1.6; }
+.company-edit-plan { grid-column:1; grid-row:1; }
+.company-edit-contact { grid-column:2; grid-row:1 / span 2; }
+.company-edit-sources { grid-column:1; }
+.company-edit-mode textarea { width:100%; resize:vertical; }
+.company-edit-mode #f-issue { min-height:130px; }
+.company-edit-mode #f-notes { min-height:150px; }
+@media(max-width:800px) {
+  .edit-dialog.company-edit-mode { width:calc(100vw - 16px); max-width:calc(100vw - 16px); height:calc(100dvh - 16px); max-height:calc(100dvh - 16px); }
+  .company-edit-layout { grid-template-columns:minmax(0,1fr); padding:12px; gap:12px; }
+  .company-edit-plan,.company-edit-contact,.company-edit-sources { grid-column:1; grid-row:auto; }
+  .company-edit-contact { order:2; }
+  .company-edit-sources { order:3; }
 }
 .connect-dialog {
   width:590px;

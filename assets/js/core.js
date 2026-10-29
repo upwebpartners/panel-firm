@@ -4,7 +4,7 @@
   const fields = {
     name: 'Firma', industry: 'Branza', city: 'Miejscowosc', url: 'Strona',
     issue: 'Sprawdzony problem', priority: 'Priorytet roboczy',
-    phone: 'Telefon', email: 'Email', next: 'Nastepny krok', due: 'Termin', price: 'Wycena',
+    phone: 'Telefon', email: 'Email', address: 'Adres', next: 'Nastepny krok', due: 'Termin', price: 'Wycena',
     notes: 'Notatki', stage: 'Etap',
     argument: 'Argument do rozmowy', sources: 'Zrodla', checked: 'Data sprawdzenia zrodel',
     scope: 'Zakres weryfikacji', consent: 'Zgoda data i zakres', modified: 'Modyfikacja', id: 'Id',

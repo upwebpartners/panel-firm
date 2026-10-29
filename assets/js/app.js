@@ -34,7 +34,7 @@
   let headers = local.headers || [...new Set([...seed.headers, ...base.flatMap(Object.keys), ...local.added.flatMap(Object.keys)])];
   let records = C.overlay(base, local.patches, local.added, local.removed);
   let fileHandle = null, connected = false, busy = false, fileText = null, connectionError = '';
-  let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null;
+  let selected = null, editOriginal = null, actionOriginal = null, returnFocus = null, formSaving = false, formInitialName = '';
   let deferredCompanyRefresh = null;
   let browseIds = [], statusOriginal = null, statusSaving = false, excludeOriginal = null;
   let priorityOriginal = null, prioritySaving = false;
@@ -326,7 +326,7 @@
       const mode = $('ghDataMode').value || 'remote';
       if (!['remote', 'replace', 'merge'].includes(mode)) throw new Error('Wybierz bazę przy połączeniu.');
       if (selected && !confirmLeavingActions()) return;
-      const draftFields = ['actionNext', 'actionDue', 'actionNotes', 'actionConsent'];
+      const draftFields = ['actionNotes', 'actionConsent'];
       const draftBefore = selected ? draftFields.map(id => $(id).value) : null;
       const currentRecords = records.map(record => ({ ...record })), currentHeaders = [...headers];
       const raw = $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
@@ -778,9 +778,9 @@
     `;
   }
 
-  function detailBlock(label, value, extra = '') {
+  function detailBlock(label, value, extra = '', editField = '') {
     return `<section class="detail-block ${extra}">
-      <h3>${esc(t(label))}</h3>
+      <div class="detail-heading"><h3>${esc(t(label))}</h3>${editField ? `<button type="button" class="text-button" data-edit-client data-edit-focus="${esc(editField)}">${esc(t('Edytuj'))}</button>` : ''}</div>
       <p data-content>${esc(value || '—')}</p>
     </section>`;
   }
@@ -800,8 +800,7 @@
     const title = companyTitle(record);
 
     const scroll = selected === id && preserve ? ['.company-grid', '.company-analysis', '.company-actions'].map(selector => [selector, $('drawer').querySelector(selector)?.scrollTop || 0]) : [];
-    const nextEditorOpen = selected === id && preserve && !resetDraft && $('nextStepEditor')?.open;
-    const same = selected === id, draft = same && preserve && !resetDraft && actionDirty() ? { next: $('actionNext').value, due: $('actionDue').value, notes: $('actionNotes').value, consent: $('actionConsent').value, original: actionOriginal } : null;
+    const same = selected === id, draft = same && preserve && !resetDraft && actionDirty() ? { notes: $('actionNotes').value, consent: $('actionConsent').value, original: actionOriginal } : null;
     if (!selected || !preserve) { browseIds = filteredRecords().map(r => r.Id); returnFocus = document.activeElement; }
     if (!browseIds.includes(id)) browseIds.push(id);
     selected = id; actionOriginal = { ...record };
@@ -819,7 +818,7 @@
           <button class="button" data-navigate="-1" ${index <= 0 ? 'disabled' : ''} aria-label="${esc(t('Poprzednia firma'))}">←</button>
           <span>${index + 1} / ${browseIds.length}</span>
           <button class="button" data-navigate="1" ${index >= browseIds.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Następna firma'))}">→</button>
-          <button class="button" data-edit-client>${esc(t('Edytuj firmę'))}</button>
+          <button class="button primary" data-edit-client>${esc(t('Edytuj'))}</button>
           <button type="button" class="button delete-company" data-delete-client="${esc(record.Id)}">${esc(t('Usuń firmę'))}</button>
         </div>
       </div>
@@ -840,18 +839,12 @@
           </div>
           <div class="analysis-grid">
             <section class="detail-block wide next-step-block">
-              <h3>${esc(t('Następny krok'))}</h3>
+              <div class="detail-heading"><h3>${esc(t('Następny krok'))}</h3><button type="button" class="text-button" data-edit-client data-edit-focus="next">${esc(t('Edytuj'))}</button></div>
               <p id="nextStepDisplay" data-content>${esc(record['Nastepny krok'] || '—')}</p>
               ${record.Termin ? `<small class="next-step-date">${esc(t('Termin działania'))}: ${esc(prettyDate(record.Termin))}</small>` : ''}
-              <details id="nextStepEditor" class="next-step-editor"${nextEditorOpen ? ' open' : ''}>
-                <summary>${esc(t('Edytuj następny krok'))}</summary>
-                <div class="drawer-field"><label for="actionNext">${esc(t('Następny krok'))}</label><textarea id="actionNext" rows="3" placeholder="${esc(t('Co trzeba zrobić dalej?'))}">${esc(record['Nastepny krok'])}</textarea></div>
-                <div class="drawer-field"><label for="actionDue">${esc(t('Termin działania'))}</label><input id="actionDue" type="date" value="${esc(record.Termin)}"></div>
-                <button type="button" class="button" data-save-actions>${esc(t('Zapisz'))}</button>
-              </details>
             </section>
-            ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'])}
-            ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'])}
+            ${detailBlock('Co zauważyliśmy', record['Sprawdzony problem'], '', 'issue')}
+            ${detailBlock('Argument do rozmowy', record['Argument do rozmowy'], '', 'argument')}
             <details class="analysis-details"><summary>${esc(t('Źródła i pozostałe dane'))}</summary><div class="analysis-grid">
             <section class="detail-block wide">
               <h3>${esc(t('Źródła'))}${record['Data sprawdzenia zrodel'] ? ' · ' + esc(prettyDate(record['Data sprawdzenia zrodel'])) : ''}</h3>
@@ -894,14 +887,14 @@
       </div>
     `;
     $('drawer').hidden = false; $('companiesPanel').inert = true; $('companiesPanel').setAttribute('aria-hidden', 'true');
-    if (draft) { $('actionNext').value = draft.next; $('actionDue').value = draft.due; $('actionNotes').value = draft.notes; $('actionConsent').value = draft.consent; actionOriginal = draft.original; }
+    if (draft) { $('actionNotes').value = draft.notes; $('actionConsent').value = draft.consent; actionOriginal = draft.original; }
     for (const [selector, position] of scroll) { const element = $('drawer').querySelector(selector); if (element) element.scrollTop = position; }
     I18n.bindUI($('drawer'));
     if (!preserve) $('drawer').querySelector('[data-close-drawer]').focus();
     document.dispatchEvent(new CustomEvent('crm:view'));
   }
   function actionDirty() {
-    return selected && !$('drawer').hidden && actionOriginal && $('actionNext') && ['actionNext', 'actionDue', 'actionNotes', 'actionConsent'].some((id, index) => $(id).value !== (actionOriginal[['Nastepny krok', 'Termin', 'Notatki', 'Zgoda data i zakres'][index]] || ''));
+    return selected && !$('drawer').hidden && actionOriginal && ['actionNotes', 'actionConsent'].some((id, index) => $(id).value !== (actionOriginal[['Notatki', 'Zgoda data i zakres'][index]] || ''));
   }
   function confirmLeavingActions() { return !actionDirty() || ask('Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?'); }
   function closeDrawer(force = false) {
@@ -941,41 +934,61 @@
     ['name', 'Nazwa firmy *', 'text', 'Pełna nazwa firmy', true], ['url', 'Strona internetowa', 'url', 'https://…', true],
     ['industry', 'Branża', 'text', 'np. Detailing'], ['city', 'Miejscowość', 'text', 'np. Pruszcz Gdański'],
     ['phone', 'Telefon', 'text', 'Publiczny numer firmy'], ['email', 'E-mail', 'text', 'Adres kontaktowy'],
+    ['address', 'Adres', 'text', '', true],
     ['stage', 'Etap współpracy', 'stage'], ['priority', 'Priorytet', 'priority'],
     ['next', 'Następny krok', 'textarea', 'Co konkretnie warto zrobić?', true], ['due', 'Termin działania', 'date'], ['price', 'Ustalona wycena', 'text', 'Uzupełnij po przygotowaniu oferty'],
-    ['issue', 'Zaobserwowany problem', 'textarea', 'Tylko sprawdzone obserwacje; zaznacz niepewność.', true],
+    ['issue', 'Co zauważyliśmy', 'textarea', 'Tylko sprawdzone obserwacje; zaznacz niepewność.', true],
     ['argument', 'Argument do rozmowy', 'textarea', 'Dlaczego ta zmiana może pomóc firmie?', true],
     ['sources', 'Źródła', 'textarea', 'Adresy stron oddziel pionową kreską | lub nową linią.', true],
     ['checked', 'Data sprawdzenia źródeł', 'date'], ['scope', 'Zakres weryfikacji', 'textarea', 'Co sprawdzono, a co wymaga potwierdzenia?', true],
-    ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true]
+    ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true],
+    ['consent', 'Uzgodniony kontakt — data i zakres', 'textarea', '', true]
   ];
-  function openForm(record = null) {
-    if (!requireProfile() || (selected && !confirmLeavingActions())) return;
+  function openForm(record = null, focusField = '') {
+    if (formSaving || !requireProfile() || (!record && selected && !confirmLeavingActions())) return;
+    const working = record ? { ...record } : null;
+    formInitialName = record ? companyTitle(record).name : '';
     editOriginal = record ? { ...record } : null; draftId = record?.Id || C.uid();
+    // Carry quick notes into the full editor without changing their conflict baseline.
+    if (record && selected === record.Id && actionOriginal) for (const [id, key] of [['actionNotes', 'Notatki'], ['actionConsent', 'Zgoda data i zakres']]) {
+      if ($(id).value !== (actionOriginal[key] || '')) { working[key] = $(id).value; editOriginal[key] = actionOriginal[key] || ''; }
+    }
+    $('editDialog').classList.toggle('company-edit-mode', !!record);
     $('formTitle').textContent = I18n.message(record ? 'Edytuj dane firmy' : 'Dodaj nową firmę');
-    $('submitForm').innerHTML = record ? 'Zapisz zmiany' + icon('check') : 'Dodaj klienta' + icon('plus');
+    $('formCompanyName').textContent = record ? companyTitle(record).name : ''; $('formCompanyName').hidden = !record;
+    $('submitForm').innerHTML = esc(t(record ? 'Zapisz zmiany' : 'Dodaj klienta')) + icon(record ? 'check' : 'plus');
+    $('formFields').disabled = false;
     $('formError').hidden = true;
     const basic = ['name', 'url', 'city', 'phone', 'email', 'stage', 'priority', 'notes'];
     const ordered = [...formSchema.filter(row => basic.includes(row[0])), ...formSchema.filter(row => !basic.includes(row[0]))];
-    $('formFields').innerHTML = '<div class="form-grid">' + ordered.map(([key, label, type, placeholder, full]) => {
-      const value = record ? key === 'name' ? companyTitle(record).name : val(record, key) : key === 'stage' ? 'Nowy' : '';
+    const fieldHTML = ([key, label, type, placeholder, full]) => {
+      const value = working ? key === 'name' ? companyTitle(working).name : val(working, key) : key === 'stage' ? 'Nowy' : '';
+      const googleValue = record ? companyPreview(record)?.[({ phone: 'phone', url: 'website', address: 'address' })[key]] : '';
+      if (googleValue && !value) placeholder = googleValue;
       if (type === 'stage' || type === 'priority') {
         const selectedValue = type === 'priority' ? (record ? C.priorityValue(record) : '') : value;
         const options = type === 'stage' ? C.stages.map(stage => ({ value: stage, label: stage })) : [...C.priorities, { value: '', label: 'Nie ustawiono' }];
         return '<fieldset class="form-field full form-choice-field" id="f-' + key + '"><legend>' + esc(t(label)) + '</legend><div class="form-choices">' + options.map((item, index) => '<label class="form-choice" for="f-' + key + '-' + index + '"' + (item.description ? ' title="' + esc(t(item.description)) + '"' : '') + '><input type="radio" id="f-' + key + '-' + index + '" name="' + key + '" value="' + esc(item.value) + '"' + (item.value === selectedValue ? ' checked' : '') + '><span>' + esc(t(item.label)) + '</span></label>').join('') + '</div></fieldset>';
       }
       let input;
-      if (type === 'textarea') input = '<textarea name="' + key + '" id="f-' + key + '" placeholder="' + esc(t(placeholder)) + '" maxlength="30000">' + esc(value) + '</textarea>';
+      if (type === 'textarea') input = '<textarea name="' + key + '" id="f-' + key + '" rows="' + (key === 'notes' ? '6' : key === 'issue' ? '5' : '3') + '" placeholder="' + esc(t(placeholder || '')) + '" maxlength="30000">' + esc(value) + '</textarea>';
       else input = '<input id="f-' + key + '" name="' + key + '" type="' + type + '" value="' + esc(value) + '" placeholder="' + esc(t(placeholder || '')) + '"' + (key === 'name' ? ' required maxlength="250"' : ' maxlength="5000"') + '>';
-      return (key === 'industry' ? '</div><details class="advanced-fields"><summary>' + esc(t('Więcej informacji (opcjonalnie)')) + '</summary><div class="form-grid">' : '') + '<div class="form-field' + (full ? ' full' : '') + '"><label for="f-' + key + '">' + esc(t(label)) + '</label>' + input + '</div>';
-    }).join('') + '</div></details>';
-    I18n.bindUI($('editDialog')); $('editDialog').showModal(); $('f-name').focus();
+      return '<div class="form-field' + (full ? ' full' : '') + '"><label for="f-' + key + '">' + esc(t(label)) + '</label>' + input + '</div>';
+    };
+    if (record) {
+      const section = (title, keys, extra = '') => '<section class="company-edit-section ' + extra + '"><h3>' + esc(t(title)) + '</h3>' + (title === 'Dane firmy' && record.Google_place_id ? '<p class="company-edit-source">' + googleAttribution(record) + '<br>' + esc(t('Puste pola kontaktu korzystają z danych Google.')) + '</p>' : '') + '<div class="form-grid">' + keys.map(key => fieldHTML(formSchema.find(row => row[0] === key))).join('') + '</div></section>';
+      $('formFields').innerHTML = '<div class="company-edit-layout">' +
+        section('Plan i notatki', ['next', 'due', 'price', 'issue', 'argument', 'notes', 'consent'], 'company-edit-plan') +
+        section('Dane firmy', ['name', 'url', 'phone', 'email', 'address', 'city', 'industry', 'stage', 'priority'], 'company-edit-contact') +
+        section('Źródła i sprawdzenie', ['sources', 'checked', 'scope'], 'company-edit-sources') + '</div>';
+    } else $('formFields').innerHTML = '<div class="form-grid">' + ordered.map(row => (row[0] === 'industry' ? '</div><details class="advanced-fields"><summary>' + esc(t('Więcej informacji (opcjonalnie)')) + '</summary><div class="form-grid">' : '') + fieldHTML(row)).join('') + '</div></details>';
+    I18n.bindUI($('editDialog')); $('editDialog').showModal(); $('f-' + (record ? (F[focusField] && formSchema.some(row => row[0] === focusField) ? focusField : 'next') : 'name')).focus();
   }
   function changedFields(record, form) {
     const patch = {};
     for (const [name] of formSchema) {
       const value = String(form.get(name) || '').trim(); const key = F[name];
-      if (name === 'name' && record && value === companyTitle(record).name) continue;
+      if (name === 'name' && record && value === formInitialName) continue;
       if (name === 'priority') {
         if (!['', ...C.priorities.map(item => item.value)].includes(value)) throw new Error('Wybierz poprawny priorytet.');
         if (record && C.priorityValue(record) === value) continue;
@@ -1060,10 +1073,12 @@
   }
   async function submitForm(event) {
     event.preventDefault();
+    if (formSaving) return;
+    const original = editOriginal;
     const form = new FormData($('clientForm')); const patch = changedFields(editOriginal, form);
     if (!String(form.get('name') || '').trim()) { $('formError').textContent = I18n.message('Podaj nazwę firmy.'); $('formError').hidden = false; return; }
     if (form.get('url') && !C.safeURL(form.get('url'))) { $('formError').textContent = I18n.message('Podaj pełny adres strony zaczynający się od https:// lub http://.'); $('formError').hidden = false; return; }
-    $('submitForm').disabled = true;
+    formSaving = true; $('formFields').disabled = true; $('submitForm').disabled = true; $('cancelForm').disabled = true; $('closeForm').disabled = true;
     try {
       let id = editOriginal?.Id || draftId;
       if (!editOriginal) {
@@ -1073,10 +1088,11 @@
         Object.assign(record, patch, { Id: id, Status: 'Potencjalny klient — zainteresowanie niepotwierdzone' });
         await saveChange(id, {}, null, record);
       } else await saveChange(id, patch, editOriginal);
-      $('editDialog').close(); toast(editOriginal ? 'Zapisano zmiany w danych firmy.' : 'Nowy klient jest już na liście.');
+      $('editDialog').close(); toast(original ? 'Zapisano zmiany w danych firmy.' : 'Nowy klient jest już na liście.');
       openClient(id, true, true);
+      $('drawer').querySelector('[data-edit-client]')?.focus();
     } catch (error) { $('formError').textContent = I18n.message(error.message); $('formError').hidden = false; }
-    finally { $('submitForm').disabled = false; }
+    finally { formSaving = false; $('formFields').disabled = false; $('submitForm').disabled = false; $('cancelForm').disabled = false; $('closeForm').disabled = false; }
   }
 
   function fileDB() {
@@ -1398,11 +1414,11 @@
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
     const call = event.target.closest('[data-call]'); if (call) { await registerPhone(call.dataset.call); return; }
     if (event.target.closest('[data-close-drawer]')) closeDrawer();
-    if (event.target.closest('[data-edit-client]')) openForm(byId(selected));
+    const edit = event.target.closest('[data-edit-client]'); if (edit) { openForm(byId(selected), edit.dataset.editFocus || ''); return; }
     const navigation = event.target.closest('[data-navigate]'); if (navigation) navigateCompany(Number(navigation.dataset.navigate));
-    if (event.target.closest('[data-save-actions]') || event.target.closest('#saveActions')) {
-      const button = event.target.closest('[data-save-actions]') || $('saveActions'), id = selected; button.disabled = true; $('saveActions').disabled = true;
-      const patch = {}, mapping = { actionNext: 'Nastepny krok', actionDue: 'Termin', actionNotes: 'Notatki', actionConsent: 'Zgoda data i zakres' };
+    if (event.target.closest('#saveActions')) {
+      const button = $('saveActions'), id = selected; button.disabled = true;
+      const patch = {}, mapping = { actionNotes: 'Notatki', actionConsent: 'Zgoda data i zakres' };
       const submitted = Object.fromEntries(Object.keys(mapping).map(field => [field, $(field).value]));
       for (const [field, key] of Object.entries(mapping)) { const value = submitted[field].trim(); if (value !== (actionOriginal[key] || '')) patch[key] = value; }
       try {
@@ -1410,7 +1426,7 @@
         if (selected === id) {
           const current = Object.fromEntries(Object.keys(mapping).map(field => [field, $(field).value]));
           openClient(id, true, true);
-          for (const field of Object.keys(mapping)) if (current[field] !== submitted[field]) { $(field).value = current[field]; if (field === 'actionNext' || field === 'actionDue') $('nextStepEditor').open = true; }
+          for (const field of Object.keys(mapping)) if (current[field] !== submitted[field]) $(field).value = current[field];
         }
         toast('Zapisano działania i notatki.');
       }
@@ -1434,6 +1450,7 @@
   document.addEventListener('crm:beforetab', event => { if (busy || changingSource) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
   $('clientForm').addEventListener('submit', submitForm);
   function closeForm() {
+    if (formSaving) return;
     const changed = Object.keys(changedFields(editOriginal, new FormData($('clientForm')))).length;
     const meaningful = editOriginal ? changed : [...new FormData($('clientForm'))].some(([key, value]) => !['stage', 'priority'].includes(key) && value.trim());
     if (meaningful && !ask('Zamknąć formularz bez zapisywania zmian?')) return;
