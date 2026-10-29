@@ -76,7 +76,7 @@
     }
     if (typeof document !== 'undefined') {
       document.documentElement.lang = language;
-      document.title = 'UP — ' + (language === 'en' ? 'Companies' : 'Firmy');
+      if (!root.PanelTitle?.active) document.title = 'UP — ' + (language === 'en' ? 'Companies' : 'Firmy');
     }
   }
   function setLanguage(value) {
