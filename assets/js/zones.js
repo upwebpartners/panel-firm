@@ -5,6 +5,8 @@
   const Z=root.ZoneCore,$=id=>document.getElementById(id),t=root.I18n.t;
   const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const stageLabels={todo:'Do przejrzenia',doing:'W trakcie',done:'Gotowe'};
+  const ask=(message,options)=>root.PanelDialogs.confirm(message,options);
+  const discardOptions={title:'Niezapisana strefa',accept:'Porzuć zmiany',danger:true};
   let engine,contextKey,session,map,maps,draft=null,preview=null,outline=null,formError='',conflict=null,shapeSignature='',saving=false;
   const shapes=new Map();
   function report(error){formError=error?.message||'';renderError();}
@@ -62,7 +64,8 @@
     $('mapPanel').classList.remove('zone-drawing');
     map?.setOptions({clickableIcons:true,draggableCursor:null});shapeSignature='';refresh();
   }
-  function close(){if(saving)return false;if(draft&&!confirm(t('Porzucić niezapisane zmiany strefy?')))return false;cancel();$('zonesPanel').hidden=true;$('zonesToggle').setAttribute('aria-expanded','false');$('zonesToggle').focus();return true;}
+  async function discard(){const original=draft;if(saving)return false;if(original&&!await ask('Porzucić niezapisane zmiany strefy?',discardOptions))return false;return !saving&&draft===original;}
+  async function close(){if(!await discard())return false;cancel();$('zonesPanel').hidden=true;$('zonesToggle').setAttribute('aria-expanded','false');$('zonesToggle').focus();return true;}
   async function edit(row=null){
     profile();if(engine.loadError)throw engine.loadError;
     await root.GoogleMapSession.ensureMap();map=root.GoogleMapSession.map();
@@ -94,11 +97,11 @@
     if($('zoneConflict').innerHTML!==markup)$('zoneConflict').innerHTML=markup;
   }
   $('zonesToggle').onclick=()=>{$('zonesPanel').hidden?open():close();};$('zonesClose').onclick=close;
-  $('zoneAdd').onclick=()=>action(()=>edit());$('zoneCancel').onclick=()=>{if(!saving&&confirm(t('Porzucić niezapisane zmiany strefy?')))cancel();};
+  $('zoneAdd').onclick=()=>action(()=>edit());$('zoneCancel').onclick=async()=>{if(await discard())cancel();};
   $('zoneUndo').onclick=()=>{if(draft?.drawing){draft.points.pop();drawPreview();}};
   $('zoneCenter').onclick=()=>{if(draft?.drawing)root.ZoneUI.mapClick({latLng:map.getCenter()});};
   $('zoneFinish').onclick=()=>action(async()=>{Z.ring(draft.points);draft.drawing=false;map.setOptions({draggableCursor:null});drawPreview();});
-  $('zoneRedraw').onclick=()=>{if(draft&&confirm(t('Narysować granicę od nowa?'))){draft.points=[];draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();}};
+  $('zoneRedraw').onclick=async()=>{const original=draft;if(original&&await ask('Narysować granicę od nowa?',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&!saving){draft.points=[];draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();}};
   $('zoneColor').addEventListener('input',()=>{if(draft)drawPreview();});
   $('zoneForm').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{
     if(!draft||draft.drawing||saving)return;if(draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
@@ -110,7 +113,8 @@
     const control=event.target.closest(selector);if(!control)continue;const row=engine.view().find(item=>item.id===control.dataset[kind]);if(!row)return;
     void action(async()=>{if(kind==='zoneZoom'){await root.GoogleMapSession.ensureMap();map=root.GoogleMapSession.map();if(map){maps=await root.google.maps.importLibrary('maps');zoom(row);}return;}
       if(kind==='zoneEdit'){await edit(row);return;}
-      const author=profile();if(confirm(t('Usunąć strefę?')+'\n'+row.properties.name))await engine.apply(Z.operation('delete',row,null,author));
+      profile();const currentEngine=engine;
+      if(await ask(row.properties.name+'\n\n'+t(currentEngine.target?'Strefa zostanie usunięta dla obu osób. Firmy pozostaną bez zmian.':'Strefa zostanie usunięta z tej przeglądarki. Firmy pozostaną bez zmian.'),{title:'Usuń strefę',accept:'Usuń strefę',danger:true,key:'delete-zone:'+contextKey+':'+row.id}))await currentEngine.apply(Z.operation('delete',row,null,profile()));
     });return;
   }});
   $('zoneConflict').addEventListener('click',event=>{
@@ -120,10 +124,10 @@
   });
   document.addEventListener('crm:connection',context);
   document.addEventListener('crm:mapready',event=>{map=event.detail.map;maps=event.detail.maps;shapeSignature='';drawShapes();});
-  document.addEventListener('crm:beforetab',event=>{if(event.detail.tab!=='map'&&draft){if(saving){event.preventDefault();return;}if(confirm(t('Porzucić niezapisane zmiany strefy?')))cancel();else event.preventDefault();}});
+  document.addEventListener('crm:beforetab',event=>{if(event.detail.tab!=='map'&&draft){if(saving){event.preventDefault();return;}event.detail.guard(discard);event.detail.commit(cancel);}});
   document.addEventListener('crm:tab',event=>{if(event.detail.tab==='map')void engine.poll();});
   document.addEventListener('crm:language',()=>{refresh();hint();});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('zonesPanel').hidden){event.preventDefault();close();}});
+  document.addEventListener('keydown',event=>{if(root.PanelDialogs.isOpen()||document.querySelector?.('dialog[open]'))return;if(event.key==='Escape'&&!$('zonesPanel').hidden){event.preventDefault();void close();}});
   root.addEventListener('beforeunload',event=>{if(draft){event.preventDefault();event.returnValue='';}});
   root.addEventListener('online',()=>{void engine.flush(true);});
   root.addEventListener('storage',event=>{if(event.key===engine?.key){if(draft){report(Error('Strefy zmieniły się w innej karcie przeglądarki. Odśwież panel przed zapisem.'));return;}session=undefined;context();}});

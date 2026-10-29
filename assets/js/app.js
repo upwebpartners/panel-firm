@@ -3,7 +3,7 @@
   'use strict';
   const M = MapCore;
   const C = CRMCore, F = C.fields, $ = id => document.getElementById(id);
-  const t = I18n.t, ask = value => confirm(I18n.message(value));
+  const t = I18n.t, ask = (value, options) => window.PanelDialogs.confirm(value, options);
   const seed = JSON.parse($('initial-data').textContent);
   seed.records = seed.records.map(r => ({ ...C.cleanRecord(r), Id: r.Id || C.stableId(r), Etap: C.normalizeStage(r.Etap || 'Nowy') }));
   seed.headers = C.cleanHeaders(seed.headers);
@@ -295,15 +295,15 @@
         if (error.code !== 'CONFLICT' || !error.conflicts?.length || error.conflicts.some(conflict => (!reviewFields && conflict.field !== 'Notatki') || !Object.hasOwn(pending[conflict.id] || {}, conflict.field) || !before.some(record => record.Id === conflict.id))) throw error;
         for (const conflict of error.conflicts) {
           if (conflict.field !== 'Notatki') {
-            const message = conflict.name + ' · ' + t(conflict.field) + '\n\n' + t('Na GitHubie:') + '\n' + String(conflict.value ?? '') + '\n\n' + t('W tej przeglądarce:') + '\n' + String(pending[conflict.id][conflict.field] ?? '') + '\n\n' + t('Zapisać swoją wersję tego pola? Anuluj zachowa obie wersje bez zmian na GitHubie.');
-            if (!confirm(message)) throw error;
+            const message = conflict.name + ' · ' + t(conflict.field) + '\n\n' + t('Zapisać swoją wersję tego pola? Anuluj zachowa obie wersje bez zmian na GitHubie.');
+            if (!await ask(message, { title: 'Porównaj zmiany', accept: 'Zachowaj moją wersję', sections: [{ label: 'Na GitHubie:', text: String(conflict.value ?? '') }, { label: 'W tej przeglądarce:', text: String(pending[conflict.id][conflict.field] ?? '') }] })) throw error;
             before = before.map(record => record.Id === conflict.id ? { ...record, [conflict.field]: conflict.value } : record);
             continue;
           }
           const shared = String(conflict.value ?? ''), own = String(pending[conflict.id].Notatki ?? '');
           const combined = !own || shared.includes(own) ? shared : !shared || own.includes(shared) ? own : shared + '\n\n' + own;
-          const message = t('Różne notatki') + ' — ' + conflict.name + '\n\n' + t('Na GitHubie:') + '\n' + (shared || t('(pusta notatka)')) + '\n\n' + t('W tej przeglądarce:') + '\n' + (own || t('(pusta notatka)')) + '\n\n' + t('Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.');
-          if (!confirm(message)) {
+          const message = t('Różne notatki') + ' — ' + conflict.name + '\n\n' + t('Połączyć obie wersje i zapisać? Anuluj zachowa Twoją lokalną kopię.');
+          if (!await ask(message, { title: 'Różne notatki', accept: 'Połącz notatki', sections: [{ label: 'Na GitHubie:', text: shared || t('(pusta notatka)') }, { label: 'W tej przeglądarce:', text: own || t('(pusta notatka)') }] })) {
             const cancelled = new Error('Przerwano zapis. Twoje lokalne zmiany zostały zachowane.');
             cancelled.code = 'CONFLICT'; cancelled.conflicts = error.conflicts; throw cancelled;
           }
@@ -325,7 +325,7 @@
       const previous = github;
       const mode = $('ghDataMode').value || 'remote';
       if (!['remote', 'replace', 'merge'].includes(mode)) throw new Error('Wybierz bazę przy połączeniu.');
-      if (selected && !confirmLeavingActions()) return;
+      if (selected && !await confirmLeavingActions()) return;
       const draftFields = ['actionNotes', 'actionConsent'];
       const draftBefore = selected ? draftFields.map(id => $(id).value) : null;
       const currentRecords = records.map(record => ({ ...record })), currentHeaders = [...headers];
@@ -341,16 +341,16 @@
       } else if (mode === 'replace') {
         const author = await ensureAuthor();
         const message = t('Zastąpić bazę na GitHubie obecną listą?') + '\n\n' + config.owner + '/' + config.repo + '\n' + config.branch + ' / ' + config.path + '\n\n' + t('Na GitHubie:') + ' ' + result.records.length + '\n' + t('W tym panelu:') + ' ' + currentRecords.length + '\n\n' + t('Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.');
-        if (!confirm(message)) { candidate.close(); return; }
+        if (!await ask(message, { title: 'Zastąpienie wspólnej bazy', accept: 'Zastąp bazę', danger: true })) { candidate.close(); return; }
         result = await trackSave('github', () => candidate.replace(currentRecords, currentHeaders, result.sha, author));
       } else if (result.missing && currentRecords.length) {
-        if (!ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + currentRecords.length + ' firm?')) { candidate.close(); return; }
+        if (!await ask('W repozytorium nie ma jeszcze tego CSV. Zapisać w nim obecną listę ' + currentRecords.length + ' firm?', { title: 'Utwórz wspólną bazę', accept: 'Zapisz bazę' })) { candidate.close(); return; }
         const author = await ensureAuthor();
         result = await trackSave('github', () => candidate.save([], {}, currentRecords, author));
       } else if (hasPending() && !resume) {
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (plan.added.length || Object.keys(plan.patches).length) {
-          if (!ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.')) { candidate.close(); return; }
+          if (!await ask('Przenieść lokalne zmiany do wspólnego CSV? Jeśli zmieniono te same pola, zapis zostanie wstrzymany.', { title: 'Połączenie zmian', accept: 'Przenieś zmiany' })) { candidate.close(); return; }
           const author = await ensureAuthor();
           result = await trackSave('github', () => saveShared(candidate, plan.base, plan.patches, plan.added, author));
         }
@@ -436,9 +436,11 @@
     callControls(); $('callDialog').showModal();
     $(pending ? 'saveCall' : 'callOutcome').focus();
   }
-  function closeCall() {
+  async function closeCall() {
     if (callSaving) return;
-    if (($('callOutcome').value || $('callNotes').value.trim()) && !ask('Zamknąć okno bez zapisywania rozmowy?')) return;
+    const original = callOriginal;
+    if (($('callOutcome').value || $('callNotes').value.trim()) && !await ask('Zamknąć okno bez zapisywania rozmowy?', { title: 'Niezapisana rozmowa', accept: 'Porzuć zmiany', danger: true })) return;
+    if (callSaving || callOriginal !== original) return;
     $('callDialog').close();
   }
   async function submitCall(event) {
@@ -898,16 +900,22 @@
   function actionDirty() {
     return selected && !$('drawer').hidden && actionOriginal && ['actionNotes', 'actionConsent'].some((id, index) => $(id).value !== (actionOriginal[['Notatki', 'Zgoda data i zakres'][index]] || ''));
   }
-  function confirmLeavingActions() { return !actionDirty() || ask('Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?'); }
-  function closeDrawer(force = false) {
-    if (!force && !confirmLeavingActions()) return false;
+  async function confirmLeavingActions() {
+    if (!actionDirty()) return true;
+    const id = selected;
+    const draft = JSON.stringify([$('actionNotes').value, $('actionConsent').value]);
+    const approved = await ask('Masz niezapisane działania lub notatki. Opuścić je bez zapisywania?', { title: 'Niezapisane zmiany', accept: 'Porzuć zmiany', danger: true });
+    return approved && selected === id && draft === JSON.stringify([$('actionNotes').value, $('actionConsent').value]);
+  }
+  async function closeDrawer(force = false) {
+    if (!force && !await confirmLeavingActions()) return false;
     deferredCompanyRefresh = null;
     $('drawer').hidden = true; $('companiesPanel').inert = false; $('companiesPanel').removeAttribute('aria-hidden'); selected = null; browseIds = [];
     document.dispatchEvent(new CustomEvent('crm:view'));
     if (returnFocus?.isConnected) returnFocus.focus(); return true;
   }
-  function navigateCompany(direction) {
-    if (busy || !confirmLeavingActions()) return;
+  async function navigateCompany(direction) {
+    if (busy || !await confirmLeavingActions()) return;
     const index = browseIds.indexOf(selected), id = browseIds[index + direction]; if (id && byId(id)) openClient(id, true);
   }
   const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', 'W realizacji': 'Trwa realizacja', 'Współpraca': 'Współpracujemy z firmą', Odrzucony: 'Firma odrzuciła współpracę', Archiwum: 'Ukryj z głównej listy' };
@@ -946,8 +954,8 @@
     ['notes', 'Twoje notatki', 'textarea', 'Dodatkowe informacje i ustalenia', true],
     ['consent', 'Uzgodniony kontakt — data i zakres', 'textarea', '', true]
   ];
-  function openForm(record = null, focusField = '') {
-    if (formSaving || !requireProfile() || (!record && selected && !confirmLeavingActions())) return;
+  async function openForm(record = null, focusField = '') {
+    if (formSaving || !requireProfile() || (!record && selected && !await confirmLeavingActions())) return;
     const working = record ? { ...record } : null;
     formInitialName = record ? companyTitle(record).name : '';
     editOriginal = record ? { ...record } : null; draftId = record?.Id || C.uid();
@@ -1034,8 +1042,11 @@
     const inFlight = batch ? C.overlay(batch.base, batch.patches, batch.added, batch.removed).find(row => row.Id === id) : null;
     const versions = [original, base.find(row => row.Id === id), inFlight].filter(Boolean).map(row => ({ ...row }));
     const retained = C.retainedMapDecision(original);
+    const decisionTarget = targetKey(github?.config || rememberedGitHub?.config || local.sync?.target);
     const message = t('Usunąć firmę na stałe?') + '\n\n' + companyTitle(original).name + '\n\n' + t(retained ? 'Usuniemy dane firmy, notatki i rozmowy. Zachowamy wyłącznie oznaczenie wykreślenia na mapie oraz jego historię. Dotyczy to obu osób.' : 'Z bieżącej bazy znikną wszystkie dane tej firmy, notatki i historia rozmów. Dotyczy to także drugiej osoby korzystającej z tej samej bazy.') + '\n\n' + t('Wcześniejsze wersje pliku pozostają w historii GitHuba.');
-    if (!confirm(message)) return;
+    if (!await ask(message, { title: retained ? 'Usuń dane firmy' : 'Usuń firmę', accept: retained ? 'Usuń dane firmy' : 'Usuń firmę', danger: true, key: 'delete-company:' + id })) return;
+    if (deletionsInProgress.has(id)) return;
+    if (decisionTarget !== targetKey(github?.config || rememberedGitHub?.config || local.sync?.target)) { toast('Baza zmieniła się. Sprawdź firmę i potwierdź usunięcie ponownie.', true); return; }
     deletionsInProgress.add(id);
     try {
       const author = await ensureAuthor(), at = new Date().toISOString();
@@ -1131,8 +1142,9 @@
       if (outcome.conflicts.length) {
         throw new Error('Plik i panel mają różne zmiany tych samych danych: ' + outcome.conflicts.slice(0, 4).map(c => c.name + ' / ' + c.field).join('; ') + '. Najpierw wyeksportuj wersję z panelu. Nie zmieniono pliku.');
       }
-      const permission = ask('Masz zmiany zapisane w tej przeglądarce. Przenieść je do wybranego CSV? Pozostałe dane z pliku zostaną zachowane. Anuluj, żeby najpierw wyeksportować kopię.');
+      const permission = await ask('Masz zmiany zapisane w tej przeglądarce. Przenieść je do wybranego CSV? Pozostałe dane z pliku zostaną zachowane. Anuluj, żeby najpierw wyeksportować kopię.', { title: 'Połączenie zmian', accept: 'Przenieś zmiany' });
       if (!permission) return false;
+      if (records !== previous || busy || githubBusy || fileBusy || github) throw new Error('Dane zmieniły się podczas łączenia. Spróbuj ponownie.');
       fileHandle = handle; busy = true;
       try { const author = await ensureAuthor(); await writeRecords(C.stampFile(outcome.records, new Date().toISOString(), author), parsed.headers, text); } finally { busy = false; }
     } else {
@@ -1281,7 +1293,7 @@
       placeDetailsChain = task.catch(error => { connectionError = I18n.message(error.message); connectionUI(); });
       return refresh ? task : placeDetailsChain;
     },
-    open: id => { if (!byId(id) || byId(id).Mapa_status === 'wykreslona') return false; if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
+    open: id => { if (!byId(id) || byId(id).Mapa_status === 'wykreslona') return false; return window.PanelUI.showTab('companies').then(allowed => { if (!allowed || !byId(id)) return false; openClient(id); return true; }); },
   };
   $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
   function rememberHiddenStages() { try { localStorage.setItem(HIDDEN_STAGES_STORE, JSON.stringify([...hiddenStages])); } catch {} }
@@ -1415,9 +1427,9 @@
     }
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
     const call = event.target.closest('[data-call]'); if (call) { await registerPhone(call.dataset.call); return; }
-    if (event.target.closest('[data-close-drawer]')) closeDrawer();
-    const edit = event.target.closest('[data-edit-client]'); if (edit) { openForm(byId(selected), edit.dataset.editFocus || ''); return; }
-    const navigation = event.target.closest('[data-navigate]'); if (navigation) navigateCompany(Number(navigation.dataset.navigate));
+    if (event.target.closest('[data-close-drawer]')) { await closeDrawer(); return; }
+    const edit = event.target.closest('[data-edit-client]'); if (edit) { await openForm(byId(selected), edit.dataset.editFocus || ''); return; }
+    const navigation = event.target.closest('[data-navigate]'); if (navigation) { await navigateCompany(Number(navigation.dataset.navigate)); return; }
     if (event.target.closest('#saveActions')) {
       const button = $('saveActions'), id = selected; button.disabled = true;
       const patch = {}, mapping = { actionNotes: 'Notatki', actionConsent: 'Zgoda data i zakres' };
@@ -1447,19 +1459,21 @@
   $('priorityDialog').addEventListener('close', () => { priorityOriginal = null; });
   $('callForm').addEventListener('submit', submitCall);
   $('closeCall').onclick = closeCall; $('cancelCall').onclick = closeCall;
-  $('callDialog').addEventListener('cancel', event => { event.preventDefault(); closeCall(); });
+  $('callDialog').addEventListener('cancel', event => { event.preventDefault(); return closeCall(); });
   $('callDialog').addEventListener('close', () => { callOriginal = null; });
-  document.addEventListener('crm:beforetab', event => { if (busy || changingSource) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
+  document.addEventListener('crm:beforetab', event => { if (busy || changingSource) { event.preventDefault(); return; } if (selected) { event.detail.guard(confirmLeavingActions); event.detail.commit(() => closeDrawer(true)); } });
   $('clientForm').addEventListener('submit', submitForm);
-  function closeForm() {
+  async function closeForm() {
     if (formSaving) return;
+    const original = editOriginal;
     const changed = Object.keys(changedFields(editOriginal, new FormData($('clientForm')))).length;
     const meaningful = editOriginal ? changed : [...new FormData($('clientForm'))].some(([key, value]) => !['stage', 'priority'].includes(key) && value.trim());
-    if (meaningful && !ask('Zamknąć formularz bez zapisywania zmian?')) return;
+    if (meaningful && !await ask('Zamknąć formularz bez zapisywania zmian?', { title: 'Niezapisane zmiany', accept: 'Porzuć zmiany', danger: true })) return;
+    if (formSaving || editOriginal !== original) return;
     $('editDialog').close(); editOriginal = null;
   }
   $('closeForm').onclick = closeForm; $('cancelForm').onclick = closeForm;
-  $('editDialog').addEventListener('cancel', event => { event.preventDefault(); closeForm(); });
+  $('editDialog').addEventListener('cancel', event => { event.preventDefault(); return closeForm(); });
   $('editDialog').addEventListener('close', () => { editOriginal = null; });
   $('connectButton').onclick = openConnection;
   $('databaseStatus').onclick = openConnection;
@@ -1471,7 +1485,7 @@
     const deleted = (syncError?.conflicts || []).filter(conflict => conflict.field === 'Usunięty w pliku');
     if (deleted.length) {
       const message = t('Te firmy zostały usunięte ze wspólnej bazy:') + '\n\n' + deleted.map(conflict => conflict.name).join('\n') + '\n\n' + t('Odrzucić ich oczekujące zmiany w tej przeglądarce? Anuluj zachowa lokalną kopię. Możesz ją wcześniej wyeksportować do CSV.');
-      if (!confirm(message)) return;
+      if (!await ask(message, { title: 'Oczekujące zmiany usuniętych firm', accept: 'Odrzuć lokalne zmiany', danger: true })) return;
       try {
         const ids = new Set(deleted.map(conflict => conflict.id));
         await writeLocal(async () => {
@@ -1515,6 +1529,7 @@
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
+    if (window.PanelDialogs.isOpen()) return;
     if (event.key === '/' && !$('companiesPanel').hidden && !typing && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && $('drawer').hidden) { event.preventDefault(); $('search').focus(); }
     if (event.key === 'Escape' && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open) closeDrawer();
     if (!typing && !$('drawer').hidden && !$('editDialog').open && !$('connectDialog').open && !$('statusDialog').open && !$('priorityDialog').open && !$('excludeDialog').open && !$('googleDialog').open && !$('callDialog').open && !event.altKey && !event.ctrlKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); navigateCompany(event.key === 'ArrowLeft' ? -1 : 1); }

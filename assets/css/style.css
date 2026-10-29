@@ -842,6 +842,19 @@ dialog {
 dialog::backdrop {
   background:#10182080;
 }
+.confirm-dialog { width:560px; }
+.confirm-dialog .dialog-heading { align-items:center; }
+.confirm-dialog h2 { font-size:18px; }
+.confirm-body { padding:20px; max-height:60vh; overflow:auto; }
+#confirmMessage { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.65; font-size:14px; }
+.confirm-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:16px; }
+.confirm-details section { border:1px solid var(--border); padding:12px; background:var(--subtle); min-width:0; }
+.confirm-details h3 { font-size:12px; margin-bottom:8px; color:var(--muted); }
+.confirm-details p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+.button.danger { background:var(--danger); border-color:var(--danger); color:white; }
+.button.danger:hover { filter:brightness(.9); }
+.confirm-dialog.destructive .dialog-heading { border-bottom-color:var(--danger); }
+@media(max-width:600px) { .confirm-details { grid-template-columns:minmax(0,1fr); } .confirm-dialog .dialog-footer { flex-wrap:wrap; } }
 .status-dialog {
   width:530px;
 }

@@ -10,7 +10,7 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=fe084ba855f6">
+    <link rel="stylesheet" href="assets/css/style.css?v=426ce78a958d">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -432,11 +432,17 @@
       <button type="button" role="menuitem" class="delete-company" data-company-action="delete">Usuń firmę</button>
     </div>
     <input type="file" accept=".csv,text/csv" id="importFile" hidden>
+    <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <div class="dialog-heading"><h2 id="confirmTitle">Potwierdź działanie</h2><button id="confirmClose" type="button" class="icon-button" aria-label="Zamknij">×</button></div>
+      <div class="confirm-body"><p id="confirmMessage" data-content></p><div id="confirmDetails" class="confirm-details" hidden></div></div>
+      <div class="dialog-footer"><button id="confirmCancel" type="button" class="button">Anuluj</button><button id="confirmAccept" type="button" class="button primary">Potwierdź</button></div>
+    </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=30bb782240d7"></script>
+    <script src="assets/js/translations.js?v=0b91b6505794"></script>
     <script src="assets/js/i18n.js?v=b7685c50a1a3"></script>
+    <script src="assets/js/dialogs.js?v=ea5c6ab0d442"></script>
     <script src="assets/js/core.js?v=45881e5f4eb6"></script>
     <script src="assets/js/map-core.js?v=586775e25240"></script>
     <script src="assets/js/storage.js?v=c8b9ad446e86"></script>
@@ -444,9 +450,9 @@
     <script src="assets/js/github.js?v=8ea726c801ca"></script>
     <script src="assets/js/zone-core.js?v=5b521d21eb2a"></script>
     <script src="assets/js/zone-sync.js?v=2f263069a429"></script>
-    <script src="assets/js/app.js?v=da290a1dfdfa"></script>
-    <script src="assets/js/ui.js?v=5d48a0319b2d"></script>
-    <script src="assets/js/map.js?v=d23e3c3ba889"></script>
-    <script src="assets/js/zones.js?v=19848a89f7fe"></script>
+    <script src="assets/js/app.js?v=df3a09ba57a9"></script>
+    <script src="assets/js/ui.js?v=5b36d6504c72"></script>
+    <script src="assets/js/map.js?v=a23c6b65a8bf"></script>
+    <script src="assets/js/zones.js?v=57bb7462fece"></script>
   </body>
 </html>

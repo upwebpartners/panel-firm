@@ -269,7 +269,7 @@
     if (event.target.closest('[data-map-close]')) { selected = null; selectionVersion++; $('mapPlace').hidden = true; return; }
     if (!selected || pending) return;
     const entity = places.get(selected); if (!entity) return;
-    if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) root.CRM.open(row.Id); return; }
+    if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) await root.CRM.open(row.Id); return; }
     if (event.target.closest('[data-map-delete]')) { const row = record(entity); if (row) await root.CRM.remove(row.Id); draw(); return; }
     if (event.target.closest('[data-map-exclude]')) { $('mapExcludeFields').hidden = false; $('mapExcludeReason').focus(); return; }
     if (event.target.closest('[data-map-cancel]')) { $('mapExcludeFields').hidden = true; return; }
@@ -278,7 +278,7 @@
     pending = true; $('mapPlace').querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
       const row = await root.CRM.decidePlace(entity, add ? 'dodana' : reviewed ? 'przejrzana' : 'wykreslona', exclude ? $('mapExcludeReason').value.trim() : '');
-      if (add) root.CRM.open(row.Id);
+      if (add) await root.CRM.open(row.Id);
       draw();
     } catch (error) { status(error.message); }
     finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
@@ -295,8 +295,8 @@
       if (!savedKey() && (!key || forgottenKey)) { settings(); return; }
       contactErrors.delete(id); void loadVisibleContacts();
     },
-    open: id => {
-      if (!root.PanelUI.showTab('map')) return;
+    open: async id => {
+      if (!await root.PanelUI.showTab('map')) return;
       if (!map) { waitingPlace = id; ensureMap(); }
       else selectPlace(id);
     },

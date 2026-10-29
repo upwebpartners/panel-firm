@@ -3,7 +3,7 @@
   'use strict';
   if (typeof document === 'undefined' || !document.getElementById('companiesPanel')) return;
   const $ = id => document.getElementById(id), t = I18n.t;
-  let theme = 'light', mainTab = 'companies';
+  let theme = 'light', mainTab = 'companies', navigationVersion = 0;
   // Preserve existing theme preferences stored by earlier versions.
   try { theme = localStorage.getItem('atlas.theme') === 'dark' ? 'dark' : 'light'; } catch {}
   function appearance() {
@@ -15,10 +15,15 @@
     $('languageToggle').textContent = I18n.language().toUpperCase();
     $('languageToggle').setAttribute('aria-label', languageAction); $('languageToggle').title = languageAction;
   }
-  function showTab(value, focus = false) {
+  async function showTab(value, focus = false) {
+    const version = ++navigationVersion, guards = [], commits = [];
+    const cancelled = () => { if (version === navigationVersion) { try { history.replaceState(null, '', '#' + mainTab); } catch {} } return false; };
     const next = value === 'map' ? 'map' : 'companies';
-    const event = new CustomEvent('crm:beforetab', { detail: { tab: next }, cancelable: true });
-    if (!document.dispatchEvent(event)) return false;
+    const event = new CustomEvent('crm:beforetab', { detail: { tab: next, guard: callback => guards.push(callback), commit: callback => commits.push(callback) }, cancelable: true });
+    if (!document.dispatchEvent(event)) return cancelled();
+    for (const guard of guards) if (!await guard() || version !== navigationVersion) return cancelled();
+    if (version !== navigationVersion) return cancelled();
+    for (const commit of commits) commit();
     mainTab = next;
     $('companiesPanel').hidden = mainTab !== 'companies'; $('mapPanel').hidden = mainTab !== 'map';
     document.querySelectorAll('[data-main-tab]').forEach(button => {
@@ -41,7 +46,7 @@
     button.addEventListener('click', () => showTab(button.dataset.mainTab));
     button.addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault(); showTab(event.key === 'Home' ? 'map' : event.key === 'End' ? 'companies' : mainTab === 'companies' ? 'map' : 'companies', true);
+      event.preventDefault(); return showTab(event.key === 'Home' ? 'map' : event.key === 'End' ? 'companies' : mainTab === 'companies' ? 'map' : 'companies', true);
     });
   });
   document.addEventListener('crm:language', appearance);
