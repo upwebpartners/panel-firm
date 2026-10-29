@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   const C = root.CRMCore;
-  const decisionFields = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
+  const decisionFields = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono'];
   function coordinates(value) {
     const lat = value.lat ?? value.Lat, lon = value.lon ?? value.Lon;
     if (lat === '' || lon === '' || lat == null || lon == null) return null;
@@ -35,7 +35,8 @@
     if (!['przejrzana', 'dodana', 'wykreslona'].includes(value)) throw new Error('Nieprawidłowy wybór firmy.');
     if (value === 'przejrzana' && record && state(record) !== 'nowa') return {};
     return { Mapa_status: value, Mapa_edytowal: author, Mapa_edytowano: at,
-      ...(value === 'wykreslona' ? { Etap: 'Odrzucony', Powod_wykreslenia: reason } : {}),
+      ...(value === 'wykreslona' ? { Etap: 'Odrzucony', Powod_wykreslenia: reason,
+        Odrzucono: record?.Etap === 'Odrzucony' ? record.Odrzucono || record.Mapa_edytowano || '' : at } : {}),
       ...(value === 'dodana' && (!record || state(record) !== 'dodana') ? { Etap: 'Do sprawdzenia' } : {}) };
   }
   function draft(entity) {

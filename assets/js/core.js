@@ -171,7 +171,17 @@
     }).map(item => item.record);
   }
   const callColumns = ['Dzwoniono', 'Dzwonil', 'Liczba_polaczen', 'Historia_polaczen'];
-  const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia'];
+  function rejectionClock(record, now = Date.now()) {
+    if (record.Etap !== 'Odrzucony') return null;
+    const at = record.Odrzucono || (record.Mapa_status === 'wykreslona' ? record.Mapa_edytowano : '');
+    const start = Date.parse(at);
+    if (!Number.isFinite(start)) return { at: '', unknown: true };
+    const elapsed = Math.max(0, now - start), left = Math.max(0, 30 * 86400000 - elapsed);
+    return { at, elapsedDays: Math.floor(elapsed / 86400000), elapsedHours: Math.floor(elapsed / 3600000) % 24,
+      remainingDays: Math.floor(Math.ceil(left / 3600000) / 24), remainingHours: Math.ceil(left / 3600000) % 24,
+      remainingTotalHours: Math.ceil(left / 3600000), expired: left === 0 };
+  }
+  const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono'];
   const extraColumns = [...selectionColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
   const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
   function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
@@ -233,5 +243,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, parseCSV, csvText, overlay, sharedConnectionPlan, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { fields, stages, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

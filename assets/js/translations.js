@@ -1,4 +1,16 @@
 globalThis.CRM_MESSAGES = {
+  "Pobieranie kontaktu…": "Loading contact…",
+  "Ustaw klucz Google — kontakt": "Set Google key — contact",
+  "Ponów pobranie kontaktu": "Retry loading contact",
+  "Wczytaj kontakt z mapy": "Load map contact",
+
+  "Odrzucono": "Rejected on",
+  "Minęło": "Elapsed",
+  "Do 30 dni": "Until 30 days",
+  "Minęło 30 dni": "30 days have passed",
+  "Data odrzucenia nie została zapisana.": "The rejection date was not recorded.",
+  "dni": "days",
+  "godz.": "hours",
   "GitHub · sprawdź zapis": "GitHub · check save",
   "Najpierw wyślij oczekujące zmiany i rozłącz GitHub, żeby wybrać plik na komputerze.": "Send pending changes and disconnect GitHub before choosing a local file.",
   "Stan bazy i ustawienia": "Database status and settings",

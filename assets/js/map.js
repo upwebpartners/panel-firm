@@ -6,7 +6,9 @@
   let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false, waitingPlace = null;
   const GOOGLE_KEY_STORE = 'pracownia.google.key';
   let initialization = null, forgottenKey = false;
+  let placesInitialization = null, hydrating = false, previewFrame = null;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
+  const detailLoads = new Map(), contactErrors = new Map();
   const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
   const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
   const filters = { nowa: 'showNew', przejrzana: 'showReviewed', dodana: 'showAdded', wykreslona: 'showExcluded' };
@@ -22,7 +24,7 @@
     $('googleError').hidden = true; $('googleKey').value = savedKey() || (forgottenKey ? '' : key);
     $('forgetGoogleKey').hidden = !savedKey(); $('googleDialog').showModal(); $('googleKey').focus();
   }
-  function loadGoogle(apiKey) {
+  function loadGoogle(apiKey, quiet = false) {
     if (loading) return loading;
     loading = new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -31,7 +33,7 @@
       root.gm_authFailure = () => {
         clearTimeout(timer); const message = 'Google odrzucił klucz. Sprawdź usługi, rozliczenia i ograniczenia domeny.';
         status(message); $('googleError').textContent = t(message); $('googleError').hidden = false;
-        if (!$('googleDialog').open) $('googleDialog').showModal(); reject(new Error(message));
+        if (!quiet && !$('googleDialog').open) $('googleDialog').showModal(); reject(new Error(message));
       };
       script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&v=weekly&loading=async&language=' + encodeURIComponent(root.I18n.language()) + '&callback=__crmGoogleReady';
       script.async = true; script.referrerPolicy = 'strict-origin-when-cross-origin';
@@ -40,12 +42,68 @@
     });
     return loading;
   }
+  async function ensurePlaces(apiKey, quiet = false) {
+    if (library) return library;
+    if (!placesInitialization) placesInitialization = (async () => {
+      key = apiKey;
+      await loadGoogle(apiKey, quiet);
+      library = await root.google.maps.importLibrary('places'); return library;
+    })();
+    try { return await placesInitialization; }
+    catch (error) { placesInitialization = null; throw error; }
+  }
+  function contactsChanged() {
+    if (!root.requestAnimationFrame) { document.dispatchEvent(new root.CustomEvent('crm:google-preview')); return; }
+    if (previewFrame !== null) return;
+    previewFrame = root.requestAnimationFrame(() => { previewFrame = null; document.dispatchEvent(new root.CustomEvent('crm:google-preview')); });
+  }
+  async function fetchDetails(id) {
+    if (details.has(id)) return places.get(id);
+    if (detailLoads.has(id)) return detailLoads.get(id);
+    const task = (async () => {
+      const place = new library.Place({ id, requestedLanguage: root.I18n.language() });
+      const fetch = () => place.fetchFields({ fields: ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
+      if (root.Network) await root.Network.withTimeout(fetch); else await fetch();
+      const entity = M.fromGoogle(place);
+      places.set(id, entity); details.add(id); contactErrors.delete(id); return entity;
+    })();
+    detailLoads.set(id, task);
+    try { return await task; }
+    catch (error) { contactErrors.set(id, { retryAt: Date.now() + 60000, message: error.message }); throw error; }
+    finally { detailLoads.delete(id); contactsChanged(); }
+  }
+  function visibleContacts() {
+    return (root.CRM.visibleRecords?.() || []).filter(row => row.Google_place_id &&
+      (!row.Telefon || !C.safeURL(row.Strona) || !row.Firma || row.Firma === 'Do weryfikacji — ' + row.Google_place_id));
+  }
+  async function loadVisibleContacts() {
+    if (hydrating || document.hidden || !visibleContacts().some(row => !details.has(row.Google_place_id))) return;
+    const apiKey = savedKey() || (forgottenKey ? '' : key);
+    if (!/^[A-Za-z0-9_-]{20,200}$/.test(apiKey)) return;
+    const eligible = () => visibleContacts().find(row => !details.has(row.Google_place_id) && !detailLoads.has(row.Google_place_id) && !(contactErrors.get(row.Google_place_id)?.retryAt > Date.now()));
+    if (!eligible()) return;
+    hydrating = true; contactsChanged();
+    try {
+      await ensurePlaces(apiKey, true);
+      const worker = async () => {
+        while (!document.hidden) {
+          const row = eligible(); if (!row) break;
+          const operation = fetchDetails(row.Google_place_id); contactsChanged();
+          try { await operation; } catch { /* Each failed row retains a retry button; other contacts continue. */ }
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      draw();
+    } catch (error) {
+      for (const row of visibleContacts()) if (!details.has(row.Google_place_id)) contactErrors.set(row.Google_place_id, { retryAt: Date.now() + 60000, message: error.message });
+      contactsChanged();
+    } finally { hydrating = false; contactsChanged(); }
+  }
   async function initialize(apiKey) {
     if (map) return;
     if (!initialization) initialization = (async () => {
-      await loadGoogle(apiKey);
+      await ensurePlaces(apiKey);
       const maps = await root.google.maps.importLibrary('maps');
-      library = await root.google.maps.importLibrary('places');
       Marker = (await root.google.maps.importLibrary('marker')).Marker;
       map = new maps.Map($('businessMap'), { center: { lat: 54.2622, lng: 18.6362 }, zoom: 15,
         mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: true });
@@ -108,11 +166,8 @@
     try {
       if (!details.has(id)) {
         status('Pobieranie danych firmy z Google…');
-        const place = new library.Place({ id, requestedLanguage: root.I18n.language() });
-        await place.fetchFields({ fields: ['id','displayName','formattedAddress','location','nationalPhoneNumber','websiteURI','types','businessStatus'] });
+        await fetchDetails(id);
         if (version !== selectionVersion) return;
-        places.set(id, M.fromGoogle(place)); details.add(id);
-        document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       }
       if (version !== selectionVersion) return;
       const entity = places.get(id); showCard(entity);
@@ -155,10 +210,7 @@
     try {
       for (const row of candidates.slice(0, 50)) {
         if (!details.has(row.Google_place_id)) {
-          const place = new library.Place({ id: row.Google_place_id });
-          await place.fetchFields({ fields: ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
-          places.set(place.id, M.fromGoogle(place));
-          details.add(place.id);
+          await fetchDetails(row.Google_place_id);
         }
         loadedSaved.add(row.Google_place_id); loaded++;
       }
@@ -175,7 +227,10 @@
       if (key && key !== candidate && loading) {
         rememberKey(candidate); $('googleKey').value = ''; $('googleDialog').close(); root.location.reload(); return;
       }
-      key = candidate; await initialize(key); rememberKey(key); $('googleKey').value = ''; $('googleDialog').close();
+      key = candidate; await ensurePlaces(key); rememberKey(key);
+      contactErrors.clear(); $('googleKey').value = ''; $('googleDialog').close();
+      if (!$('mapPanel').hidden || waitingPlace) await initialize(key);
+      else void loadVisibleContacts();
     }
     catch (error) { $('googleError').textContent = root.I18n.message(error.message); $('googleError').hidden = false; }
     finally { $('connectGoogle').disabled = false; }
@@ -213,6 +268,11 @@
   });
   root.GoogleMapSession = {
     get: id => places.has(id) ? { ...places.get(id) } : null,
+    contactState: id => details.has(id) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
+    loadContact: id => {
+      if (!savedKey() && (!key || forgottenKey)) { settings(); return; }
+      contactErrors.delete(id); void loadVisibleContacts();
+    },
     open: id => {
       if (!root.PanelUI.showTab('map')) return;
       if (!map) { waitingPlace = id; ensureMap(); }
@@ -220,10 +280,14 @@
     },
   };
   document.addEventListener('crm:tab', event => {
-    if (event.detail.tab !== 'map') return;
+    if (event.detail.tab !== 'map') { void loadVisibleContacts(); return; }
     ensureMap();
   });
-  document.addEventListener('crm:data', draw);
+  document.addEventListener('crm:data', () => { draw(); void loadVisibleContacts(); });
+  document.addEventListener('crm:view', () => { void loadVisibleContacts(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void loadVisibleContacts(); });
   document.addEventListener('crm:language', () => { if (selected && details.has(selected)) showCard(places.get(selected)); });
   if (!$('mapPanel').hidden) ensureMap();
+  else void loadVisibleContacts();
+  contactsChanged();
 })(globalThis);

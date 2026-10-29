@@ -433,10 +433,10 @@
   async function importCSV(file) {
     if (!file) return;
     try {
-      if (busy || githubBusy || fileBusy) throw new Error('Poczekaj na zakończenie zapisu.');
+      if (busy || changingSource || fileBusy) throw new Error('Poczekaj na zakończenie zapisu.');
       if (file.size > 10 * 1024 * 1024) throw new Error('Limit importu wynosi 10 MB.');
       const parsed = C.parseCSV(await file.text()); parsed.records.forEach(C.callHistory);
-      if (busy || githubBusy || fileBusy) throw new Error('Poczekaj na zakończenie zapisu.');
+      if (busy || changingSource || fileBusy) throw new Error('Poczekaj na zakończenie zapisu.');
       const plan = C.importPlan(records, parsed.records);
       if (!connected && !rememberedGitHub?.config && !local.sync?.target) {
         busy = true;
@@ -530,9 +530,9 @@
   function filteredRecords() {
     const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
     const visible = records.filter(r => {
-      if (!stage && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
+      if (!stage && r.Etap !== 'Odrzucony' && (M.state(r) === 'wykreslona' || r.Mapa_status === 'przejrzana')) return false;
       if (stage === '__reviewed' && r.Mapa_status !== 'przejrzana') return false;
-      if (stage === 'Odrzucony' && M.state(r) !== 'wykreslona') return false;
+      if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
       if (stage && !['__reviewed', 'Odrzucony'].includes(stage) && r.Etap !== stage) return false;
       if ($('industryFilter').value && C.industry(r) !== $('industryFilter').value) return false;
       if ($('callFilter').value === 'yes' && !r.Dzwoniono || $('callFilter').value === 'no' && r.Dzwoniono) return false;
@@ -605,6 +605,10 @@
       google ? googleAttribution + '<small class="muted">' + esc(t('Podgląd — dane nie są zapisane w CSV')) + '</small>' : '',
       !phone && !email && !url ? '—' : '',
     ];
+    if (record.Google_place_id && (!record.Telefon || !C.safeURL(record.Strona))) {
+      const state = window.GoogleMapSession?.contactState?.(record.Google_place_id);
+      if (state !== 'ready') parts.push(state === 'loading' ? '<small class="muted">' + esc(t('Pobieranie kontaktu…')) + '</small>' : '<button type="button" class="text-button contact-load" data-load-contact="' + esc(record.Google_place_id) + '">' + esc(t(state === 'key' ? 'Ustaw klucz Google — kontakt' : state === 'failed' ? 'Ponów pobranie kontaktu' : 'Wczytaj kontakt z mapy')) + '</button>');
+    }
     return `<div class="contact-lines">${parts.join('')}</div>`;
   }
 
@@ -680,6 +684,23 @@
     const preview = pending ? window.GoogleMapSession?.get(record.Google_place_id) : null;
     return { name: pending ? preview?.name || t('Do weryfikacji') : record.Firma, google: !!(pending && preview?.name) };
   }
+  function rejectionContent(record) {
+    const clock = C.rejectionClock(record, Date.now());
+    if (!clock) return '';
+    if (clock.unknown) return esc(t('Data odrzucenia nie została zapisana.'));
+    const duration = (days, hours) => days + ' ' + t('dni') + ' ' + hours + ' ' + t('godz.');
+    return '<span>' + esc(t('Odrzucono')) + ': ' + esc(dateTime(clock.at)) + '</span><span>' + esc(t('Minęło')) + ': ' + esc(duration(clock.elapsedDays, clock.elapsedHours)) + '</span><strong>' + esc(clock.expired ? t('Minęło 30 dni') : t('Do 30 dni') + ': ' + duration(clock.remainingDays, clock.remainingHours)) + '</strong>';
+  }
+  function rejectionHTML(record) {
+    return record.Etap === 'Odrzucony' ? '<div class="rejection-clock" data-rejected-id="' + esc(record.Id) + '">' + rejectionContent(record) + '</div>' : '';
+  }
+  function refreshRejectionClocks() {
+    if (document.hidden) return;
+    document.querySelectorAll('[data-rejected-id]').forEach(element => {
+      const record = byId(element.dataset.rejectedId);
+      if (record) element.innerHTML = rejectionContent(record);
+    });
+  }
   function renderTable(items) {
     const rows = items.map(record => {
       const title = companyTitle(record);
@@ -693,7 +714,7 @@
           <span class="firm-meta">${esc(t('Dodał'))}: ${esc(record.Dodal || t('Nie zapisano'))}</span>
           <span class="firm-meta">${esc(t('Aktualizacja'))}: ${esc(dateTime(record.Modyfikacja) || '—')}</span>
         </td>
-        <td class="status-cell">${statusControls(record)}</td>
+        <td class="status-cell">${statusControls(record)}${rejectionHTML(record)}</td>
         <td class="priority-cell">${priorityControl(record)}</td>
         <td>${contactHTML(record)}</td>
         <td><span class="company-notes" data-content>${esc(record.Notatki || '—')}</span></td>
@@ -764,6 +785,7 @@
       <div class="company-grid">
         <div class="company-analysis">
           ${preview ? `<section class="google-preview">${googleAttribution}<p data-content>${esc(preview.address)}</p>${preview.website ? `<a href="${esc(preview.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}<p class="muted">${esc(t('Podgląd Google. Własne dane uzupełnij z niezależnego źródła.'))}</p></section>` : ''}
+          ${rejectionHTML(record)}
           <div class="company-contact">
             ${record.Adres ? `<span data-content>${esc(record.Adres)}</span>` : ''}
             ${record.Strona && C.safeURL(record.Strona) ? `<a href="${esc(C.safeURL(record.Strona))}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a>` : ''}
@@ -831,6 +853,7 @@
     for (const [selector, position] of scroll) { const element = $('drawer').querySelector(selector); if (element) element.scrollTop = position; }
     I18n.bindUI($('drawer'));
     if (!preserve) $('drawer').querySelector('[data-close-drawer]').focus();
+    document.dispatchEvent(new CustomEvent('crm:view'));
   }
   function actionDirty() {
     return selected && !$('drawer').hidden && actionOriginal && $('actionNext') && ['actionNext', 'actionDue', 'actionNotes', 'actionConsent'].some((id, index) => $(id).value !== (actionOriginal[['Nastepny krok', 'Termin', 'Notatki', 'Zgoda data i zakres'][index]] || ''));
@@ -839,6 +862,7 @@
   function closeDrawer(force = false) {
     if (!force && !confirmLeavingActions()) return false;
     $('drawer').hidden = true; $('companiesPanel').inert = false; $('companiesPanel').removeAttribute('aria-hidden'); selected = null; browseIds = [];
+    document.dispatchEvent(new CustomEvent('crm:view'));
     if (returnFocus?.isConnected) returnFocus.focus(); return true;
   }
   function navigateCompany(direction) {
@@ -930,10 +954,12 @@
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
     if (!newRecord && !Object.keys(patch).length) return;
     const author = await ensureAuthor(), at = new Date().toISOString();
-    const selection = patch.Etap && ['Odrzucony', 'Archiwum'].includes(patch.Etap) ? M.decision(original, 'wykreslona', author, patch.Powod_wykreslenia ?? original?.Powod_wykreslenia ?? '', at) : patch.Etap && original && M.state(original) === 'wykreslona' ? M.decision(original, 'dodana', author, '', at) : {};
+    const stage = newRecord?.Etap || patch.Etap;
+    const selection = stage && ['Odrzucony', 'Archiwum'].includes(stage) ? M.decision(original, 'wykreslona', author, patch.Powod_wykreslenia ?? original?.Powod_wykreslenia ?? '', at) : stage && original && M.state(original) === 'wykreslona' ? M.decision(original, 'dodana', author, '', at) : {};
+    if (stage === 'Archiwum') delete selection.Odrzucono;
     const update = { ...selection, ...patch, Modyfikacja: at, Edytowal: author };
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
-    const added = newRecord ? [{ ...newRecord, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
+    const added = newRecord ? [{ ...newRecord, ...selection, Etap: newRecord.Etap, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
     await commitBatch(original ? [{ ...original }] : [], newRecord ? {} : { [id]: update }, added, author, at);
   }
   async function submitForm(event) {
@@ -1047,6 +1073,7 @@
     $('connectDialog').close(); render(); toast('Rozłączono plik. Bieżąca lista zostaje w przeglądarce.');
   }
   async function pollFile() {
+    refreshRejectionClocks();
     if (!connected && rememberedGitHub && restoreRetryAt && Date.now() >= restoreRetryAt && !githubBusy && !document.hidden) { await restoreGitHub(); return; }
     if (!connected || busy || githubBusy || fileBusy || document.hidden) return;
     if (github) {
@@ -1117,10 +1144,11 @@
   $('excludeDialog').addEventListener('close', () => { excludeOriginal = null; });
   window.CRM = {
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
+    visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
     open: id => { if (window.PanelUI?.showTab('companies')) { openClient(id); return true; } return false; },
   };
-  $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage === 'Odrzucony' ? 'Wykreślone' : stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
+  $('stageFilter').innerHTML += C.stages.map(stage => '<option value="' + esc(stage) + '">' + esc(t(stage)) + '</option>').join('') + '<option value="__reviewed">' + esc(t('Przejrzane na mapie')) + '</option>';
   for (const id of ['search', 'industryFilter', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
   for (const id of ['sortField', 'sortDirection']) $(id).addEventListener('change', () => {
     if (id === 'sortField') {
@@ -1136,6 +1164,8 @@
   });
   $('addClient').onclick = () => openForm();
   $('clientsContent').addEventListener('click', event => {
+    const contact = event.target.closest('[data-load-contact]');
+    if (contact) { window.GoogleMapSession?.loadContact?.(contact.dataset.loadContact); return; }
     const pin = event.target.closest('[data-pin]'); if (pin) return togglePin(pin);
     const priority = event.target.closest('[data-priority]'); if (priority) { openPriority(priority.dataset.priority); return; }
     const status = event.target.closest('[data-status]'); if (status) { openStatus(status.dataset.status); return; }
@@ -1193,7 +1223,7 @@
   $('closeCall').onclick = closeCall; $('cancelCall').onclick = closeCall;
   $('callDialog').addEventListener('cancel', event => { event.preventDefault(); closeCall(); });
   $('callDialog').addEventListener('close', () => { callOriginal = null; });
-  document.addEventListener('crm:beforetab', event => { if (busy || githubBusy) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
+  document.addEventListener('crm:beforetab', event => { if (busy || changingSource) { event.preventDefault(); return; } if (selected && !closeDrawer()) event.preventDefault(); });
   $('clientForm').addEventListener('submit', submitForm);
   function closeForm() {
     const changed = Object.keys(changedFields(editOriginal, new FormData($('clientForm')))).length;
@@ -1227,7 +1257,7 @@
   $('connectGitHub').onclick = connectGitHub;
   $('profileSelect').value = authorName;
   $('profileSelect').addEventListener('change', () => {
-    if (busy || githubBusy || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
+    if (busy || changingSource || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
     authorName = ['T', 'K'].includes($('profileSelect').value) ? $('profileSelect').value : '';
     try { localStorage.setItem('pracownia.author', authorName); } catch {}
   });
