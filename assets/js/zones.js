@@ -69,7 +69,7 @@
         bindPath();previewListeners.push({remove:()=>{for(const listener of pathListeners)listener.remove();pathListeners=[];}});
         previewListeners.push(shape.addListener('path_changed',changed));
         previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;selectArea(index);hint();}}));
-        previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;ignoreClickUntil=Date.now()+250;changed();}));
+        previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;ignoreClickUntil=Date.now()+250;changed();$('businessMap').focus({preventScroll:true});}));
         previewListeners.push(shape.addListener('click',event=>{if(draft===original&&!draft.drawing&&!saving&&!dragging){
           if(Date.now()<ignoreClickUntil){event?.stop?.();event?.domEvent?.stopPropagation?.();return;}
           if(draft.areas.length<50&&event?.latLng&&event.vertex===undefined&&event.edge===undefined){event.domEvent?.stopPropagation?.();root.ZoneUI.mapClick(event);return;}
@@ -177,7 +177,7 @@
   $('zoneRedraw').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&!dragging&&await ask('Narysować wybrany obszar od nowa? Pozostałe obszary zostaną zachowane.',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&draft.active===index&&!saving){
     clearPreview();draft.backup=Z.copy(draft.points);draft.points=[];draft.areas[index]=draft.points;draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();
   }};
-  $('zoneRemoveArea').onclick=()=>action(async()=>{
+  const removeSelectedArea=()=>action(async()=>{
     const original=draft,index=draft?.active,currentEngine=engine;
     if(!original||original.drawing||saving||dragging)return;
     const last=original.areas.length===1,message=last?(original.base?'To jedyny obszar. Jego usunięcie usunie całą strefę.':'To jedyny obszar. Usunięcie zamknie nową strefę bez zapisu.'):'Usunąć ten obszar ze strefy? Pozostałe obszary zostaną zachowane.';
@@ -192,6 +192,7 @@
     }
     clearPreview();draft.areas.splice(index,1);draft.active=Math.max(0,index-1);draft.points=draft.areas[draft.active];drawPreview();
   });
+  $('zoneRemoveArea').onclick=removeSelectedArea;
   $('zoneColor').addEventListener('input',()=>{if(draft)drawPreview();});
   $('zoneForm').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{
     if(!draft||draft.drawing||saving||dragging)return;if(draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
@@ -218,6 +219,15 @@
   document.addEventListener('crm:beforetab',event=>{if(event.detail.tab!=='map'&&draft){if(saving){event.preventDefault();return;}event.detail.guard(discard);event.detail.commit(cancel);}});
   document.addEventListener('crm:tab',event=>{if(event.detail.tab==='map')void engine.poll();});
   document.addEventListener('crm:language',()=>{refresh();hint();});
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Delete')return;
+    if(root.PanelDialogs.isOpen()||document.querySelector?.('dialog[open]'))return;
+    if(draft&&!$('zonesPanel').hidden&&!$('mapPanel').hidden&&!draft.drawing&&!saving&&!dragging){
+      const typing=node=>/^(INPUT|TEXTAREA|SELECT)$/.test(node?.tagName||'')||node?.isContentEditable||!!node?.closest?.('[role="textbox"]');
+      if(event.defaultPrevented||event.repeat||event.isComposing||event.ctrlKey||event.altKey||event.metaKey||event.shiftKey||typing(event.target)||typing(document.activeElement))return;
+      event.preventDefault();event.stopPropagation();void removeSelectedArea();return;
+    }
+  },true);
   document.addEventListener('keydown',event=>{if(root.PanelDialogs.isOpen()||document.querySelector?.('dialog[open]'))return;if(event.key==='Escape'&&!$('zonesPanel').hidden){event.preventDefault();void close();}});
   root.addEventListener('beforeunload',event=>{if(draft){event.preventDefault();event.returnValue='';}});
   root.addEventListener('online',()=>{void engine.flush(true);});

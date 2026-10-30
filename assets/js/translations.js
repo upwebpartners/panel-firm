@@ -5,6 +5,7 @@ globalThis.CRM_MESSAGES = {
   "Dorysuj obszar": "Draw another area",
   "Anuluj obszar": "Cancel area",
   "Usuń obszar": "Delete area",
+  "Usuń zaznaczony obszar (Delete)": "Delete selected area (Delete)",
   "To jedyny obszar. Jego usunięcie usunie całą strefę.": "This is the only area. Deleting it will delete the entire zone.",
   "To jedyny obszar. Usunięcie zamknie nową strefę bez zapisu.": "This is the only area. Deleting it will close the new zone without saving.",
   "Strefa może mieć od 1 do 50 obszarów.": "A zone can contain between 1 and 50 areas.",
