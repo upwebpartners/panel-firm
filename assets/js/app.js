@@ -342,7 +342,7 @@
       const draftFields = ['actionNotes', 'actionConsent'];
       const draftBefore = selected ? draftFields.map(id => $(id).value) : null;
       const currentRecords = records.map(record => ({ ...record })), currentHeaders = [...headers];
-      const raw = $('ghRepo').value.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
+      const raw = $('ghRepo').value.trim().replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
       const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
       const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
       const token = $('ghToken').value.trim();
@@ -1180,9 +1180,9 @@
     $('connectError').hidden = !connectionError && !storageError;
     $('ghDataMode').value = 'remote'; updateGitHubModeHint();
     $('chooseCSV').textContent = I18n.message(fileHandle && !connected ? 'Połącz ponownie z plikiem' : 'Wybierz klienci.csv');
-    try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
+    try { const config = JSON.parse(localStorage.getItem('pracownia.github.config') || 'null'); if (config) { $('ghRepo').value = 'https://github.com/' + config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; } } catch {}
     const config = github?.config || rememberedGitHub?.config || local.sync?.target;
-    if (config) { $('ghRepo').value = config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; }
+    if (config) { $('ghRepo').value = 'https://github.com/' + config.owner + '/' + config.repo; $('ghBranch').value = config.branch; $('ghPath').value = config.path; }
     $('ghToken').value = github?.token || rememberedGitHub?.token || '';
     $('connectDialog').showModal(); switchConnectionMode(github || !fileHandle ? 'github' : 'file'); connectionUI();
   }

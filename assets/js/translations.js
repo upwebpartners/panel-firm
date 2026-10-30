@@ -363,7 +363,7 @@ globalThis.CRM_MESSAGES = {
   "Plik na komputerze": "File on this computer",
   "Obie osoby łączą się z tym samym repozytorium. Każda zmiana statusu, notatki i telefonu zapisuje się we wspólnym CSV.": "Both people connect to the same repository. Stages, notes and calls are saved in one shared CSV.",
   "Repozytorium z danymi (może być prywatne)": "Data repository (can be private)",
-  "właściciel/repozytorium lub link GitHub": "owner/repository or GitHub URL",
+  "Wklej link do GitHuba albo wpisz właściciel/repozytorium.": "Paste a GitHub link or enter owner/repository.",
   "Gałąź": "Branch",
   "Plik danych": "Data file",
   "Twój token GitHub": "Your GitHub token",
