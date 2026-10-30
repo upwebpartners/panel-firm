@@ -5,6 +5,8 @@ globalThis.CRM_MESSAGES = {
   "Dorysuj obszar": "Draw another area",
   "Anuluj obszar": "Cancel area",
   "Usuń obszar": "Delete area",
+  "To jedyny obszar. Jego usunięcie usunie całą strefę.": "This is the only area. Deleting it will delete the entire zone.",
+  "To jedyny obszar. Usunięcie zamknie nową strefę bez zapisu.": "This is the only area. Deleting it will close the new zone without saving.",
   "Strefa może mieć od 1 do 50 obszarów.": "A zone can contain between 1 and 50 areas.",
   "Klikaj punkty granicy. Zamknij obszar kliknięciem pierwszego punktu lub prawym przyciskiem myszy.": "Click boundary points. Close the area by clicking the first point or right-clicking.",
   "Tryb edycji: kliknij mapę, aby dorysować obszar. Przesuwaj punkty lub wnętrze obszaru. Na koniec zapisz strefę albo anuluj.": "Edit mode: click the map to draw another area. Drag boundary points or an area's interior. Save the zone or cancel when finished.",

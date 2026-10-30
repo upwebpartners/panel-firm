@@ -50,6 +50,10 @@
     draft.areas[index]=shape.getPath().getArray().map(point=>[point.lng(),point.lat()]);
     if(index===draft.active)draft.points=draft.areas[index];
   }
+  function selectArea(index){
+    draft.active=index;draft.points=draft.areas[index];
+    for(const [part,shape]of previews)shape.setOptions({strokeWeight:part===index?4:2,fillOpacity:part===index?0.3:0.12,zIndex:part===index?3:2});
+  }
   function drawPreview(){
     if(!draft||!maps)return;
     const color=$('zoneColor').value,original=draft;
@@ -60,18 +64,20 @@
         previews.set(index,shape);
         let observedPath=null,pathListeners=[];
         const bindPath=()=>{const current=shape.getPath();if(observedPath===current)return;for(const listener of pathListeners)listener.remove();observedPath=current;pathListeners=['insert_at','set_at','remove_at'].map(name=>current.addListener(name,changed));};
-        const changed=()=>{if(draft!==original||saving)return;bindPath();readShape(index,shape);hint();};
+        let ignoreClickUntil=0;
+        const changed=()=>{if(draft!==original||saving)return;bindPath();readShape(index,shape);selectArea(index);hint();};
         bindPath();previewListeners.push({remove:()=>{for(const listener of pathListeners)listener.remove();pathListeners=[];}});
         previewListeners.push(shape.addListener('path_changed',changed));
-        previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;hint();}}));
-        previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;changed();}));
+        previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;selectArea(index);hint();}}));
+        previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;ignoreClickUntil=Date.now()+250;changed();}));
         previewListeners.push(shape.addListener('click',event=>{if(draft===original&&!draft.drawing&&!saving&&!dragging){
+          if(Date.now()<ignoreClickUntil){event?.stop?.();event?.domEvent?.stopPropagation?.();return;}
           if(draft.areas.length<50&&event?.latLng&&event.vertex===undefined&&event.edge===undefined){event.domEvent?.stopPropagation?.();root.ZoneUI.mapClick(event);return;}
           
-          draft.active=index;draft.points=draft.areas[index];drawPreview();
+          selectArea(index);drawPreview();
         }}));
       }
-      previews.get(index).setOptions({strokeColor:color,fillColor:color,strokeWeight:index===draft.active?4:2,editable:!draft.drawing&&!saving,draggable:!draft.drawing&&!saving,clickable:!draft.drawing&&!saving});
+      previews.get(index).setOptions({strokeColor:color,fillColor:color,strokeWeight:index===draft.active?4:2,fillOpacity:index===draft.active?0.3:0.12,zIndex:index===draft.active?3:2,editable:!draft.drawing&&!saving,draggable:!draft.drawing&&!saving,clickable:!draft.drawing&&!saving});
     });
     if(draft.drawing){
       if(!sketch)sketch=new root.ZonePreview({map,maps,LatLng,document,enabled:()=>!document.hidden&&!root.PanelDialogs.isOpen()});
@@ -92,7 +98,8 @@
     $('zoneRedraw').hidden=draft.drawing;$('zoneRedraw').disabled=saving||dragging;
     $('zoneAddArea').hidden=draft.drawing;$('zoneAddArea').disabled=saving||dragging||draft.areas.length>=50;
     $('zoneCancelArea').hidden=!draft.drawing||!draft.backup&&draft.areas.length===1;
-    $('zoneRemoveArea').hidden=draft.drawing||draft.areas.length===1;$('zoneRemoveArea').disabled=saving||dragging;
+    $('zoneRemoveArea').hidden=draft.drawing;$('zoneRemoveArea').disabled=saving||dragging;
+    $('zoneRemoveArea').textContent=t('Usuń obszar')+' '+(draft.active+1);
     $('zoneSave').disabled=draft.drawing||saving||dragging;
   }
   function open(){root.GoogleMapSession?.closeCard();$('zonesPanel').hidden=false;$('zonesToggle').setAttribute('aria-expanded','true');refresh();}
@@ -170,9 +177,21 @@
   $('zoneRedraw').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&!dragging&&await ask('Narysować wybrany obszar od nowa? Pozostałe obszary zostaną zachowane.',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&draft.active===index&&!saving){
     clearPreview();draft.backup=Z.copy(draft.points);draft.points=[];draft.areas[index]=draft.points;draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();
   }};
-  $('zoneRemoveArea').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&original.areas.length>1&&!saving&&!dragging&&await ask(t('Obszar')+' '+(index+1)+'\n\n'+t('Usunąć ten obszar ze strefy? Pozostałe obszary zostaną zachowane.'),{title:'Usuń obszar',accept:'Usuń obszar',danger:true})&&draft===original&&draft.active===index&&!saving){
+  $('zoneRemoveArea').onclick=()=>action(async()=>{
+    const original=draft,index=draft?.active,currentEngine=engine;
+    if(!original||original.drawing||saving||dragging)return;
+    const last=original.areas.length===1,message=last?(original.base?'To jedyny obszar. Jego usunięcie usunie całą strefę.':'To jedyny obszar. Usunięcie zamknie nową strefę bez zapisu.'):'Usunąć ten obszar ze strefy? Pozostałe obszary zostaną zachowane.';
+    if(!await ask(t('Obszar')+' '+(index+1)+'\n\n'+t(message),{title:last?'Usuń strefę':'Usuń obszar',accept:last?'Usuń strefę':'Usuń obszar',danger:true}))return;
+    if(draft!==original||draft.active!==index||saving||dragging)return;
+    if(engine!==currentEngine||draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
+    if(last){
+      const author=profile();saving=true;drawPreview();$('zoneCancel').disabled=true;
+      try{if(original.base)await currentEngine.apply(Z.operation('delete',original.base,null,author));cancel();}
+      finally{saving=false;$('zoneCancel').disabled=false;if(draft)drawPreview();}
+      return;
+    }
     clearPreview();draft.areas.splice(index,1);draft.active=Math.max(0,index-1);draft.points=draft.areas[draft.active];drawPreview();
-  }};
+  });
   $('zoneColor').addEventListener('input',()=>{if(draft)drawPreview();});
   $('zoneForm').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{
     if(!draft||draft.drawing||saving||dragging)return;if(draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
