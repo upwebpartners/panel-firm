@@ -4,21 +4,21 @@
   'use strict';
   const ENABLED = true;
   const PHRASES = {
-    pl: ['Działamy!', 'Każdy krok się liczy.', 'Krok po kroku do celu.'],
-    en: ['Let’s get to work!', 'Every step counts.', 'One step at a time.'],
+    pl: ['Mniej wymówek. Więcej działania.', 'Nikt nie zrobi tego za Ciebie.', 'Celuj wyżej. Pracuj mocniej.', 'Nie czekaj na idealny moment.'],
+    en: ['Fewer excuses. More action.', 'Nobody will do it for you.', 'Aim higher. Work harder.', 'Stop waiting for the perfect moment.'],
   };
   if(!ENABLED || typeof document==='undefined')return;
   const motion=root.matchMedia?.('(prefers-reduced-motion: reduce)');
   let timer=null,index=0,length=0,deleting=false;
   const language=()=>root.I18n?.language()==='en'?'en':'pl';
-  const baseTitle=()=> 'UP — '+(language()==='en'?'Companies':'Firmy');
+  const baseTitle=()=>PHRASES[language()][0];
   function stop(){if(timer!==null)root.clearTimeout(timer);timer=null;}
   function tick(){
     timer=null;
     if(document.hidden || motion?.matches)return;
     const phrases=PHRASES[language()],phrase=phrases[index];
     length+=deleting?-1:1;
-    document.title=length?'UP — '+phrase.slice(0,length):baseTitle();
+    document.title=length?phrase.slice(0,length):'\u00a0';
     let delay=deleting?65:110;
     if(length===phrase.length){deleting=true;delay=2400;}
     else if(length===0){deleting=false;index=(index+1)%phrases.length;delay=900;}
