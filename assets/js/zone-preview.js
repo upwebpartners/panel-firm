@@ -48,6 +48,12 @@
       this.hasCursor=false;this.vertices.draw();
     }
     cancelPending(){if(this.frame!==null){this.cancelFrame(this.frame);this.frame=null;}}
+    isStart(position){
+      if(this.disposed||!this.enabled()||this.points.length<3||!position)return false;
+      const projection=this.vertices.getProjection();if(!projection)return false;
+      const first=projection.fromLatLngToDivPixel(this.points[0]),point=projection.fromLatLngToDivPixel(position);
+      return !!first&&!!point&&Number.isFinite(first.x)&&Number.isFinite(first.y)&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&Math.hypot(first.x-point.x,first.y-point.y)<=10;
+    }
     show(shape,visible){const map=visible?this.map:null;if(shape.getMap()!==map)shape.setMap(map);}
     move(position){
       if(this.disposed||!this.points.length||!position||!this.enabled())return;
