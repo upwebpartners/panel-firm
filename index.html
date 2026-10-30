@@ -10,7 +10,7 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=eeee86613dc7">
+    <link rel="stylesheet" href="assets/css/style.css?v=6c95b8291f84">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -49,6 +49,9 @@
         <symbol id="i-folder" viewBox="0 0 24 24">
           <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         </symbol>
+        <symbol id="i-cloud" viewBox="0 0 24 24">
+          <path d="M7 18H6a4 4 0 0 1-.8-7.9 7 7 0 0 1 13.6 0A4 4 0 0 1 18 18h-1M12 20V10m-3 3 3-3 3 3"/>
+        </symbol>
         <symbol id="i-sun" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="4"/>
           <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>
@@ -70,11 +73,13 @@
       <div class="appearance-controls">
         <div class="database-controls">
           <button id="databaseStatus" type="button" class="database-status" aria-label="Stan bazy i ustawienia">
+            <svg class="database-status-icon" aria-hidden="true"><use href="#i-cloud"/></svg>
             <span id="databaseStatusLabel" class="database-status-line" aria-live="polite"></span>
             <span id="saveProgress" class="save-progress" role="status" aria-live="polite" hidden><span id="saveProgressLabel"></span><span id="saveProgressTime" aria-hidden="true"></span></span>
+            <span class="database-status-hint">Ustawienia bazy</span>
             <span id="connectionNotice" class="visually-hidden" role="status" hidden></span>
           </button>
-          <button id="retrySync" type="button" class="button sync-retry" hidden>Ponów zapis</button>
+          <span class="sync-retry-slot"><button id="retrySync" type="button" class="button sync-retry" hidden>Ponów zapis</button></span>
         </div>
         <label class="profile-control"><span>Pracuje</span><select id="profileSelect" aria-label="Kto pracuje?">
           <option value="">Profil</option><option value="T">T</option><option value="K">K</option>
@@ -444,7 +449,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=270e4bf77ebc"></script>
+    <script src="assets/js/translations.js?v=76aa4aaa945a"></script>
     <script src="assets/js/i18n.js?v=1e84650cc321"></script>
     <script src="assets/js/dialogs.js?v=1fe1359b0833"></script>
     <script src="assets/js/core.js?v=899eff66c829"></script>

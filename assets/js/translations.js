@@ -185,6 +185,7 @@ globalThis.CRM_MESSAGES = {
   "GitHub · oczekuje na zapis": "GitHub · pending save",
   "Baza · sprawdź zapis": "Database · check save",
   "Baza lokalna": "Local database",
+  "Ustawienia bazy": "Database settings",
   "Plik CSV": "CSV file",
   "GitHub · wysyłanie zmian…": "GitHub · sending changes…",
   "GitHub · zmiany czekają na wysłanie": "GitHub · changes waiting to send",
