@@ -8,14 +8,18 @@
   let initialization = null, forgottenKey = false, waitingRefresh = null;
   let placesInitialization = null, hydrating = false, previewFrame = null;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
+  const markerSignatures = new Map(), visibleMarkers = new Set();
+  let mapDirty = false, googlePlacesVisible = null, cardSignature = '';
   const detailLoads = new Map(), contactErrors = new Map();
   const refreshingPlaces = new Set();
   const colors = { nowa: '#3478c9', przejrzana: '#c08b22', dodana: '#27804d', wykreslona: '#797979' };
   const labels = { nowa: 'Nowa', przejrzana: 'Przejrzana', dodana: 'Dodana', wykreslona: 'Wykreślona' };
   const filters = { nowa: 'showNew', przejrzana: 'showReviewed', dodana: 'showAdded', wykreslona: 'showExcluded' };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const deadline = operation => root.Network ? root.Network.withTimeout(operation) : operation();
   function status(message) { $('mapStatus').textContent = root.I18n.message(message); }
-  function record(entity) { return M.matchRecord(entity, root.CRM.records()); }
+  function record(entity, rows = null, index = null) { return root.CRM.findPlace ? root.CRM.findPlace(entity) : M.matchRecord(entity, rows || root.CRM.records(), index); }
+  function placeRecord(id) { return root.CRM.placeRecord ? root.CRM.placeRecord(id) : root.CRM.records().find(row => row.Google_place_id === id); }
   function savedKey() { try { return root.localStorage.getItem(GOOGLE_KEY_STORE) || ''; } catch { return ''; } }
   function rememberKey(value) {
     try { root.localStorage.setItem(GOOGLE_KEY_STORE, value); forgottenKey = false; }
@@ -34,6 +38,7 @@
       root.gm_authFailure = () => {
         clearTimeout(timer); const message = 'Google odrzucił klucz. Sprawdź usługi, rozliczenia i ograniczenia domeny.';
         status(message); $('googleError').textContent = t(message); $('googleError').hidden = false;
+        delete root.__crmGoogleReady; loading = null; script.remove();
         if (!quiet && !$('googleDialog').open) $('googleDialog').showModal(); reject(new Error(message));
       };
       script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&v=weekly&loading=async&language=' + encodeURIComponent(root.I18n.language()) + '&callback=__crmGoogleReady';
@@ -129,7 +134,7 @@
     try { await initialization; } catch (error) { initialization = null; throw error; }
   }
   async function ensureMap() {
-    if (map) { root.google.maps.event.trigger(map, 'resize'); return; }
+    if (map) { root.google.maps.event.trigger(map, 'resize'); if (mapDirty) draw(); return; }
     const remembered = savedKey();
     if (!/^[A-Za-z0-9_-]{20,200}$/.test(remembered)) { settings(); return; }
     try { key = remembered; await initialize(key); }
@@ -137,24 +142,40 @@
   }
   function draw() {
     if (!map) return;
-    for (const marker of markers.values()) marker.setMap(null);
-    markers.clear();
+    mapDirty = false;
+    const rows = root.CRM.findPlace ? null : root.CRM.records(), index = rows ? C.recordIndex(rows) : null;
     // Native Google places form a separate layer from our loaded status markers.
-    map.setOptions({ styles: $('showGooglePlaces').checked ? null : [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }] });
+    if (googlePlacesVisible !== $('showGooglePlaces').checked) {
+      googlePlacesVisible = $('showGooglePlaces').checked;
+      map.setOptions({ styles: googlePlacesVisible ? null : [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }] });
+    }
     for (const entity of places.values()) {
-      const current = record(entity), state = M.state(current);
-      if (!$(filters[state]).checked) continue;
+      const current = record(entity, rows, index), state = M.state(current);
+      if (!$(filters[state]).checked) { if (visibleMarkers.delete(entity.id)) markers.get(entity.id)?.setMap(null); continue; }
       const declined = state !== 'wykreslona' && current?.Etap === 'Odrzucony';
-      const marker = new Marker({ map, position: { lat: entity.lat, lng: entity.lon },
+      const options = { position: { lat: entity.lat, lng: entity.lon },
         title: (entity.name || (current ? C.companyName(current) : t('Firma z mapy'))) + ' · ' + t(declined ? 'Odrzucony — odmowa klienta' : labels[state]),
         icon: { path: root.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: declined ? '#b02b36' : colors[state], fillOpacity: 1, strokeWeight: 2, strokeColor: '#ffffff' },
-        label: { text: declined ? 'O' : ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } });
-      marker.addListener('click', () => { if (!root.ZoneUI?.editing()) selectPlace(entity.id); }); markers.set(entity.id, marker);
+        label: { text: declined ? 'O' : ({ nowa:'N', przejrzana:'P', dodana:'+', wykreslona:'×' })[state], color:'#ffffff', fontSize:'10px' } };
+      const signature = JSON.stringify(options);
+      let marker = markers.get(entity.id);
+      if (!marker) {
+        marker = new Marker({ map, ...options });
+        marker.addListener('click', () => { if (!root.ZoneUI?.editing()) selectPlace(entity.id); });
+        markers.set(entity.id, marker); visibleMarkers.add(entity.id);
+      } else {
+        if (markerSignatures.get(entity.id) !== signature) marker.setOptions(options);
+        if (!visibleMarkers.has(entity.id)) { marker.setMap(map); visibleMarkers.add(entity.id); }
+      }
+      markerSignatures.set(entity.id, signature);
     }
     if (selected && details.has(selected)) showCard(places.get(selected));
   }
   function showCard(entity) {
     const current = record(entity), state = M.state(current);
+    const signature = JSON.stringify([entity, current, pending, root.I18n.language()]);
+    if (cardId === entity.id && cardSignature === signature && !$('mapPlace').hidden) return;
+    cardSignature = signature;
     const oldFields = $('mapExcludeFields'), oldReason = $('mapExcludeReason');
     const draft = cardId === entity.id && oldFields && oldReason ? { visible: !oldFields.hidden, value: oldReason.value } : null;
     cardId = entity.id;
@@ -200,12 +221,12 @@
       status('Szukanie firm…');
       const fields = ['id','displayName','location','formattedAddress','types'];
       let result;
-      if (text.trim()) result = await library.Place.searchByText({ textQuery: text.trim(), language: root.I18n.language(), fields, maxResultCount: 20, locationBias: map.getBounds() });
+      if (text.trim()) result = await deadline(() => library.Place.searchByText({ textQuery: text.trim(), language: root.I18n.language(), fields, maxResultCount: 20, locationBias: map.getBounds() }));
       else {
         const center = map.getCenter(), edge = map.getBounds().getNorthEast();
         const distance = Math.max(Math.abs(center.lat() - edge.lat()) * 111000, Math.abs(center.lng() - edge.lng()) * 111000 * Math.cos(center.lat() * Math.PI / 180));
         if (distance > 5000) throw new Error('Przybliż mapę, aby przeszukać mniejszy obszar.');
-        result = await library.Place.searchNearby({ fields, language: root.I18n.language(), maxResultCount: 20, locationRestriction: { center, radius: Math.max(100, Math.min(50000, distance * 1.42)) }, rankPreference: library.SearchNearbyRankPreference.DISTANCE });
+        result = await deadline(() => library.Place.searchNearby({ fields, language: root.I18n.language(), maxResultCount: 20, locationRestriction: { center, radius: Math.max(100, Math.min(50000, distance * 1.42)) }, rankPreference: library.SearchNearbyRankPreference.DISTANCE }));
       }
       for (const place of result.places || []) { const entity = M.fromGoogle(place); if (!details.has(entity.id)) places.set(entity.id, entity); }
       document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
@@ -220,16 +241,23 @@
     if (pending) return;
     pending = true; $('mapKnown').disabled = true;
     const candidates = root.CRM.records().filter(r => r.Google_place_id && !loadedSaved.has(r.Google_place_id));
-    let loaded = 0;
+    let loaded = 0, cursor = 0, failures = 0;
     try {
-      for (const row of candidates.slice(0, 50)) {
-        if (!details.has(row.Google_place_id)) {
-          await fetchDetails(row.Google_place_id);
+      const batch = candidates.slice(0, 50);
+      const worker = async () => {
+        while (cursor < batch.length) {
+          const row = batch[cursor++];
+          try {
+            if (!details.has(row.Google_place_id)) await fetchDetails(row.Google_place_id);
+            loadedSaved.add(row.Google_place_id); loaded++;
+          } catch { failures++; }
+          status('Wczytano oznaczenia: ' + loaded + '. Pozostało: ' + Math.max(0, candidates.length - loaded) + '.');
         }
-        loadedSaved.add(row.Google_place_id); loaded++;
-      }
+      };
+      await Promise.all([worker(), worker(), worker()]);
       document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       status('Wczytano oznaczenia: ' + loaded + '. Pozostało: ' + Math.max(0, candidates.length - loaded) + '.');
+      if (failures) $('mapStatus').textContent += ' ' + t('Część oznaczeń nie została pobrana. Kliknij Wczytaj oznaczenia, aby ponowić.');
     } catch (error) { status(error.message); }
     finally { pending = false; $('mapKnown').disabled = false; draw(); }
   }
@@ -288,8 +316,8 @@
     closeCard: () => { selected = null; selectionVersion++; $('mapPlace').hidden = true; },
     refresh: refreshPlace,
     isRefreshing: id => refreshingPlaces.has(id),
-    get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)),
-    contactState: id => details.has(id) || M.storedDetails(root.CRM.records().find(row => row.Google_place_id === id)) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
+    get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(placeRecord(id)),
+    contactState: id => details.has(id) || M.storedDetails(placeRecord(id)) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
     loadContact: id => {
       if (!savedKey() && (!key || forgottenKey)) { settings(); return; }
       contactErrors.delete(id); void loadVisibleContacts();
@@ -304,13 +332,13 @@
     if (event.detail.tab !== 'map') { void loadVisibleContacts(); return; }
     ensureMap();
   });
-  document.addEventListener('crm:data', () => { draw(); void loadVisibleContacts(); });
+  document.addEventListener('crm:data', () => { if ($('mapPanel').hidden) mapDirty = true; else draw(); void loadVisibleContacts(); });
   document.addEventListener('crm:view', () => { void loadVisibleContacts(); });
   document.addEventListener('crm:profile', () => {
     for (const row of root.CRM.visibleRecords?.() || []) if (!M.storedDetails(row) && details.has(row.Google_place_id)) void root.CRM.savePlaceDetails?.(places.get(row.Google_place_id));
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void loadVisibleContacts(); });
-  document.addEventListener('crm:language', () => { if (selected && details.has(selected)) showCard(places.get(selected)); });
+  document.addEventListener('crm:language', () => { if ($('mapPanel').hidden) mapDirty = true; else draw(); if (selected && details.has(selected)) showCard(places.get(selected)); });
   if (!$('mapPanel').hidden) ensureMap();
   else void loadVisibleContacts();
   contactsChanged();

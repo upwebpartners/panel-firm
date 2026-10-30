@@ -1,4 +1,6 @@
 globalThis.CRM_MESSAGES = {
+  "Część oznaczeń nie została pobrana. Kliknij Wczytaj oznaczenia, aby ponowić.": "Some markers could not be loaded. Click Load markers to retry.",
+  "GitHub ograniczył liczbę zapytań. Panel wznowi połączenie automatycznie.": "GitHub has limited requests. The panel will reconnect automatically.",
   "Jedna strefa może zawierać kilka obszarów w różnych miejscach.": "One zone can contain several areas in different locations.",
   "Obszary strefy": "Zone areas",
   "Obszar": "Area",

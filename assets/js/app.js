@@ -64,7 +64,17 @@
   const prettyDate = value => { if (!value) return ''; const date = new Date(value + 'T12:00:00'); return Number.isNaN(+date) ? value : date.toLocaleDateString(I18n.locale(), { day: 'numeric', month: 'short', year: 'numeric' }); };
   const stageSlug = value => C.norm(value).replace(/\s+/g, '-');
   const stagePill = record => '<span class="stage-pill ' + esc(stageSlug(record.Etap)) + '">' + esc(t(record.Etap || 'Nowy')) + '</span>';
-  const byId = id => records.find(r => r.Id === id);
+  let indexedRows = null, indexedRecords = null, renderedRows = null, clientsMarkup = null;
+  function showClients(markup) {
+    if (clientsMarkup === markup) return;
+    $('clientsContent').innerHTML = markup; clientsMarkup = markup;
+    I18n.bindUI($('clientsContent'));
+  }
+  function recordIndex() {
+    if (indexedRows !== records) { indexedRows = records; indexedRecords = C.recordIndex(records); }
+    return indexedRecords;
+  }
+  const byId = id => recordIndex().ids.get(id);
   const companyPreview = record => (record.Google_place_id ? window.GoogleMapSession?.get(record.Google_place_id) : null) || M.storedDetails(record);
   const hasPending = () => Object.keys(local.patches).length > 0 || local.added.length > 0 || Object.keys(local.removed || {}).length > 0;
   const hasQueued = () => !!local.sync && hasPending();
@@ -101,7 +111,7 @@
     });
     render(); kickSync();
   }
-  function blockedSync(error) { return ['CONFLICT', 'OUTDATED_CLIENT'].includes(error?.code) || [401,403,404,422].includes(error?.status); }
+  function blockedSync(error) { return error?.code !== 'RATE_LIMIT' && (['CONFLICT', 'OUTDATED_CLIENT'].includes(error?.code) || [401,403,404,422].includes(error?.status)); }
   function kickSync() {
     if (syncRetryTimer || syncError && blockedSync(syncError)) return;
     void flushQueue();
@@ -182,7 +192,7 @@
           if (error.conflicts.every(conflict => conflict.removal)) syncError = null;
           refreshCompanyView();
         } else connectionError += ' ' + I18n.message(error.message);
-        if (!blockedSync(error)) syncRetryTimer = setTimeout(() => { syncRetryTimer = null; kickSync(); }, Math.min(30000, 2000 * 2 ** Math.min(syncFailures++, 4)));
+        if (!blockedSync(error)) syncRetryTimer = setTimeout(() => { syncRetryTimer = null; kickSync(); }, Math.max((error.retryAt || 0) - Date.now(), Math.min(30000, 2000 * 2 ** Math.min(syncFailures++, 4))));
       }
     } finally { syncRunning = false; connectionUI(); if (!syncError && hasQueued()) kickSync(); }
   }
@@ -608,10 +618,11 @@
     const total = directoryRecords().length;
     $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ($('stageFilter').value === '__reviewed' ? ' przejrzanych miejsc' : ' firm'));
     if (!visible.length) {
-      $('clientsContent').innerHTML = '<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>';
+      showClients('<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>');
     } else renderTable(visible);
-    I18n.bindUI(document);
-    document.dispatchEvent(new CustomEvent('crm:data'));
+    const changed = renderedRows !== records;
+    renderedRows = records;
+    document.dispatchEvent(new CustomEvent(changed ? 'crm:data' : 'crm:view'));
   }
   function phoneHTML(record, prominent = false) {
     const phone = record.Telefon || '';
@@ -777,7 +788,7 @@
       </tr>
     `;
     }).join('');
-    $('clientsContent').innerHTML = `
+    showClients(`
       <table class="client-table">
         <thead><tr>
           <th>${esc(t('Firma'))}</th>
@@ -789,7 +800,7 @@
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    `;
+    `);
   }
 
   function detailBlock(label, value, extra = '', editField = '') {
@@ -1214,6 +1225,7 @@
     if (!connected && rememberedGitHub && restoreRetryAt && Date.now() >= restoreRetryAt && !githubBusy && !document.hidden) { await restoreGitHub(); return; }
     if (!connected || busy || githubBusy || fileBusy || document.hidden) return;
     if (github) {
+      if (github.retryAt > Date.now()) return;
       if (hasQueued() || syncRunning) { kickSync(); return; }
       if (Date.now() - lastGitHubPoll < 3000) return;
       githubBusy = true; lastGitHubPoll = Date.now(); const session = github;
@@ -1224,7 +1236,7 @@
           connectionError = '';
         }); connectionUI();
       }
-      catch { connectionError = 'Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejna próba za 3 s.'; connectionUI(); }
+      catch (error) { connectionError = error.code === 'RATE_LIMIT' ? error.message : 'Nie odświeżono wspólnej bazy. Ostatnia kopia zostaje widoczna; kolejna próba za 3 s.'; connectionUI(); }
       finally { githubBusy = false; kickSync(); } return;
     }
     if (!fileHandle) return;
@@ -1291,6 +1303,8 @@
     refreshConnection: connectionUI,
     notify: toast,
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
+    findPlace: entity => { const row = M.matchRecord(entity, records, recordIndex()); return row ? { ...row } : null; },
+    placeRecord: id => { const row = recordIndex().places.get(id); return row ? { ...row } : null; },
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
     decidePlace,
     remove: deleteCompany,
@@ -1498,9 +1512,9 @@
   $('databaseStatus').onclick = openConnection;
   $('retrySync').onclick = async () => {
     const zones = window.ZoneUI?.status();
-    if ([401,403,404].includes(zones?.error?.status)) { openConnection(); return; }
+    if (zones?.error?.code !== 'RATE_LIMIT' && [401,403,404].includes(zones?.error?.status)) { openConnection(); return; }
     if (zones?.pending || zones?.error) { window.ZoneUI.retry(); return; }
-    if (!github || !connected || [401,403,404].includes(syncError?.status)) { openConnection(); return; }
+    if (!github || !connected || syncError?.code !== 'RATE_LIMIT' && [401,403,404].includes(syncError?.status)) { openConnection(); return; }
     const deleted = (syncError?.conflicts || []).filter(conflict => conflict.field === 'Usunięty w pliku');
     if (deleted.length) {
       const message = t('Te firmy zostały usunięte ze wspólnej bazy:') + '\n\n' + deleted.map(conflict => conflict.name).join('\n') + '\n\n' + t('Odrzucić ich oczekujące zmiany w tej przeglądarce? Anuluj zachowa lokalną kopię. Możesz ją wcześniej wyeksportować do CSV.');

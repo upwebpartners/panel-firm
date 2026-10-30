@@ -173,6 +173,17 @@
     return { records: [...current.values()].map(cleanRecord), conflicts };
   }
   function norm(value) { return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase(); }
+  function recordIndex(records) {
+    const ids = new Map(), places = new Map(), names = new Map();
+    for (const record of records) {
+      ids.set(record.Id, record);
+      if (record.Google_place_id && !places.has(record.Google_place_id)) places.set(record.Google_place_id, record);
+      const name = norm(record.Firma);
+      if (!names.has(name)) names.set(name, []);
+      names.get(name).push(record);
+    }
+    return { ids, places, names };
+  }
   function safeURL(value) {
     try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
   }
@@ -289,5 +300,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

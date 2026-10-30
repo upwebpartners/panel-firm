@@ -51,8 +51,10 @@
     if(index===draft.active)draft.points=draft.areas[index];
   }
   function selectArea(index){
+    const previous=draft.active;
     draft.active=index;draft.points=draft.areas[index];
-    for(const [part,shape]of previews)shape.setOptions({strokeWeight:part===index?4:2,fillOpacity:part===index?0.3:0.12,zIndex:part===index?3:2});
+    if(previous===index)return;
+    for(const part of [previous,index])previews.get(part)?.setOptions({strokeWeight:part===index?4:2,fillOpacity:part===index?0.3:0.12,zIndex:part===index?3:2});
   }
   function drawPreview(){
     if(!draft||!maps)return;
@@ -65,7 +67,7 @@
         let observedPath=null,pathListeners=[];
         const bindPath=()=>{const current=shape.getPath();if(observedPath===current)return;for(const listener of pathListeners)listener.remove();observedPath=current;pathListeners=['insert_at','set_at','remove_at'].map(name=>current.addListener(name,changed));};
         let ignoreClickUntil=0;
-        const changed=()=>{if(draft!==original||saving)return;bindPath();readShape(index,shape);selectArea(index);hint();};
+        const changed=()=>{if(draft!==original||saving)return;bindPath();if(!dragging)readShape(index,shape);selectArea(index);if(!dragging)hint();};
         bindPath();previewListeners.push({remove:()=>{for(const listener of pathListeners)listener.remove();pathListeners=[];}});
         previewListeners.push(shape.addListener('path_changed',changed));
         previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;selectArea(index);hint();}}));

@@ -28,9 +28,10 @@
       website: C.safeURL(place.websiteURI), category: (place.types || []).join(', '), businessStatus: place.businessStatus || '' };
   }
   function placeURL(id) { return 'https://www.google.com/maps/search/?api=1&query=place&query_place_id=' + encodeURIComponent(id); }
-  function matchRecord(entity, records) {
-    const exact = records.find(r => r.Google_place_id === entity.id); if (exact) return exact;
-    const candidates = records.filter(r => entity.name && C.norm(r.Firma) === C.norm(entity.name) &&
+  function matchRecord(entity, records, index = null) {
+    const exact = index ? index.places.get(entity.id) : records.find(r => r.Google_place_id === entity.id); if (exact) return exact;
+    const rows = index ? index.names.get(C.norm(entity.name)) || [] : records;
+    const candidates = rows.filter(r => entity.name && C.norm(r.Firma) === C.norm(entity.name) &&
       ((entity.phone && r.Telefon && entity.phone.replace(/\D/g, '') === r.Telefon.replace(/\D/g, '')) ||
        (entity.website && C.safeURL(r.Strona).replace(/\/$/, '') === entity.website.replace(/\/$/, ''))));
     return candidates.length === 1 ? candidates[0] : null;

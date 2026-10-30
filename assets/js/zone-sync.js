@@ -9,6 +9,7 @@
     constructor({storage,target=null,request=null,onChange=()=>{}}) {
       this.storage=storage;this.target=target?{...target}:null;this.request=request;this.onChange=onChange;
       this.key='pracownia.zones.v1:'+targetKey(target);this.raw=null;this.chain=Promise.resolve();this.running=false;this.polling=false;this.closed=false;this.error=null;this.retryAt=0;this.failures=0;
+      this.remoteCache=null;this.branchKnown=false;
       this.state={version:1,target:this.target,base:Z.empty(),ops:[],hidden:[],seen:false};
       try {
         this.raw=storage.getItem(this.key);
@@ -52,16 +53,19 @@
     async remote(request){
       let file;
       try {file=await(await request(this.endpoint+'?ref='+encodeURIComponent(this.target.branch))).json();}
-      catch(error){if(error.status!==404)throw error;await request(this.prefix+'/branches/'+encodeURIComponent(this.target.branch));return {data:Z.empty(),missing:true};}
+      catch(error){if(error.status!==404)throw error;this.remoteCache=null;if(!this.branchKnown){await request(this.prefix+'/branches/'+encodeURIComponent(this.target.branch));this.branchKnown=true;}return {data:Z.empty(),missing:true};}
       if(file.type!=='file'||!file.sha||file.size>1024*1024)throw Error('Nieprawidłowy plik stref lub przekroczony limit 1 MB.');
+      this.branchKnown=true;
+      if(this.remoteCache?.sha===file.sha)return this.remoteCache;
       const text=file.encoding==='base64'&&file.content?decode(file.content):await(await request(this.prefix+'/git/blobs/'+encodeURIComponent(file.sha),{headers:{Accept:'application/vnd.github.raw+json'}})).text();
       if(text.length>1024*1024)throw Error('Plik stref przekracza limit 1 MB.');
-      return {data:Z.document(JSON.parse(text)),sha:file.sha,missing:false};
+      this.remoteCache={data:Z.document(JSON.parse(text)),sha:file.sha,missing:false};
+      return this.remoteCache;
     }
     missing(latest){if(latest.missing&&this.state.seen){const error=Error('Wspólny plik stref zniknął. Zachowano kopię; zapis jest wstrzymany.');error.code='MISSING';throw error;}}
     async flush(retry=false){
       if(this.closed||this.running||this.polling||this.loadError||!this.target||!this.request||!this.state.ops.length)return;
-      if(!retry&&(this.retryAt>Date.now()||this.error?.code==='CONFLICT'||this.error?.code==='MISSING'||[401,403,404,422].includes(this.error?.status)))return;
+      if(!retry&&(this.retryAt>Date.now()||this.error?.code==='CONFLICT'||this.error?.code==='MISSING'||this.error?.code!=='RATE_LIMIT'&&[401,403,404,422].includes(this.error?.status)))return;
       this.running=true;this.error=null;this.notify();const request=this.request;
       try {
         let collisions=0;
@@ -81,7 +85,7 @@
           await this.change(state=>{state.base=result.data;state.seen=!latest.missing||!Z.equal(result.data,latest.data);state.ops=state.ops.filter(op=>!accepted.has(op.id));return state;});
           this.failures=0;this.retryAt=0;this.notify();
         }
-      }catch(error){if(!this.closed){this.error=error;this.retryAt=Date.now()+Math.min(30000,2000*2**Math.min(this.failures++,4));}}
+      }catch(error){if(!this.closed){this.error=error;this.retryAt=Math.max(error.retryAt||0,Date.now()+Math.min(30000,2000*2**Math.min(this.failures++,4)));}}
       finally{this.running=false;this.notify();}
     }
     async poll(){
@@ -93,7 +97,7 @@
         // A local edit made during the read retains its original base and queue.
         if(!this.state.ops.length&&!Z.equal(this.state.base,latest.data)||!this.state.ops.length&&!latest.missing&&!this.state.seen)await this.change(state=>{if(!state.ops.length){state.base=latest.data;state.seen=!latest.missing;}return state;});
         this.error=null;this.failures=0;this.retryAt=0;
-      }catch(error){if(!this.closed){this.error=error;this.retryAt=Date.now()+Math.min(30000,2000*2**Math.min(this.failures++,4));}}
+      }catch(error){if(!this.closed){this.error=error;this.retryAt=Math.max(error.retryAt||0,Date.now()+Math.min(30000,2000*2**Math.min(this.failures++,4)));}}
       finally{this.polling=false;this.notify();if(this.state.ops.length)void this.flush();}
     }
     async resolve(id,choice,reviewed,author){
@@ -118,7 +122,7 @@
       }finally{this.polling=false;}
       void this.flush();
     }
-    close(){this.closed=true;}
+    close(){this.closed=true;this.remoteCache=null;}
   }
   root.ZoneSync=ZoneSync;root.ZoneSync.targetKey=targetKey;
 })(globalThis);

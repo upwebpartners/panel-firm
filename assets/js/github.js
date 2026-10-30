@@ -17,24 +17,46 @@
       if (!token.trim()) throw new Error('Wpisz swój token GitHub w tym formularzu.');
       this.config = { owner: config.owner, repo: config.repo, branch: config.branch.trim(), path };
       this.token = token.trim(); this.fetch = request; this.cached = null; this.controllers = new Set();
+      this.responses = new Map(); this.retryAt = 0; this.rateError = null;
       this.removalVersion = 1;
       this.prefix = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo);
       this.fileEndpoint = this.prefix + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
     }
     async request(path, options = {}) {
       if (!this.token) throw new Error('Wspólna baza jest rozłączona. Połącz GitHub ponownie przed zapisem.');
+      if (this.retryAt > Date.now()) throw this.rateError;
+      const raw = options.headers?.Accept === 'application/vnd.github.raw+json';
+      const cacheable = !raw && (!options.method || options.method === 'GET');
+      const previous = cacheable ? this.responses.get(path) : null;
       const controller = root.AbortController ? new root.AbortController() : null;
       if (controller) this.controllers.add(controller);
       try {
         return await root.Network.withTimeout(async signal => {
-          const response = await this.fetch('https://api.github.com' + path, { ...options, signal, cache: 'no-store', redirect: 'error', headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', ...(options.body ? { 'Content-Type': 'application/json' } : {}), Authorization: 'Bearer ' + this.token, ...(options.headers || {}) } });
+          const response = await this.fetch('https://api.github.com' + path, { ...options, signal, cache: 'no-store', redirect: 'error', headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(previous ? { 'If-None-Match': previous.etag } : {}), Authorization: 'Bearer ' + this.token, ...(options.headers || {}) } });
+          if (response.status === 304 && previous) return { json: async () => previous.body };
           if (!response.ok) {
             let body = {}; try { body = await response.json(); } catch {}
             const message = response.status === 401 ? 'GitHub odrzucił token. Sprawdź, czy nie wygasł.' : response.status === 403 ? 'Brak dostępu lub limit GitHuba. Sprawdź dostęp do repozytorium: fine-grained wymaga Contents: Read and write; token classic zakresu repo.' : response.status === 404 ? 'Nie znaleziono repozytorium, gałęzi lub pliku. Sprawdź dostęp tokenu i konfigurację.' : response.status === 409 ? 'Ktoś właśnie zapisał plik. Ponawiam odczyt najnowszej wersji.' : 'GitHub nie przyjął operacji (HTTP ' + response.status + ').';
-            const error = new Error(message); error.status = response.status; error.detail = String(body.message || ''); throw error;
+            const error = new Error(message); error.status = response.status; error.detail = String(body.message || '');
+            const header = name => response.headers?.get?.(name) || '';
+            const retry = header('retry-after'), exhausted = header('x-ratelimit-remaining') === '0';
+            if (response.status === 429 || response.status === 403 && (retry || exhausted || /rate limit/i.test(error.detail))) {
+              const after = retry ? (/^\d+(\.\d+)?$/.test(retry) ? Date.now() + Number(retry) * 1000 : Date.parse(retry)) : 0;
+              const reset = exhausted ? Number(header('x-ratelimit-reset')) * 1000 : 0;
+              error.message = 'GitHub ograniczył liczbę zapytań. Panel wznowi połączenie automatycznie.';
+              error.code = 'RATE_LIMIT'; error.retryAt = Math.max(Date.now() + 1000, after || 0, reset || 0, after || reset ? 0 : Date.now() + 60000);
+              this.retryAt = error.retryAt; this.rateError = error;
+            }
+            throw error;
           }
-          const raw = options.headers?.Accept === 'application/vnd.github.raw+json';
           const body = await (raw ? response.text() : response.json());
+          if (cacheable) {
+            const etag = response.headers?.get?.('etag'); this.responses.delete(path);
+            if (etag) {
+              this.responses.set(path, { etag, body });
+              if (this.responses.size > 8) this.responses.delete(this.responses.keys().next().value);
+            }
+          }
           return raw ? { text: async () => body } : { json: async () => body };
         }, { controller });
       } finally { if (controller) this.controllers.delete(controller); }
@@ -120,7 +142,7 @@
         throw error;
       }
     }
-    close() { this.token = ''; this.cached = null; for (const controller of this.controllers) controller.abort(); this.controllers.clear(); }
+    close() { this.token = ''; this.cached = null; this.responses.clear(); this.retryAt = 0; this.rateError = null; for (const controller of this.controllers) controller.abort(); this.controllers.clear(); }
   }
   root.GitHubCSV = GitHubCSV;
 })(globalThis);
