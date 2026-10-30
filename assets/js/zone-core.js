@@ -37,13 +37,23 @@
     if (Math.abs(area)<1e-12) fail('Strefa musi obejmować obszar, a nie samą linię.');
     return [...result,[...result[0]]];
   }
+  function geometry(value) {
+    const polygons=value?.type==='Polygon'?[value.coordinates]:value?.type==='MultiPolygon'?value.coordinates:null;
+    if (!Array.isArray(polygons) || !polygons.length || polygons.length>50) fail('Strefa może mieć od 1 do 50 obszarów.');
+    const coordinates=polygons.map(polygon=>{
+      if (!Array.isArray(polygon) || polygon.length!==1) fail('Nieprawidłowy format strefy.');
+      const points=polygon[0];
+      if (!Array.isArray(points) || !points.length || !equal(points[0],points.at(-1))) fail('Granica zapisanego obszaru musi być zamknięta.');
+      return [ring(points)];
+    });
+    return value.type==='Polygon'?{type:'Polygon',coordinates:coordinates[0]}:{type:'MultiPolygon',coordinates};
+  }
+  const areas = row => (row.geometry.type==='Polygon'?[row.geometry.coordinates]:row.geometry.coordinates).map(polygon=>copy(polygon[0].slice(0,-1)));
   function feature(value) {
-    if (value?.type!=='Feature' || !validId(value.id) || value.geometry?.type!=='Polygon' || value.geometry.coordinates?.length!==1) fail('Nieprawidłowy format strefy.');
+    if (value?.type!=='Feature' || !validId(value.id) || !['Polygon','MultiPolygon'].includes(value.geometry?.type)) fail('Nieprawidłowy format strefy.');
     const p=value.properties;
     if (!p || typeof p.name!=='string' || !p.name.trim() || p.name.length>100 || !/^#[a-f\d]{6}$/i.test(p.color) || !['','T','K'].includes(p.owner) || !stages.includes(p.stage) || !human(p.createdBy) || !human(p.updatedBy) || !date(p.createdAt) || !date(p.updatedAt)) fail('Nieprawidłowe dane strefy.');
-    const points=value.geometry.coordinates[0];
-    if (!Array.isArray(points) || !equal(points[0],points.at(-1))) fail('Granica zapisanego obszaru musi być zamknięta.');
-    return { type:'Feature',id:value.id,geometry:{type:'Polygon',coordinates:[ring(points)]},properties:{name:p.name.trim(),color:p.color.toLowerCase(),owner:p.owner,stage:p.stage,createdBy:p.createdBy,createdAt:p.createdAt,updatedBy:p.updatedBy,updatedAt:p.updatedAt} };
+    return { type:'Feature',id:value.id,geometry:geometry(value.geometry),properties:{name:p.name.trim(),color:p.color.toLowerCase(),owner:p.owner,stage:p.stage,createdBy:p.createdBy,createdAt:p.createdAt,updatedBy:p.updatedBy,updatedAt:p.updatedAt} };
   }
   function document(value) {
     if (!value || value.type!=='FeatureCollection' || value.version!==1 || !Array.isArray(value.features) || !Array.isArray(value.deleted) || value.features.length>2000 || value.deleted.length>10000) fail('Nieobsługiwany lub uszkodzony plik stref. Zachowano poprzednią kopię.');
@@ -57,9 +67,13 @@
     return data;
   }
   function create(points, properties, author, original=null, id=root.CRMCore.uid(), at=new Date().toISOString()) {
+    return createAreas([points],properties,author,original,id,at);
+  }
+  function createAreas(areas, properties, author, original=null, id=root.CRMCore.uid(), at=new Date().toISOString()) {
     if (!human(author)) fail('Wybierz T lub K w nagłówku, aby zapisać zmianę.');
-    const geometry={type:'Polygon',coordinates:[ring(points)]};
-    return feature({type:'Feature',id:original?.id||id,geometry,properties:{...properties,createdAt:original?.properties.createdAt||at,createdBy:original?.properties.createdBy||author,updatedAt:at,updatedBy:author}});
+    if (!Array.isArray(areas) || !areas.length || areas.length>50) fail('Strefa może mieć od 1 do 50 obszarów.');
+    const polygons=areas.map(points=>[ring(points)]),shape=polygons.length===1?{type:'Polygon',coordinates:polygons[0]}:{type:'MultiPolygon',coordinates:polygons};
+    return feature({type:'Feature',id:original?.id||id,geometry:shape,properties:{...properties,createdAt:original?.properties.createdAt||at,createdBy:original?.properties.createdBy||author,updatedAt:at,updatedBy:author}});
   }
   function operation(kind, base, value, author, id=root.CRMCore.uid(), at=new Date().toISOString()) {
     if (!human(author) || !['save','delete'].includes(kind) || !validId(id) || !date(at)) fail('Tylko profil T lub K może zmieniać strefy.');
@@ -97,5 +111,5 @@
     }
     return {data,conflicts};
   }
-  root.ZoneCore={copy,equal,empty,ring,feature,document,create,operation,current,merge,fields,stages};
+  root.ZoneCore={copy,equal,empty,ring,geometry,areas,feature,document,create,createAreas,operation,current,merge,fields,stages};
 })(globalThis);

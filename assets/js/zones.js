@@ -7,9 +7,12 @@
   const stageLabels={todo:'Do przejrzenia',doing:'W trakcie',done:'Gotowe'};
   const ask=(message,options)=>root.PanelDialogs.confirm(message,options);
   const discardOptions={title:'Niezapisana strefa',accept:'Porzuć zmiany',danger:true};
-  let engine,contextKey,session,map,maps,LatLng,draft=null,preview=null,sketch=null,outline=null,formError='',conflict=null,shapeSignature='',saving=false;
+  let engine,contextKey,session,map,maps,LatLng,draft=null,sketch=null,outline=[],formError='',conflict=null,shapeSignature='',saving=false,dragging=false;
   let previewListeners=[];
-  const shapes=new Map();
+  const shapes=new Map(),previews=new Map();
+  const path=points=>points.map(([lng,lat])=>({lat,lng}));
+  const removeShapes=items=>{for(const shape of items)shape.setMap(null);};
+  function polygons(row,options){return Z.areas(row).map(points=>new maps.Polygon({...options,paths:path(points)}));}
   function report(error){formError=error?.message||'';renderError();}
   function renderError(){const message=formError||engine?.error?.message||'';$('zoneError').textContent=root.I18n.message(message);$('zoneError').hidden=!message;}
   async function action(fn){try{formError='';await fn();}catch(error){report(error);}renderError();}
@@ -35,36 +38,58 @@
   function drawShapes(rows=engine.view()){
     if(!map||!maps?.Polygon)return;
     const signature=JSON.stringify([rows,engine.state.hidden,draft?.id]);if(signature===shapeSignature)return;shapeSignature=signature;
-    for(const shape of shapes.values())shape.setMap(null);shapes.clear();
+    for(const items of shapes.values())removeShapes(items);shapes.clear();
     for(const row of rows){if(row.id===draft?.id||engine.state.hidden.includes(row.id))continue;
-      const shape=new maps.Polygon({map,paths:row.geometry.coordinates[0].slice(0,-1).map(([lng,lat])=>({lat,lng})),strokeColor:row.properties.color,fillColor:row.properties.color,strokeWeight:2,fillOpacity:0.12,clickable:false,zIndex:1});
-      shapes.set(row.id,shape);
+      shapes.set(row.id,polygons(row,{map,strokeColor:row.properties.color,fillColor:row.properties.color,strokeWeight:2,fillOpacity:0.12,clickable:false,zIndex:1}));
     }
   }
-  function clearPreview(){sketch?.dispose();sketch=null;for(const listener of previewListeners)listener?.remove();previewListeners=[];preview?.setMap(null);preview=null;outline?.setMap(null);outline=null;}
+  function clearOutline(){removeShapes(outline);outline=[];}
+  function clearPreview(){sketch?.dispose();sketch=null;for(const listener of previewListeners)listener?.remove();previewListeners=[];removeShapes(previews.values());previews.clear();clearOutline();dragging=false;}
+  function readShape(index,shape){
+    if(!draft||saving)return;
+    draft.areas[index]=shape.getPath().getArray().map(point=>[point.lng(),point.lat()]);
+    if(index===draft.active)draft.points=draft.areas[index];
+  }
   function drawPreview(){
     if(!draft||!maps)return;
-    const path=draft.points.map(([lng,lat])=>({lat,lng})),color=$('zoneColor').value;
+    const color=$('zoneColor').value,original=draft;
+    draft.areas.forEach((points,index)=>{
+      if(draft.drawing&&index===draft.active)return;
+      if(!previews.has(index)){
+        const shape=new maps.Polygon({map,paths:path(points),strokeColor:color,fillColor:color,fillOpacity:0.22,strokeWeight:3,editable:!draft.drawing,draggable:!draft.drawing,clickable:!draft.drawing,zIndex:2});
+        previews.set(index,shape);
+        let observedPath=null,pathListeners=[];
+        const bindPath=()=>{const current=shape.getPath();if(observedPath===current)return;for(const listener of pathListeners)listener.remove();observedPath=current;pathListeners=['insert_at','set_at','remove_at'].map(name=>current.addListener(name,changed));};
+        const changed=()=>{if(draft!==original||saving)return;bindPath();readShape(index,shape);hint();};
+        bindPath();previewListeners.push({remove:()=>{for(const listener of pathListeners)listener.remove();pathListeners=[];}});
+        previewListeners.push(shape.addListener('path_changed',changed));
+        previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;hint();}}));
+        previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;changed();}));
+        previewListeners.push(shape.addListener('click',()=>{if(draft===original&&!draft.drawing&&!saving&&!dragging){draft.active=index;draft.points=draft.areas[index];drawPreview();}}));
+      }
+      previews.get(index).setOptions({strokeColor:color,fillColor:color,strokeWeight:index===draft.active?4:2,editable:!draft.drawing&&!saving,draggable:!draft.drawing&&!saving,clickable:!draft.drawing&&!saving});
+    });
     if(draft.drawing){
-      if(preview)clearPreview();
       if(!sketch)sketch=new root.ZonePreview({map,maps,LatLng,document,enabled:()=>!document.hidden&&!root.PanelDialogs.isOpen()});
       sketch.set(draft.points,color);
     }else{
       sketch?.dispose();sketch=null;
-      if(!preview){
-        preview=new maps.Polygon({map,paths:path,strokeColor:color,fillColor:color,fillOpacity:0.22,strokeWeight:3,editable:true,clickable:true,zIndex:2});
-        const points=preview.getPath();for(const name of ['insert_at','set_at','remove_at'])previewListeners.push(points.addListener(name,()=>{if(!draft)return;draft.points=points.getArray().map(point=>[point.lng(),point.lat()]);hint();}));
-      }else preview.setOptions({strokeColor:color,fillColor:color});
     }
     hint();
   }
   function hint(){
     if(!draft)return;
-    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj punkty granicy. Przerywana linia i wypełnienie pokazują podgląd do kursora. Potrzeba co najmniej trzech punktów.':'Przesuwaj punkty granicy. Zmiany zapiszą się dopiero po Zapisz strefę.')+' ('+draft.points.length+')';
+    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj punkty granicy. Prawy przycisk myszy kończy obszar po co najmniej trzech punktach.':'Przesuwaj punkty, aby zmienić granicę. Przytrzymaj wnętrze obszaru, aby go przesunąć. Dorysuj obszar dodaje kolejną część tej samej strefy.')+' ('+draft.points.length+')';
+    const markup=draft.areas.map((_,index)=>`<button type="button" class="button${index===draft.active?' primary':''}" data-zone-area="${index}" aria-pressed="${index===draft.active}"${draft.drawing||saving||dragging?' disabled':''}>${esc(t('Obszar'))} ${index+1}</button>`).join('');
+    if($('zoneAreas').innerHTML!==markup)$('zoneAreas').innerHTML=markup;
     $('zoneUndo').hidden=!draft.drawing;$('zoneUndo').disabled=!draft.points.length;
     $('zoneCenter').hidden=!draft.drawing;$('mapPanel').classList.toggle('zone-drawing',draft.drawing);
     $('zoneFinish').hidden=!draft.drawing;$('zoneFinish').disabled=draft.points.length<3;
-    $('zoneRedraw').hidden=draft.drawing;$('zoneSave').disabled=draft.drawing;
+    $('zoneRedraw').hidden=draft.drawing;$('zoneRedraw').disabled=saving||dragging;
+    $('zoneAddArea').hidden=draft.drawing;$('zoneAddArea').disabled=saving||dragging||draft.areas.length>=50;
+    $('zoneCancelArea').hidden=!draft.drawing||!draft.backup&&draft.areas.length===1;
+    $('zoneRemoveArea').hidden=draft.drawing||draft.areas.length===1;$('zoneRemoveArea').disabled=saving||dragging;
+    $('zoneSave').disabled=draft.drawing||saving||dragging;
   }
   function open(){root.GoogleMapSession?.closeCard();$('zonesPanel').hidden=false;$('zonesToggle').setAttribute('aria-expanded','true');refresh();}
   function cancel(){
@@ -83,25 +108,26 @@
     if(!maps.Polygon||!maps.Polyline||!maps.OverlayView||!LatLng||!root.ZonePreview)throw Error('Odśwież panel, aby wczytać narzędzia stref.');
     open();
     clearPreview();
-    draft={id:row?.id||root.CRMCore.uid(),base:row?Z.copy(row):null,points:row?Z.copy(row.geometry.coordinates[0].slice(0,-1)):[],drawing:!row,key:contextKey};
+    const areas=row?Z.areas(row):[[]];
+    draft={id:row?.id||root.CRMCore.uid(),base:row?Z.copy(row):null,areas,active:0,points:areas[0],drawing:!row,backup:null,key:contextKey};
     $('zoneName').value=row?.properties.name||'';$('zoneColor').value=row?.properties.color||'#3478c9';$('zoneOwner').value=row?.properties.owner||'';$('zoneStage').value=row?.properties.stage||'todo';
     $('zoneListView').hidden=true;$('zoneForm').hidden=false;map.setOptions({clickableIcons:false,draggableCursor:draft.drawing?'crosshair':null});shapeSignature='';drawShapes();drawPreview();
     if(row)zoom(row);else $('zoneName').focus();
   }
   function zoom(row){
     if(!map)return;
-    const points=row.geometry.coordinates[0],lngs=points.map(p=>p[0]),lats=points.map(p=>p[1]);map.fitBounds({west:Math.min(...lngs),east:Math.max(...lngs),south:Math.min(...lats),north:Math.max(...lats)},60);
+    const points=Z.areas(row).flat(),lngs=points.map(p=>p[0]),lats=points.map(p=>p[1]);map.fitBounds({west:Math.min(...lngs),east:Math.max(...lngs),south:Math.min(...lats),north:Math.max(...lats)},60);
   }
-  function showBoundary(row){if(!row||row.type!=='Feature'||!map)return;outline?.setMap(null);outline=new maps.Polygon({map,paths:row.geometry.coordinates[0].map(([lng,lat])=>({lat,lng})),strokeColor:row.properties.color,fillColor:row.properties.color,strokeWeight:4,fillOpacity:0.3,clickable:false,zIndex:3});zoom(row);}
+  function showBoundary(row){if(!row||row.type!=='Feature'||!map)return;clearOutline();outline=polygons(row,{map,strokeColor:row.properties.color,fillColor:row.properties.color,strokeWeight:4,fillOpacity:0.3,clickable:false,zIndex:3});zoom(row);}
   function summary(row){
     if(!row||row.type!=='Feature')return '<p>'+esc(t('Strefa usunięta lub nie istnieje.'))+'</p>';
-    const p=row.properties,points=row.geometry.coordinates[0].slice(0,-1);
-    return `<strong data-content>${esc(p.name)}</strong><p>${esc(t('Kolor'))}: ${esc(p.color)} · ${esc(p.owner||t('Wspólna'))} · ${esc(t(stageLabels[p.stage]))}</p><details><summary>${esc(t('Punkty granicy'))}: ${points.length}</summary><p>${points.map(([lng,lat])=>esc(lat.toFixed(6)+', '+lng.toFixed(6))).join('<br>')}</p></details>`;
+    const p=row.properties,areas=Z.areas(row);
+    return `<strong data-content>${esc(p.name)}</strong><p>${esc(t('Kolor'))}: ${esc(p.color)} · ${esc(p.owner||t('Wspólna'))} · ${esc(t(stageLabels[p.stage]))}</p>${areas.map((points,index)=>`<details><summary>${esc(t('Obszar'))} ${index+1} · ${esc(t('Punkty granicy'))}: ${points.length}</summary><p>${points.map(([lng,lat])=>esc(lat.toFixed(6)+', '+lng.toFixed(6))).join('<br>')}</p></details>`).join('')}`;
   }
   function renderConflict(){
     const conflicts=engine?.error?.conflicts||[];
     conflict=conflicts[0]||null;$('zoneConflict').hidden=!conflict;
-    if(!conflict){if(!draft){outline?.setMap(null);outline=null;}return;}
+    if(!conflict){if(!draft)clearOutline();return;}
     const own=engine.state.ops.filter(op=>(op.value||op.base).id===conflict.id).at(-1)?.value||null;
     const markup=`<h3>${esc(t('Porównaj strefy'))}</h3><p class="small-copy">${esc(t('Obie wersje są zachowane. Wybierz dane tej strefy; pozostałe strefy pozostaną bez zmian.'))}</p><div class="zone-comparison"><h4>${esc(t('Moja wersja'))}</h4>${summary(own)}${own?'<button type="button" class="text-button" data-zone-boundary="local">'+esc(t('Pokaż granicę'))+'</button>':''}<h4>${esc(t('Wspólna wersja'))}</h4>${summary(conflict.current)}${conflict.current?.type==='Feature'?'<button type="button" class="text-button" data-zone-boundary="remote">'+esc(t('Pokaż granicę'))+'</button>':''}</div><div class="zone-form-actions">${conflict.current?.type==='Feature'?'<button type="button" class="button" data-zone-choice="local">'+esc(t('Zachowaj moje dane'))+'</button>':''}<button type="button" class="button" data-zone-choice="remote">${esc(t('Wczytaj wspólną wersję'))}</button><button type="button" class="text-button" data-zone-compare>${esc(t('Porównaj ponownie'))}</button></div>`;
     if($('zoneConflict').innerHTML!==markup)$('zoneConflict').innerHTML=markup;
@@ -110,13 +136,44 @@
   $('zoneAdd').onclick=()=>action(()=>edit());$('zoneCancel').onclick=async()=>{if(await discard())cancel();};
   $('zoneUndo').onclick=()=>{if(draft?.drawing){draft.points.pop();drawPreview();}};
   $('zoneCenter').onclick=()=>{if(draft?.drawing)root.ZoneUI.mapClick({latLng:map.getCenter()});};
-  $('zoneFinish').onclick=()=>action(async()=>{Z.ring(draft.points);draft.drawing=false;map.setOptions({draggableCursor:null});drawPreview();});
-  $('zoneRedraw').onclick=async()=>{const original=draft;if(original&&await ask('Narysować granicę od nowa?',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&!saving){draft.points=[];draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();}};
+  function finish(){
+    if(!draft?.drawing||saving||root.PanelDialogs.isOpen())return;
+    Z.ring(draft.points);draft.drawing=false;draft.backup=null;map.setOptions({draggableCursor:null});clearPreview();drawPreview();
+  }
+  $('zoneFinish').onclick=()=>action(finish);
+  $('businessMap').addEventListener('contextmenu',event=>{
+    if(!draft?.drawing||saving||root.PanelDialogs.isOpen())return;
+    event.preventDefault();event.stopPropagation();void action(finish);
+  },true);
+  $('zoneAddArea').onclick=()=>action(()=>{
+    if(!draft||draft.drawing||saving||dragging)return;
+    if(draft.areas.length>=50)throw Error('Strefa może mieć od 1 do 50 obszarów.');
+    clearPreview();draft.active=draft.areas.length;draft.points=[];draft.areas.push(draft.points);draft.drawing=true;draft.backup=null;
+    map.setOptions({draggableCursor:'crosshair'});drawPreview();
+  });
+  $('zoneAreas').addEventListener('click',event=>{
+    const control=event.target.closest('[data-zone-area]');if(!control||!draft||draft.drawing||saving||dragging)return;
+    const index=Number(control.dataset.zoneArea);if(!Number.isInteger(index)||!draft.areas[index])return;
+    draft.active=index;draft.points=draft.areas[index];drawPreview();
+  });
+  $('zoneCancelArea').onclick=()=>{if(!draft?.drawing||saving)return;
+    if(draft.backup)draft.areas[draft.active]=draft.backup;
+    else if(draft.areas.length>1){draft.areas.splice(draft.active,1);draft.active=Math.max(0,draft.active-1);}
+    else return;
+    draft.points=draft.areas[draft.active];draft.backup=null;draft.drawing=false;formError='';renderError();map.setOptions({draggableCursor:null});clearPreview();drawPreview();
+  };
+  $('zoneRedraw').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&!dragging&&await ask('Narysować wybrany obszar od nowa? Pozostałe obszary zostaną zachowane.',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&draft.active===index&&!saving){
+    clearPreview();draft.backup=Z.copy(draft.points);draft.points=[];draft.areas[index]=draft.points;draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();
+  }};
+  $('zoneRemoveArea').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&original.areas.length>1&&!saving&&!dragging&&await ask(t('Obszar')+' '+(index+1)+'\n\n'+t('Usunąć ten obszar ze strefy? Pozostałe obszary zostaną zachowane.'),{title:'Usuń obszar',accept:'Usuń obszar',danger:true})&&draft===original&&draft.active===index&&!saving){
+    clearPreview();draft.areas.splice(index,1);draft.active=Math.max(0,index-1);draft.points=draft.areas[draft.active];drawPreview();
+  }};
   $('zoneColor').addEventListener('input',()=>{if(draft)drawPreview();});
   $('zoneForm').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{
-    if(!draft||draft.drawing||saving)return;if(draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
-    const author=profile(),value=Z.create(draft.points,{name:$('zoneName').value,color:$('zoneColor').value,owner:$('zoneOwner').value,stage:$('zoneStage').value},author,draft.base,draft.id);
-    saving=true;$('zoneSave').disabled=true;$('zoneCancel').disabled=true;try{await engine.apply(Z.operation('save',draft.base,value,author));cancel();}finally{saving=false;$('zoneCancel').disabled=false;if(draft)hint();}
+    if(!draft||draft.drawing||saving||dragging)return;if(draft.key!==contextKey)throw Error('Połączenie zmieniło się. Wróć do poprzedniej bazy lub anuluj szkic strefy.');
+    for(const [index,shape]of previews)readShape(index,shape);
+    const author=profile(),value=Z.createAreas(draft.areas,{name:$('zoneName').value,color:$('zoneColor').value,owner:$('zoneOwner').value,stage:$('zoneStage').value},author,draft.base,draft.id);
+    saving=true;drawPreview();$('zoneCancel').disabled=true;try{await engine.apply(Z.operation('save',draft.base,value,author));cancel();}finally{saving=false;$('zoneCancel').disabled=false;if(draft)drawPreview();}
   });});
   $('zoneList').addEventListener('change',event=>{const id=event.target.dataset?.zoneVisible;if(id)void action(()=>engine.hide(id,!event.target.checked));});
   $('zoneList').addEventListener('click',event=>{for(const [selector,kind]of[['[data-zone-zoom]','zoneZoom'],['[data-zone-edit]','zoneEdit'],['[data-zone-delete]','zoneDelete']]){

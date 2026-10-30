@@ -214,7 +214,9 @@
           <div id="zoneListView"><button id="zoneAdd" type="button" class="button primary">Dodaj strefę</button><div id="zoneList"></div></div>
           <form id="zoneForm" hidden>
             <p id="zoneDrawHint" class="small-copy">Klikaj na mapie kolejne punkty granicy. Potrzeba co najmniej trzech.</p>
-            <div class="zone-draw-actions"><button id="zoneCenter" type="button" class="button">Dodaj punkt ze środka mapy</button><button id="zoneUndo" type="button" class="button">Cofnij punkt</button><button id="zoneFinish" type="button" class="button">Zakończ rysowanie</button><button id="zoneRedraw" type="button" class="button" hidden>Narysuj od nowa</button></div>
+            <p class="small-copy">Jedna strefa może zawierać kilka obszarów w różnych miejscach.</p>
+            <div id="zoneAreas" class="zone-draw-actions" role="group" aria-label="Obszary strefy"></div>
+            <div class="zone-draw-actions"><button id="zoneCenter" type="button" class="button">Dodaj punkt ze środka mapy</button><button id="zoneUndo" type="button" class="button">Cofnij punkt</button><button id="zoneFinish" type="button" class="button">Zakończ rysowanie</button><button id="zoneAddArea" type="button" class="button" hidden>Dorysuj obszar</button><button id="zoneCancelArea" type="button" class="button" hidden>Anuluj obszar</button><button id="zoneRedraw" type="button" class="button" hidden>Narysuj od nowa</button><button id="zoneRemoveArea" type="button" class="text-button delete-company" hidden>Usuń obszar</button></div>
             <label for="zoneName">Nazwa strefy</label><input id="zoneName" maxlength="100" required autocomplete="off">
             <div class="zone-fields"><div><label for="zoneColor">Kolor</label><input id="zoneColor" type="color" value="#3478c9"></div><div><label for="zoneOwner">Przypisana do</label><select id="zoneOwner"><option value="">Wspólna</option><option value="T">T</option><option value="K">K</option></select></div></div>
             <label for="zoneStage">Praca w strefie</label><select id="zoneStage"><option value="todo">Do przejrzenia</option><option value="doing">W trakcie</option><option value="done">Gotowe</option></select>
@@ -442,7 +444,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
     <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=93b661aea2c3"></script>
+    <script src="assets/js/translations.js?v=65601a2a2e09"></script>
     <script src="assets/js/i18n.js?v=1e84650cc321"></script>
     <script src="assets/js/dialogs.js?v=1fe1359b0833"></script>
     <script src="assets/js/core.js?v=45881e5f4eb6"></script>
@@ -450,13 +452,13 @@
     <script src="assets/js/storage.js?v=c8b9ad446e86"></script>
     <script src="assets/js/network.js?v=c94e805be642"></script>
     <script src="assets/js/github.js?v=8ea726c801ca"></script>
-    <script src="assets/js/zone-core.js?v=5b521d21eb2a"></script>
+    <script src="assets/js/zone-core.js?v=2a51cba1878d"></script>
     <script src="assets/js/zone-sync.js?v=2f263069a429"></script>
     <script src="assets/js/app.js?v=e00f5ce3544c"></script>
     <script src="assets/js/ui.js?v=2d160211d801"></script>
     <script src="assets/js/map.js?v=84b26bbb5a8d"></script>
     <script src="assets/js/zone-preview.js?v=af55b8ae12e0"></script>
-    <script src="assets/js/zones.js?v=84bd2af4f5e6"></script>
+    <script src="assets/js/zones.js?v=0edc017ab4da"></script>
     <script src="assets/js/title-animation.js?v=044fd97935e3"></script>
   </body>
 </html>
