@@ -259,7 +259,7 @@
       if (selected && !actionDirty()) { if (byId(selected)) openClient(selected, true); else closeDrawer(true); }
     } catch (error) {
       candidate?.close(); connectionError = I18n.message('Nie połączono zapamiętanej bazy. Otwórz ustawienia GitHuba.') + ' ' + I18n.message(error.message);
-      if (reading && !blockedSync(error)) restoreRetryAt = Date.now() + Math.min(30000, 5000 * 2 ** Math.min(restoreFailures++, 3));
+      if (reading && !blockedSync(error)) restoreRetryAt = Math.max(error.retryAt || 0, Date.now() + Math.min(30000, 5000 * 2 ** Math.min(restoreFailures++, 3)));
     } finally { restoringGitHub = false; githubBusy = false; connectionUI(); kickSync(); }
     return true;
   }
