@@ -60,14 +60,14 @@
         previews.set(index,shape);
         let observedPath=null,pathListeners=[];
         const bindPath=()=>{const current=shape.getPath();if(observedPath===current)return;for(const listener of pathListeners)listener.remove();observedPath=current;pathListeners=['insert_at','set_at','remove_at'].map(name=>current.addListener(name,changed));};
-        const changed=()=>{if(draft!==original||saving)return;draft.readyForNext=false;map.setOptions({draggableCursor:null});bindPath();readShape(index,shape);hint();};
+        const changed=()=>{if(draft!==original||saving)return;bindPath();readShape(index,shape);hint();};
         bindPath();previewListeners.push({remove:()=>{for(const listener of pathListeners)listener.remove();pathListeners=[];}});
         previewListeners.push(shape.addListener('path_changed',changed));
-        previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;draft.readyForNext=false;map.setOptions({draggableCursor:null});hint();}}));
+        previewListeners.push(shape.addListener('dragstart',()=>{if(draft===original&&!saving){dragging=true;hint();}}));
         previewListeners.push(shape.addListener('dragend',()=>{if(draft!==original)return;dragging=false;changed();}));
         previewListeners.push(shape.addListener('click',event=>{if(draft===original&&!draft.drawing&&!saving&&!dragging){
-          if(draft.readyForNext&&event?.latLng&&event.vertex===undefined&&event.edge===undefined){event.domEvent?.stopPropagation?.();root.ZoneUI.mapClick(event);return;}
-          draft.readyForNext=false;map.setOptions({draggableCursor:null});
+          if(draft.areas.length<50&&event?.latLng&&event.vertex===undefined&&event.edge===undefined){event.domEvent?.stopPropagation?.();root.ZoneUI.mapClick(event);return;}
+          
           draft.active=index;draft.points=draft.areas[index];drawPreview();
         }}));
       }
@@ -83,7 +83,7 @@
   }
   function hint(){
     if(!draft)return;
-    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj punkty granicy. Zamknij obszar kliknięciem pierwszego punktu lub prawym przyciskiem myszy.':draft.readyForNext?'Obszar zamknięty. Kliknij na mapie, aby zacząć kolejny, lub zapisz strefę.':'Przesuwaj punkty, aby zmienić granicę. Przytrzymaj wnętrze obszaru, aby go przesunąć. Dorysuj obszar dodaje kolejną część tej samej strefy.')+' ('+draft.points.length+')';
+    $('zoneDrawHint').textContent=t(draft.drawing?'Klikaj punkty granicy. Zamknij obszar kliknięciem pierwszego punktu lub prawym przyciskiem myszy.':draft.areas.length<50?'Tryb edycji: kliknij mapę, aby dorysować obszar. Przesuwaj punkty lub wnętrze obszaru. Na koniec zapisz strefę albo anuluj.':'Osiągnięto limit 50 obszarów. Możesz poprawiać granice i przesuwać obszary.')+' ('+draft.points.length+')';
     const markup=draft.areas.map((_,index)=>`<button type="button" class="button${index===draft.active?' primary':''}" data-zone-area="${index}" aria-pressed="${index===draft.active}"${draft.drawing||saving||dragging?' disabled':''}>${esc(t('Obszar'))} ${index+1}</button>`).join('');
     if($('zoneAreas').innerHTML!==markup)$('zoneAreas').innerHTML=markup;
     $('zoneUndo').hidden=!draft.drawing;$('zoneUndo').disabled=!draft.points.length;
@@ -113,9 +113,9 @@
     open();
     clearPreview();
     const areas=row?Z.areas(row):[[]];
-    draft={id:row?.id||root.CRMCore.uid(),base:row?Z.copy(row):null,areas,active:0,points:areas[0],drawing:!row,readyForNext:false,backup:null,key:contextKey};
+    draft={id:row?.id||root.CRMCore.uid(),base:row?Z.copy(row):null,areas,active:0,points:areas[0],drawing:!row,backup:null,key:contextKey};
     $('zoneName').value=row?.properties.name||'';$('zoneColor').value=row?.properties.color||'#3478c9';$('zoneOwner').value=row?.properties.owner||'';$('zoneStage').value=row?.properties.stage||'todo';
-    $('zoneListView').hidden=true;$('zoneForm').hidden=false;map.setOptions({clickableIcons:false,draggableCursor:draft.drawing?'crosshair':null});shapeSignature='';drawShapes();drawPreview();
+    $('zoneListView').hidden=true;$('zoneForm').hidden=false;map.setOptions({clickableIcons:false,draggableCursor:'crosshair'});shapeSignature='';drawShapes();drawPreview();
     if(row)zoom(row);else $('zoneName').focus();
   }
   function zoom(row){
@@ -142,7 +142,7 @@
   $('zoneCenter').onclick=()=>{if(draft?.drawing)root.ZoneUI.mapClick({latLng:map.getCenter()});};
   function finish(){
     if(!draft?.drawing||saving||root.PanelDialogs.isOpen())return;
-    Z.ring(draft.points);draft.drawing=false;draft.readyForNext=draft.areas.length<50;draft.backup=null;map.setOptions({draggableCursor:draft.readyForNext?'crosshair':null});clearPreview();drawPreview();
+    Z.ring(draft.points);draft.drawing=false;draft.backup=null;map.setOptions({draggableCursor:'crosshair'});clearPreview();drawPreview();
   }
   $('zoneFinish').onclick=()=>action(finish);
   $('businessMap').addEventListener('contextmenu',event=>{
@@ -152,26 +152,26 @@
   function addArea(){
     if(!draft||draft.drawing||saving||dragging)return;
     if(draft.areas.length>=50)throw Error('Strefa może mieć od 1 do 50 obszarów.');
-    clearPreview();draft.active=draft.areas.length;draft.points=[];draft.areas.push(draft.points);draft.drawing=true;draft.readyForNext=false;draft.backup=null;
+    clearPreview();draft.active=draft.areas.length;draft.points=[];draft.areas.push(draft.points);draft.drawing=true;draft.backup=null;
     map.setOptions({draggableCursor:'crosshair'});drawPreview();
   }
   $('zoneAddArea').onclick=()=>action(addArea);
   $('zoneAreas').addEventListener('click',event=>{
     const control=event.target.closest('[data-zone-area]');if(!control||!draft||draft.drawing||saving||dragging)return;
     const index=Number(control.dataset.zoneArea);if(!Number.isInteger(index)||!draft.areas[index])return;
-    draft.active=index;draft.points=draft.areas[index];draft.readyForNext=false;map.setOptions({draggableCursor:null});drawPreview();
+    draft.active=index;draft.points=draft.areas[index];drawPreview();
   });
   $('zoneCancelArea').onclick=()=>{if(!draft?.drawing||saving)return;
     if(draft.backup)draft.areas[draft.active]=draft.backup;
     else if(draft.areas.length>1){draft.areas.splice(draft.active,1);draft.active=Math.max(0,draft.active-1);}
     else return;
-    draft.points=draft.areas[draft.active];draft.backup=null;draft.drawing=false;draft.readyForNext=false;formError='';renderError();map.setOptions({draggableCursor:null});clearPreview();drawPreview();
+    draft.points=draft.areas[draft.active];draft.backup=null;draft.drawing=false;formError='';renderError();map.setOptions({draggableCursor:'crosshair'});clearPreview();drawPreview();
   };
   $('zoneRedraw').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&!dragging&&await ask('Narysować wybrany obszar od nowa? Pozostałe obszary zostaną zachowane.',{title:'Nowa granica strefy',accept:'Narysuj od nowa',danger:true})&&draft===original&&draft.active===index&&!saving){
-    clearPreview();draft.backup=Z.copy(draft.points);draft.points=[];draft.areas[index]=draft.points;draft.drawing=true;draft.readyForNext=false;map.setOptions({draggableCursor:'crosshair'});drawPreview();
+    clearPreview();draft.backup=Z.copy(draft.points);draft.points=[];draft.areas[index]=draft.points;draft.drawing=true;map.setOptions({draggableCursor:'crosshair'});drawPreview();
   }};
   $('zoneRemoveArea').onclick=async()=>{const original=draft,index=draft?.active;if(original&&!original.drawing&&original.areas.length>1&&!saving&&!dragging&&await ask(t('Obszar')+' '+(index+1)+'\n\n'+t('Usunąć ten obszar ze strefy? Pozostałe obszary zostaną zachowane.'),{title:'Usuń obszar',accept:'Usuń obszar',danger:true})&&draft===original&&draft.active===index&&!saving){
-    clearPreview();draft.areas.splice(index,1);draft.active=Math.max(0,index-1);draft.points=draft.areas[draft.active];draft.readyForNext=false;map.setOptions({draggableCursor:null});drawPreview();
+    clearPreview();draft.areas.splice(index,1);draft.active=Math.max(0,index-1);draft.points=draft.areas[draft.active];drawPreview();
   }};
   $('zoneColor').addEventListener('input',()=>{if(draft)drawPreview();});
   $('zoneForm').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{
@@ -207,7 +207,7 @@
   root.ZoneUI={status:()=>engine?.status()||{},editing:()=>!!draft,
     mapClick:event=>{
       if(!draft)return false;event.stop?.();if(saving||dragging||root.PanelDialogs.isOpen()||document.hidden||!event.latLng)return true;
-      if(!draft.drawing&&draft.readyForNext)addArea();
+      if(!draft.drawing&&draft.areas.length<50)addArea();
       if(draft.drawing){
         if(sketch?.isStart(event.latLng)){void action(finish);return true;}
         if(draft.points.length>=500){report(Error('Strefa potrzebuje od 3 do 500 punktów.'));return true;}
