@@ -26,6 +26,9 @@
     }
     Object.values(snapshot.patches).forEach(C.callHistory);
     Object.values(snapshot.removed || {}).flat().forEach(C.callHistory);
+    const activityRecords = [...snapshot.added, ...(snapshot.imported || []), ...Object.values(snapshot.patches), ...Object.values(snapshot.removed || {}).flat(),
+      ...(batch ? [...batch.base, ...batch.added, ...Object.values(batch.patches), ...Object.values(batch.removed || {}).flat()] : [])];
+    activityRecords.forEach(C.activityHistory);
     return snapshot;
   }
   class BrowserStore {

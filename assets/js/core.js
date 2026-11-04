@@ -35,6 +35,7 @@
     for (const row of records) {
       for (const key of ['Dodal', 'Edytowal', 'Dzwonil', 'Mapa_edytowal']) add(row[key]);
       for (const call of callHistory(row)) add(call.by);
+      for (const event of activityHistory(row)) add(event.by);
     }
     extras.forEach(add);
     return ['T', 'K', ...[...names.values()].filter(name => !['T', 'K'].includes(name)).sort((a,b) => a.localeCompare(b, 'pl'))];
@@ -83,6 +84,7 @@
       return cleanRecord(record);
     });
     if (new Set(records.map(r => r.Id)).size !== records.length) throw new Error('CSV zawiera powtórzone identyfikatory klientów.');
+    records.forEach(activityHistory);
     return { headers: cleanHeaders(headers), records };
   }
   function stableId(record) {
@@ -123,13 +125,19 @@
       if (calls.length && JSON.stringify(unionCalls(callHistory(shared), calls)) !== JSON.stringify(callHistory(shared))) {
         pending[record.Id] = { ...pending[record.Id], ...callSummary(calls) };
       }
+      const activity = unionActivity(activityHistory(record), activityHistory(pending[record.Id] || {}));
+      if (activity.length && JSON.stringify(unionActivity(activityHistory(shared), activity)) !== JSON.stringify(activityHistory(shared))) {
+        pending[record.Id] = { ...pending[record.Id], Historia_aktywnosci: JSON.stringify(activity) };
+      }
     }
     return { base: [...originals.values()], patches: pending, added: fresh };
   }
   function sameCompany(left, right) {
     left = cleanRecord(left); right = cleanRecord(right);
     const ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
-    return [...new Set([...Object.keys(left), ...Object.keys(right)])].every(key => ignored.includes(key) || String(left[key] ?? '') === String(right[key] ?? ''));
+    return [...new Set([...Object.keys(left), ...Object.keys(right)])].every(key => key === 'Historia_aktywnosci'
+      ? JSON.stringify(activityHistory(left)) === JSON.stringify(activityHistory(right))
+      : ignored.includes(key) || String(left[key] ?? '') === String(right[key] ?? ''));
   }
   function retainedMapDecision(record) {
     if (!record?.Google_place_id || record.Mapa_status !== 'wykreslona') return null;
@@ -167,6 +175,7 @@
       const before = original.get(id); const after = current.get(id);
       if (!after || before && !isMapDecisionOnly(before) && isMapDecisionOnly(after)) { if (before) conflicts.push({ id, name: companyName(before), field: 'Usunięty w pliku', value: '' }); continue; }
       for (const [key, value] of Object.entries(cleanRecord(patch))) {
+        if (key === 'Historia_aktywnosci') continue;
         if (callColumns.includes(key) && patch.Historia_polaczen) continue;
         if (!['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'].includes(key) && before && String(after[key] ?? '') !== String(before[key] ?? '') && String(after[key] ?? '') !== String(value ?? '')) {
           conflicts.push({ id, name: companyName(after), field: key, value: after[key] });
@@ -174,20 +183,25 @@
         after[key] = value;
       }
       if (patch.Historia_polaczen) Object.assign(after, callSummary(unionCalls(callHistory(after), callHistory(patch))));
+      if (Object.hasOwn(patch, 'Historia_aktywnosci')) after.Historia_aktywnosci = mergedActivityText(after, patch);
     }
     for (const record of added.map(cleanRecord)) {
+      activityHistory(record);
       if (Object.hasOwn(removed, record.Id)) continue;
       if (!current.has(record.Id)) {
         const duplicate = [...current.values()].find(r => (record.Google_place_id && r.Google_place_id === record.Google_place_id) || record.Firma?.trim() && norm(r.Firma.trim()) === norm(record.Firma.trim()));
         if (duplicate) conflicts.push({ id: record.Id, name: companyName(record), field: 'Ta firma została już dodana pod innym Id. Odśwież listę.', value: '' });
         else current.set(record.Id, { ...record, ...(Object.hasOwn(patches, record.Id) ? patches[record.Id] : {}) });
       } else if (!original.has(record.Id)) {
-        const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano'];
+        const existing = current.get(record.Id), ignored = ['Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Google_pobrano', 'Historia_aktywnosci'];
         const different = [...new Set([...Object.keys(existing), ...Object.keys(record)])].some(key => !ignored.includes(key) && String(existing[key] || '') !== String(record[key] || ''));
         if (different) conflicts.push({ id: record.Id, name: companyName(record), field: 'Nowy klient o tym samym Id', value: '' });
+        else if (record.Historia_aktywnosci || existing.Historia_aktywnosci) existing.Historia_aktywnosci = mergedActivityText(existing, record);
       }
     }
-    return { records: [...current.values()].map(cleanRecord), conflicts };
+    const records = [...current.values()].map(cleanRecord);
+    records.forEach(activityHistory);
+    return { records, conflicts };
   }
   function norm(value) { return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase(); }
   function recordIndex(records) {
@@ -255,8 +269,8 @@
   }
   const selectionColumns = ['Mapa_status', 'Mapa_edytowal', 'Mapa_edytowano', 'Powod_wykreslenia', 'Odrzucono', 'Mapa_potwierdzono'];
   const googleColumns = ['Google_nazwa', 'Google_telefon', 'Google_strona', 'Google_adres', 'Google_pobrano'];
-  const extraColumns = [...selectionColumns, ...googleColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
-  const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta'];
+  const extraColumns = [...selectionColumns, ...googleColumns, 'Google_place_id', 'Adres', 'Dodal', 'Dodano', 'Id', 'Etap', 'Notatki', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta', 'Historia_aktywnosci'];
+  const workflowColumns = [...selectionColumns, 'Google_place_id', 'Dodal', 'Dodano', 'Id', 'Etap', 'Status', 'Notatki', 'Nastepny krok', 'Termin', 'Wycena', 'Godziny', 'Zgoda data i zakres', 'Modyfikacja', 'Edytowal', ...callColumns, 'Plik_edytowano', 'Plik_edytowal', 'Priorytet roboczy', 'Przypieta', 'Historia_aktywnosci'];
   function uid() { return root.crypto?.randomUUID ? root.crypto.randomUUID() : 'wpis-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12); }
   function callHistory(record) {
     if (!record.Historia_polaczen) {
@@ -289,6 +303,78 @@
     }
     return callSummary(unionCalls(callHistory(record), [event]));
   }
+  const activityTypes = ['added', 'reviewed', 'excluded', 'restored', 'edited'];
+  function activityHistory(record) {
+    if (!record.Historia_aktywnosci) return [];
+    let events;
+    try { events = JSON.parse(record.Historia_aktywnosci); }
+    catch { throw new Error('Nieprawidłowa historia aktywności. Zachowaj kopię przed naprawą.'); }
+    if (!Array.isArray(events) || events.some(event => !event || typeof event.id !== 'string' || !event.id ||
+        typeof event.at !== 'string' || !Number.isFinite(Date.parse(event.at)) || typeof event.by !== 'string' || !event.by ||
+        !activityTypes.includes(event.type) || event.fields !== undefined && (!Array.isArray(event.fields) || event.fields.length > 60 || event.fields.some(field => typeof field !== 'string')))) {
+      throw new Error('Historia aktywności ma nieprawidłowy format.');
+    }
+    return unionActivity([], events);
+  }
+  function unionActivity(left, right) {
+    const events = new Map();
+    for (const event of [...left, ...right]) {
+      const existing = events.get(event.id);
+      const fields = value => JSON.stringify([...new Set(value.fields || [])].sort());
+      if (existing && (existing.at !== event.at || existing.by !== event.by || existing.type !== event.type || fields(existing) !== fields(event))) {
+        throw new Error('Historia aktywności zawiera sprzeczne zdarzenia z tym samym identyfikatorem.');
+      }
+      if (!existing) events.set(event.id, event);
+    }
+    return [...events.values()].sort((a,b) => Date.parse(a.at) - Date.parse(b.at) || a.id.localeCompare(b.id));
+  }
+  function mergedActivityText(left, right) {
+    const events = unionActivity(activityHistory(left), activityHistory(right));
+    return events.length ? JSON.stringify(events) : '';
+  }
+  function activityPatch(record, type, by, at = new Date().toISOString(), id = uid(), fields = []) {
+    const event = { id, at, by, type, ...(fields.length ? { fields: [...new Set(fields)].sort() } : {}) };
+    return { Historia_aktywnosci: mergedActivityText(record, { Historia_aktywnosci: JSON.stringify([event]) }) };
+  }
+  function legacyMapActivity(record) {
+    const type = record.Mapa_status === 'wykreslona' ? 'excluded'
+      : record.Mapa_status === 'przejrzana' && record.Mapa_potwierdzono && record.Mapa_potwierdzono === record.Mapa_edytowano ? 'reviewed' : null;
+    if (!type) return null;
+    const journal = activityHistory(record);
+    const lastMap = journal.filter(event => ['added', 'reviewed', 'excluded', 'restored'].includes(event.type)).at(-1);
+    if (journal.some(event => event.type === type && event.at === record.Mapa_edytowano && profileKey(event.by) === profileKey(record.Mapa_edytowal)) ||
+        lastMap?.type === type || lastMap && Date.parse(record.Mapa_edytowano) < Date.parse(lastMap.at) ||
+        journal.some(event => event.type === 'edited' && event.at === record.Mapa_edytowano && profileKey(event.by) === profileKey(record.Mapa_edytowal) &&
+          event.fields?.some(field => field.startsWith('Mapa_') || field === 'Powod_wykreslenia'))) return null;
+    return { id: ['legacy-map', record.Id, type, record.Mapa_edytowano || '', record.Mapa_edytowal || ''].join('|'),
+      at: record.Mapa_edytowano || '', by: record.Mapa_edytowal || '', type };
+  }
+  function activityForChange(original, patch, newRecord, by, at) {
+    // Provider refreshes and phone status side effects are not extra work.
+    if (patch.Historia_polaczen || original && isMapDecisionOnly(original) && patch.Mapa_status !== 'dodana') return {};
+    const source = newRecord || patch;
+    const ignored = ['Historia_aktywnosci', ...callColumns, ...googleColumns, 'Modyfikacja', 'Edytowal', 'Plik_edytowano', 'Plik_edytowal', 'Mapa_edytowal', 'Mapa_edytowano'];
+    const fields = Object.keys(source).filter(key => !ignored.includes(key) && String(source[key] ?? '') !== String(original?.[key] ?? ''));
+    if (!fields.length) return {};
+    let type = newRecord ? 'added' : 'edited';
+    if (source.Mapa_status && (!original || source.Mapa_status !== original.Mapa_status || source.Mapa_status === 'przejrzana' && !original.Mapa_potwierdzono && source.Mapa_potwierdzono)) {
+      type = source.Mapa_status === 'wykreslona' ? 'excluded' : source.Mapa_status === 'przejrzana' ? 'reviewed'
+        : original?.Mapa_status === 'wykreslona' ? 'restored' : !newRecord && !original?.Mapa_status ? 'edited' : 'added';
+    }
+    let previous = original || newRecord || {};
+    if (original && (!original.Mapa_status || original.Mapa_status === 'dodana') &&
+        !activityHistory(original).some(event => event.type === 'added' || event.type === 'restored') &&
+        (isHumanAuthor(original.Dodal) || profileKey(original.Dodal) === 'ai') && Number.isFinite(Date.parse(original.Dodano))) {
+      previous = { ...previous, ...activityPatch(previous, 'added', original.Dodal, original.Dodano, 'legacy-added-' + original.Id) };
+    }
+    const legacy = original && legacyMapActivity(original);
+    // Preserve the one recorded decision before a human changes its metadata.
+    // Dates, actors and missing earlier actions are never reconstructed.
+    if (legacy && ['T', 'K'].includes(legacy.by) && Number.isFinite(Date.parse(legacy.at))) {
+      previous = { ...previous, ...activityPatch(previous, legacy.type, legacy.by, legacy.at, legacy.id) };
+    }
+    return activityPatch(previous, type, by, source.Mapa_edytowano || at, undefined, type === 'edited' ? fields : []);
+  }
   function fileMeta(records) {
     let at = '', by = '';
     for (const r of records) if (Number.isFinite(Date.parse(r.Plik_edytowano)) && (!at || Date.parse(r.Plik_edytowano) > Date.parse(at))) { at = r.Plik_edytowano; by = r.Plik_edytowal || ''; }
@@ -313,9 +399,11 @@
       if (!String(match.Notatki || '').trim() && typeof row.Notatki === 'string' && row.Notatki.trim()) patch.Notatki = row.Notatki;
       const mergedHistory = unionCalls(callHistory(match), callHistory(row));
       if (JSON.stringify(mergedHistory) !== JSON.stringify(callHistory(match))) Object.assign(patch, callSummary(mergedHistory));
+      const mergedEvents = mergedActivityText(match, row);
+      if (mergedEvents !== (match.Historia_aktywnosci || '')) patch.Historia_aktywnosci = mergedEvents;
       if (Object.keys(patch).length) { patches[match.Id] = { ...(patches[match.Id] || {}), ...patch }; const index = seen.findIndex(r => r.Id === match.Id); seen[index] = { ...match, ...patch }; }
     }
     return { patches, added };
   }
-  root.CRMCore = { profileName, profileKey, isHumanAuthor, teamProfiles, recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { legacyMapActivity, activityHistory, activityPatch, activityForChange, profileName, profileKey, isHumanAuthor, teamProfiles, recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

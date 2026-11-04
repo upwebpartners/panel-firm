@@ -10,7 +10,7 @@
     </title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem('atlas.theme')||'light';document.documentElement.lang=localStorage.getItem('atlas.language')||'pl'}catch{}</script>
     <link rel="icon" type="image/png" href="assets/UP-logo.png?v=7b80357c01e5">
-    <link rel="stylesheet" href="assets/css/style.css?v=72095329b2d4">
+    <link rel="stylesheet" href="assets/css/style.css?v=b6f72fde9c50">
   </head>
   <body data-csv-url="klienci.csv">
     <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -195,18 +195,20 @@
         </div>
       </section>
       <section id="statsPanel" class="stats-panel" role="tabpanel" aria-labelledby="statsTab" hidden>
-        <div class="stats-heading"><div><h1>Statystyki zespołu</h1><p>Porównaj dodane firmy, telefony i wyniki rozmów.</p></div></div>
+        <div class="stats-heading"><div><h1>Statystyki zespołu</h1><p>Porównaj ogólną aktywność, pracę na mapie, firmy i rozmowy.</p></div></div>
         <div class="stats-filters">
           <label>Okres<select id="statsPeriod"><option value="all">Cały okres</option><option value="today">Dzisiaj</option><option value="7">Ostatnie 7 dni</option><option value="30">Ostatnie 30 dni</option></select></label>
-          <label>Porównaj według<select id="statsMetric"><option value="calls">Telefonów</option><option value="added">Dodanych firm</option><option value="positive">Pozytywnych rozmów</option></select></label>
+          <label>Porównaj według<select id="statsMetric"><option value="activity">Ogólnej aktywności</option><option value="excluded">Wykreśleń</option><option value="reviewed">Przejrzeń</option><option value="restored">Przywróceń</option><option value="edited">Zmian danych</option><option value="calls">Telefonów</option><option value="added">Dodanych firm</option><option value="positive">Pozytywnych rozmów</option></select></label>
           <label class="stats-ai"><input id="statsAI" type="checkbox">Pokaż wpisy AI</label>
         </div>
         <p class="small-copy">Pozytywne rozmowy to wyniki Zainteresowany i Prosi o ofertę. Każdą rozmowę liczymy osobno, a firmy z telefonem bez powtórzeń dla danej osoby.</p>
+        <p class="small-copy">Ogólna aktywność to dodania, telefony, przejrzenia, wykreślenia, przywrócenia i zapisy zmian danych. Automatyczne odświeżenia nie zwiększają wyniku.</p>
+        <p class="small-copy">Starsze dane pokazują tylko zachowaną decyzję mapy. Kolejne działania i zmiany danych zapisujemy od tej aktualizacji. Samo otwarcie miejsca nie jest przejrzeniem.</p>
         <p id="statsPending" class="small-copy" role="status" hidden>Statystyki obejmują też Twoje niewysłane zmiany.</p>
         <p id="statsIncomplete" class="small-copy" hidden></p>
         <div id="statsError" class="form-error" role="alert" hidden></div>
         <div id="statsContent"></div>
-        <p class="small-copy stats-footnote">Dodane firmy liczymy dla obecnej listy Firm, według autora i daty dodania. Rozmowy liczymy z historii w obecnej bazie. Usunięte dane i brakujące autorstwo nie są odtwarzane. Filtry Firm nie wpływają na wyniki.</p>
+        <p class="small-copy stats-footnote">Liczymy zapisane działania z obecnej bazy, także wykreślone miejsca bez danych firmy. Usunięte historie i brakujące autorstwo nie są odtwarzane. Filtry Firm nie wpływają na wyniki.</p>
       </section>
       <section id="mapPanel" class="map-panel" role="tabpanel" aria-labelledby="mapTab" hidden>
         <div id="businessMap" aria-label="Mapa firm" tabindex="0"></div>
@@ -482,19 +484,19 @@
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     </div>
-    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano"], "records": []}</script>
-    <script src="assets/js/translations.js?v=0db577fcfc45"></script>
+    <script id="initial-data" type="application/json">{"headers": ["Firma", "Branza", "Miejscowosc", "Strona", "Sprawdzony problem", "Ocena 0-10", "Zrodlo kontaktu", "Zgoda data i zakres", "Status", "Nastepny krok", "Termin", "Wycena", "Godziny", "Telefon", "Email", "Priorytet roboczy", "Data sprawdzenia zrodel", "Zrodla", "Zakres weryfikacji", "Argument do rozmowy", "Id", "Etap", "Notatki", "Modyfikacja", "Edytowal", "Dzwoniono", "Dzwonil", "Liczba_polaczen", "Historia_polaczen", "Plik_edytowano", "Plik_edytowal", "Dodal", "Dodano", "Google_place_id", "Mapa_status", "Mapa_edytowal", "Mapa_edytowano", "Powod_wykreslenia", "Adres", "Przypieta", "Odrzucono", "Mapa_potwierdzono", "Google_nazwa", "Google_telefon", "Google_strona", "Google_adres", "Google_pobrano", "Historia_aktywnosci"], "records": []}</script>
+    <script src="assets/js/translations.js?v=a769b3a76cc2"></script>
     <script src="assets/js/i18n.js?v=1e84650cc321"></script>
     <script src="assets/js/dialogs.js?v=1fe1359b0833"></script>
-    <script src="assets/js/core.js?v=e178ecb4bcef"></script>
+    <script src="assets/js/core.js?v=58b28180c376"></script>
     <script src="assets/js/map-core.js?v=927d8146c6fe"></script>
-    <script src="assets/js/storage.js?v=febe64536c74"></script>
+    <script src="assets/js/storage.js?v=8328874a01e7"></script>
     <script src="assets/js/network.js?v=c94e805be642"></script>
     <script src="assets/js/github.js?v=b9e9c40d41f0"></script>
     <script src="assets/js/zone-core.js?v=2a51cba1878d"></script>
     <script src="assets/js/zone-sync.js?v=7bb6ac9467d6"></script>
-    <script src="assets/js/app.js?v=8b9e0f2ced6d"></script>
-    <script src="assets/js/stats.js?v=df519612f5f0"></script>
+    <script src="assets/js/app.js?v=fba6a7781182"></script>
+    <script src="assets/js/stats.js?v=02eb826d23e6"></script>
     <script src="assets/js/ui.js?v=c0892582a4d6"></script>
     <script src="assets/js/map.js?v=83df3b0ac9d2"></script>
     <script src="assets/js/zone-preview.js?v=677353201702"></script>

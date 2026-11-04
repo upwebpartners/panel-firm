@@ -1074,14 +1074,20 @@
   }
   async function saveChange(id, patch, original, newRecord = null) {
     if (busy) throw new Error('Poczekaj na zakończenie poprzedniego zapisu.');
+    if (original && patch.Mapa_status === original.Mapa_status &&
+        ['Mapa_status', 'Powod_wykreslenia', 'Mapa_potwierdzono'].every(key => !Object.hasOwn(patch, key) || String(patch[key] ?? '') === String(original[key] ?? ''))) {
+      patch = { ...patch }; delete patch.Mapa_edytowal; delete patch.Mapa_edytowano;
+      if (!Object.keys(patch).some(key => String(patch[key] ?? '') !== String(original[key] ?? ''))) return;
+    }
     if (!newRecord && !Object.keys(patch).length) return;
     const author = await ensureAuthor(), at = new Date().toISOString();
     const stage = newRecord?.Etap || patch.Etap;
     if (stage === 'Odrzucony' && original?.Etap !== 'Odrzucony' && !['T', 'K'].includes(author)) throw new Error('Odrzucenie firmy zatwierdza T lub K. Wynik rozmowy możesz zapisać bez zmiany statusu.');
     const selection = stage === 'Odrzucony' && original?.Etap !== 'Odrzucony' ? { Odrzucono: at } : {};
-    const update = { ...selection, ...patch, Modyfikacja: at, Edytowal: author };
+    const activity = C.activityForChange(original, patch, newRecord, author, at);
+    const update = { ...selection, ...patch, ...activity, Modyfikacja: at, Edytowal: author };
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
-    const added = newRecord ? [{ ...newRecord, ...selection, Etap: newRecord.Etap, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
+    const added = newRecord ? [{ ...newRecord, ...selection, ...activity, Etap: newRecord.Etap, Dodal: author, Dodano: at, Modyfikacja: at, Edytowal: author }] : [];
     await commitBatch(original ? [{ ...original }] : [], newRecord ? {} : { [id]: update }, added, author, at);
   }
   async function deleteCompany(id) {
