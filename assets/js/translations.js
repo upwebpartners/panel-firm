@@ -1,4 +1,10 @@
 globalThis.CRM_MESSAGES = {
+  "Wczytaj wspólną bazę": "Load shared database",
+  "Masz niewysłane zmiany. Możesz wczytać aktualną wspólną bazę i zachować lokalną kopię.": "You have unsent changes. You can load the current shared database and keep a local backup.",
+  "Pobierz ostatnią lokalną kopię CSV": "Download the latest local CSV backup",
+  "Wczytać aktualną wspólną bazę? Niewysłane zmiany z tej przeglądarki zachowamy jako ostatnią lokalną kopię do pobrania w ustawieniach bazy. Panel będzie dalej korzystać z danych na GitHubie.": "Load the current shared database? Unsent changes from this browser will be kept as the latest local backup, available to download in database settings. The panel will continue using the data on GitHub.",
+  "Nie udało się zachować lokalnej kopii. Wczytanie wspólnej bazy przerwano. Wyeksportuj CSV i spróbuj ponownie.": "Could not keep a local backup. Loading the shared database was cancelled. Export your CSV and try again.",
+  "Nie można odczytać lokalnej kopii.": "Could not read the local backup.",
   "Część oznaczeń nie została pobrana. Kliknij Wczytaj oznaczenia, aby ponowić.": "Some markers could not be loaded. Click Load markers to retry.",
   "GitHub ograniczył liczbę zapytań. Panel wznowi połączenie automatycznie.": "GitHub has limited requests. The panel will reconnect automatically.",
   "Jedna strefa może zawierać kilka obszarów w różnych miejscach.": "One zone can contain several areas in different locations.",

@@ -9,6 +9,7 @@
   seed.headers = C.cleanHeaders(seed.headers);
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
+  const RECOVERY_STORE = 'pracownia.crm.recovery.v1';
   const SORT_STORE = 'pracownia.sort';
   const HIDE_REJECTED_STORE = 'pracownia.hide-rejected';
   const HIDDEN_STAGES_STORE = 'pracownia.hidden-stages';
@@ -218,8 +219,16 @@
     $('fileInfo').innerHTML = '<div>' + icon('note') + '<strong>' + esc(fileName) + '</strong><span>' + esc(t(source)) + '</span></div><div><span>' + esc(t('Ostatnia edycja pliku:')) + '</span><strong>' + esc(dateTime(at)) + '</strong>' + (by ? '<span>· ' + esc(by) + '</span>' : '') + '</div>' + (local.info?.uploadedFileModifiedAt ? '<span>' + esc(t('Wczytany CSV zmieniono:')) + ' ' + esc(dateTime(local.info.uploadedFileModifiedAt)) + '</span>' : '');
   }
   async function adoptShared(result, info = {}) {
-    base = result.records.map(r => ({ ...r })); records = [...base]; headers = result.headers;
-    local = { patches: {}, added: [], imported: base, meta: C.fileMeta(base), info: { name: github ? github.config.path : 'klienci.csv', modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null, ...info } }; await persist();
+    const nextBase = result.records.map(r => ({ ...r }));
+    const next = { patches: {}, added: [], imported: nextBase, headers: result.headers, meta: C.fileMeta(nextBase), info: { name: github ? github.config.path : 'klienci.csv', modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null, ...info } };
+    await persist(next, true);
+    base = nextBase; records = [...base]; headers = result.headers; local = next;
+  }
+  function backupPendingChanges() {
+    // Include rows with a queued deletion. Credentials never enter this copy.
+    const backup = { version: 1, at: new Date().toISOString(), csv: C.csvText(C.overlay(base, local.patches, local.added), headers) };
+    try { localStorage.setItem(RECOVERY_STORE, JSON.stringify(backup)); }
+    catch { throw new Error('Nie udało się zachować lokalnej kopii. Wczytanie wspólnej bazy przerwano. Wyeksportuj CSV i spróbuj ponownie.'); }
   }
   function switchConnectionMode(kind) {
     const gh = kind === 'github'; $('githubConnectFields').hidden = !gh; $('localConnectFields').hidden = gh;
@@ -251,8 +260,8 @@
         if (hasQueued() && !sameTarget(local.sync.target, session.config)) throw new Error('Oczekujące zmiany należą do innej bazy. Połącz poprzednie repozytorium.');
         const plan = C.sharedConnectionPlan(base, result.records, local.patches, local.added);
         if (!hasQueued() && (plan.added.length || Object.keys(plan.patches).length)) throw new Error('Masz lokalne zmiany. W ustawieniach GitHuba wybierz, czy je połączyć, czy wczytać wspólną bazę.');
+        if (!hasQueued()) await adoptShared(result, { name: session.config.path });
         github = candidate; connected = true; connectionError = ''; lastGitHubPoll = Date.now();
-        if (!hasQueued()) await adoptShared(result);
       });
       render();
       restoreFailures = 0;
@@ -330,7 +339,7 @@
   }
   async function connectGitHub() {
     if (busy || githubBusy || syncRunning) return;
-    const controls = ['connectGitHub', 'ghDataMode', 'closeConnect', 'fileMode'];
+    const controls = ['connectGitHub', 'loadSharedDatabase', 'ghDataMode', 'closeConnect', 'fileMode'];
     controls.forEach(id => { $(id).disabled = true; }); $('connectError').hidden = true; githubBusy = true; changingSource = true;
     let candidate;
     try {
@@ -342,15 +351,17 @@
       const draftFields = ['actionNotes', 'actionConsent'];
       const draftBefore = selected ? draftFields.map(id => $(id).value) : null;
       const currentRecords = records.map(record => ({ ...record })), currentHeaders = [...headers];
+      const originalLocal = local;
       const raw = $('ghRepo').value.trim().replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
       const pieces = raw.split('/'); if (pieces.length !== 2) throw new Error('Podaj repozytorium jako właściciel/nazwa.');
       const config = { owner: pieces[0], repo: pieces[1], branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() };
       const token = $('ghToken').value.trim();
       if (hasQueued() && !sameTarget(local.sync.target, config)) throw new Error('Najpierw wyślij oczekujące zmiany do poprzedniej bazy.');
-      const resume = hasQueued() && mode !== 'replace';
+      const resume = hasQueued() && mode === 'merge';
       candidate = new GitHubCSV(config, token); let result = await candidate.connect();
       if (mode === 'remote') {
         if (result.missing) throw new Error('Na GitHubie nie ma tego CSV. Wybierz zastąpienie bazy obecną listą, aby go utworzyć.');
+        if (hasQueued() && !await ask('Wczytać aktualną wspólną bazę? Niewysłane zmiany z tej przeglądarki zachowamy jako ostatnią lokalną kopię do pobrania w ustawieniach bazy. Panel będzie dalej korzystać z danych na GitHubie.', { title: 'Wczytaj wspólną bazę', accept: 'Wczytaj wspólną bazę' })) { candidate.close(); return; }
       } else if (mode === 'replace') {
         const author = await ensureAuthor();
         const message = t('Zastąpić bazę na GitHubie obecną listą?') + '\n\n' + config.owner + '/' + config.repo + '\n' + config.branch + ' / ' + config.path + '\n\n' + t('Na GitHubie:') + ' ' + result.records.length + '\n' + t('W tym panelu:') + ' ' + currentRecords.length + '\n\n' + t('Liczby oznaczają firmy. Cały wspólny plik zostanie zastąpiony, także notatki, statusy i historia rozmów.');
@@ -368,11 +379,18 @@
           result = await trackSave('github', () => saveShared(candidate, plan.base, plan.patches, plan.added, author));
         }
       }
+      if (!resume) await writeLocal(async () => {
+        if (local !== originalLocal) throw new Error('Dane zmieniły się podczas łączenia. Spróbuj ponownie.');
+        if (mode === 'remote' && hasPending()) backupPendingChanges();
+        await adoptShared(result, { name: config.path });
+      });
       github = candidate; connected = true; fileHandle = null; connectionError = ''; lastGitHubPoll = Date.now();
       const remembered = rememberGitHub(config, token);
       try { localStorage.setItem('pracownia.github.config', JSON.stringify(config)); } catch {}
-      $('ghToken').value = ''; if (!resume) await adoptShared(result);
-      syncError = null; render(); $('connectDialog').close();
+      $('ghToken').value = '';
+      clearTimeout(syncRetryTimer); syncRetryTimer = null; syncError = null; syncFailures = 0;
+      if (!resume) { saveProgress = null; $('saveProgress').hidden = true; }
+      render(); $('connectDialog').close();
       if (previous && previous !== candidate) previous.close();
       if (selected) {
         if (byId(selected)) openClient(selected, true, draftBefore && draftFields.every((id, index) => $(id).value === draftBefore[index]));
@@ -571,6 +589,10 @@
       if (!zones.running) { $('retrySync').hidden = false; $('retrySync').textContent = t(zones.error?.code === 'CONFLICT' ? 'Porównaj strefy' : 'Ponów zapis'); $('retrySync').title = $('retrySync').textContent; $('retrySync').setAttribute('aria-label', $('retrySync').textContent); }
     }
     $('connectGitHub').disabled = syncRunning || githubBusy;
+    $('loadSharedDatabase').disabled = syncRunning || githubBusy;
+    $('sharedRecovery').hidden = !hasQueued();
+    try { $('exportRecovery').hidden = !localStorage.getItem(RECOVERY_STORE); }
+    catch { $('exportRecovery').hidden = true; }
     $('connectButton').innerHTML = icon('link') + esc(t(connected ? 'Połączono' : 'Wspólna baza GitHub'));
     $('disconnectButton').hidden = !fileHandle && !github && !rememberedGitHub;
     $('disconnectButton').textContent = t(github || rememberedGitHub ? 'Rozłącz i zapomnij' : 'Rozłącz plik');
@@ -1553,6 +1575,17 @@
   $('ghDataMode').addEventListener('change', updateGitHubModeHint);
   $('connectDialog').addEventListener('cancel', event => { if (githubBusy) event.preventDefault(); });
   $('connectGitHub').onclick = connectGitHub;
+  $('loadSharedDatabase').onclick = () => {
+    $('ghDataMode').value = 'remote'; updateGitHubModeHint();
+    return connectGitHub();
+  };
+  $('exportRecovery').onclick = () => {
+    try {
+      const backup = JSON.parse(localStorage.getItem(RECOVERY_STORE) || 'null');
+      if (backup?.version !== 1 || typeof backup.csv !== 'string') throw new Error('Nie można odczytać lokalnej kopii.');
+      download('kopia-lokalna-' + today() + '.csv', backup.csv);
+    } catch (error) { toast(error.message, true); }
+  };
   $('profileSelect').value = authorName;
   $('profileSelect').addEventListener('change', () => {
     if (busy || changingSource || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
