@@ -648,7 +648,10 @@
     const total = directoryRecords().length;
     $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ($('stageFilter').value === '__reviewed' ? ' przejrzanych miejsc' : ' firm'));
     if (!visible.length) {
-      showClients('<div class="empty-state"><p>' + esc(t(records.length ? 'Brak firm dla tych filtrów.' : 'Wczytaj CSV, aby wyświetlić firmy.')) + '</p><button class="button primary" data-import-csv>' + esc(t('Wczytaj CSV')) + '</button>' + (records.length ? '<button class="button" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' : '') + '</div>');
+      const hasData = records.length > 0;
+      showClients('<div class="empty-state"><p>' + esc(t(hasData ? 'Brak firm dla tych filtrów.' : 'Połącz wspólną bazę, aby rozpocząć pracę.')) + '</p>' +
+        (hasData ? '<button class="button primary" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' :
+          '<button class="button primary" data-connect-base>' + esc(t('Wspólna baza GitHub')) + '</button><button class="button" data-add-company>' + esc(t('Dodaj firmę')) + '</button>') + '</div>');
     } else renderTable(visible);
     const changed = renderedRows !== records;
     renderedRows = records;
@@ -1364,7 +1367,9 @@
   function rememberHiddenStages() { try { localStorage.setItem(HIDDEN_STAGES_STORE, JSON.stringify([...hiddenStages])); } catch {} }
   function renderHiddenStages() {
     const focused = document.activeElement?.dataset?.hideStage;
-    $('hiddenStageSummary').textContent = t('Ukryj statusy') + (hiddenStages.size ? ' · ' + hiddenStages.size : '');
+    const count = ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter'].filter(id => $(id).value).length + hiddenStages.size;
+    $('hiddenStageSummary').textContent = t('Filtry') + (count ? ' · ' + count : '');
+    $('clearFiltersQuick').hidden = count === 0;
     $('hiddenStageOptions').innerHTML = C.stages.map(stage => '<label class="hidden-stage-option"><input type="checkbox" data-hide-stage="' + esc(stage) + '"' + (hiddenStages.has(stage) ? ' checked' : '') + '><span>' + esc(t(stage)) + '</span></label>').join('');
     if (focused && C.stages.includes(focused)) $('hiddenStageOptions').querySelector('[data-hide-stage="' + focused + '"]')?.focus();
   }
@@ -1374,6 +1379,12 @@
     else hiddenStages.delete(stage);
     rememberHiddenStages(); render();
   });
+  function clearFilters() {
+    for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = '';
+    hiddenStages.clear(); rememberHiddenStages(); render();
+  }
+  $('clearFilters').onclick = clearFilters;
+  $('clearFiltersQuick').onclick = clearFilters;
   $('showAllStages').onclick = () => { hiddenStages.clear(); rememberHiddenStages(); render(); };
   for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
     if (id === 'stageFilter' && hiddenStages.delete($('stageFilter').value)) rememberHiddenStages();
@@ -1402,7 +1413,9 @@
     if (event.target.closest('a[href]')) return;
     const item = event.target.closest('[data-client]'); if (item) { openClient(item.dataset.client); return; }
     if (event.target.closest('[data-import-csv]')) $('importButton').click();
-    if (event.target.closest('[data-clear-filters]')) { for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = ''; hiddenStages.clear(); rememberHiddenStages(); render(); }
+    if (event.target.closest('[data-connect-base]')) openConnection();
+    if (event.target.closest('[data-add-company]')) openForm();
+    if (event.target.closest('[data-clear-filters]')) clearFilters();
   });
   let menuCompanyId = null, menuCompanyRow = null;
   function closeCompanyMenu(restoreFocus = false) {

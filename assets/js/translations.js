@@ -1,4 +1,10 @@
 globalThis.CRM_MESSAGES = {
+  "Filtry": "Filters",
+  "Sortowanie": "Sorting",
+  "Dane": "Data",
+  "Narzędzia": "Tools",
+  "Jak liczymy?": "How do we count?",
+  "Połącz wspólną bazę, aby rozpocząć pracę.": "Connect the shared database to start working.",
   "Ustawienia Google": "Google settings",
   "Włączone domyślnie. Podgląd bez pobierania telefonu i strony, brak kontaktów pobieranych w tle, po 10 zapisanych oznaczeń naraz. Telefon i stronę pobierzesz osobnym przyciskiem. Wyłączenie przywraca automatyczne pobieranie kontaktów. Mapa i wyszukiwanie nadal mogą być płatne.": "Enabled by default. Preview without requesting phone or website, no background contact loading, and 10 saved markers per batch. Fetch phone and website with a separate button. Turning this off restores automatic contact loading. Maps and searches may still incur charges.",
   "Praca na mapie": "Map work",

@@ -271,6 +271,16 @@ main {
 .toolbar>select {
   max-width:175px;
 }
+.filter-controls { display:flex; flex-direction:column; gap:7px; }
+.filter-controls>label,.filter-heading { margin:8px 6px 0; font-size:13px; font-weight:600; }
+.filter-controls>select { width:calc(100% - 12px); margin:0 6px; }
+.filter-heading { padding-top:10px; border-top:1px solid var(--border); }
+.filter-controls>.small-copy { margin:0 6px; }
+#clearFiltersQuick { white-space:nowrap; }
+.stats-help { max-width:950px; margin-top:24px; border:1px solid var(--border); background:var(--panel); border-radius:4px; }
+.stats-help summary { padding:12px; font-weight:600; cursor:pointer; }
+.stats-help>div { padding:0 12px 12px; }
+.stats-help p { margin:10px 0; }
 .sort-controls {
   display:grid;
   gap:7px;
@@ -583,7 +593,7 @@ main {
 .database-status:hover { border-color:var(--accent); background:var(--hover); }
 .database-status-icon { grid-column:1; grid-row:1/3; align-self:center; width:18px; height:18px; color:var(--muted); }
 .database-status.connected .database-status-icon { color:var(--accent); }
-.database-status-line { grid-column:2; grid-row:1; display:flex; align-items:center; gap:6px; min-width:0; font-size:11px; font-weight:600; }
+.database-status-line { grid-column:2; grid-row:1; display:flex; align-items:center; gap:6px; min-width:0; font-size:12px; font-weight:600; }
 .database-status-line > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .database-status .status-dot { order:1; margin-left:auto; flex-shrink:0; }
 .database-status-hint { grid-column:2; grid-row:2; align-self:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:10px; }
@@ -617,7 +627,7 @@ main {
   .profile-control > span { display:none; }
   .database-status { width:128px; column-gap:5px; padding:4px 6px; }
   .database-status-line { font-size:10px; }
-  .database-status-hint,.save-progress { font-size:9px; }
+  .database-status-hint,.save-progress { font-size:11px; }
   .sync-retry-slot { width:24px; }
   .sync-retry { width:24px; min-height:28px; }
 }
@@ -1310,7 +1320,9 @@ dialog::backdrop {
 #businessMap { position: absolute; inset: 0; }
 .map-tools { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
 .map-tools > * { pointer-events: auto; box-shadow: var(--shadow); }
-.map-tools input[type=search] { width: 230px; }
+.map-tools input[type=search] { width:230px; order:-2; }
+#mapSearchText { order:-1; }
+.map-actions>div { width:240px; }
 .map-filters { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
 .map-filters summary { padding: 6px 10px; }
 .map-filters > div { position: absolute; right: 0; top: 100%; min-width: 170px; padding: 10px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
@@ -1330,8 +1342,14 @@ dialog::backdrop {
 #excludeReason { width: 100%; }
 @media(max-width:760px) {
   .map-tools { top: 8px; left: 8px; right: 8px; gap: 5px; }
-  .map-tools .button, .map-filters summary { font-size: 11px; padding: 5px 7px; }
-  .map-tools input[type=search] { width: 145px; font-size: 12px; }
+  .map-tools .button,.map-tools summary { font-size:12px; padding:7px 8px; min-height:36px; }
+  .map-tools { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .map-tools input[type=search] { width:100%; min-width:0; grid-column:span 2; font-size:14px; min-height:38px; }
+  #mapSearchArea { grid-column:1/-1; }
+  .map-actions { grid-column:span 2; }
+  .map-tools summary { text-align:center; }
+  .map-actions>div { left:0; right:auto; }
+  .map-place,.zones-panel { width:calc(100% - 16px); max-width:none; }
   .map-place { top: auto; bottom: 62px; max-height: 48%; right: 8px; padding: 10px; }
   .map-status { left: 8px; font-size: 11px; }
 }
@@ -1441,4 +1459,14 @@ dialog::backdrop {
 @media(max-width:420px) {
   .database-status { width:104px; }
   .appearance-controls .profile-control select { width:80px; }
+}
+
+/* Larger targets on touch screens while retaining the compact desktop view. */
+@media(pointer:coarse) {
+  .button,.icon-button,.text-button,.settings-menu summary,.map-filters summary { min-height:40px; }
+  .icon-button,.appearance-controls .icon-button { min-width:40px; }
+  .appearance-controls .language-toggle { min-width:40px; }
+  .profile-control select { min-height:40px; }
+  .hidden-stage-option { min-height:40px; }
+  .map-tools .button,.map-tools summary { min-height:40px; }
 }
