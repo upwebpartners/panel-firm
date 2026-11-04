@@ -5,7 +5,11 @@
   const $ = id => document.getElementById(id), C = root.CRMCore, M = root.MapCore, t = root.I18n.t;
   let map, library, Marker, key = '', loading, selected = null, cardId = null, selectionVersion = 0, pending = false, waitingPlace = null;
   const GOOGLE_KEY_STORE = 'pracownia.google.key';
-  let initialization = null, forgottenKey = false, waitingRefresh = null;
+  const ECONOMY_STORE = 'pracownia.google.economy';
+  let economy = true;
+  try { economy = root.localStorage.getItem(ECONOMY_STORE) !== 'false'; } catch {}
+  let initialization = null, forgottenKey = false, waitingRefresh = null, waitingContact = null;
+  const searchCache = new Map();
   let placesInitialization = null, hydrating = false, previewFrame = null;
   const places = new Map(), details = new Set(), markers = new Map(), loadedSaved = new Set();
   const markerSignatures = new Map(), visibleMarkers = new Set();
@@ -63,16 +67,24 @@
     if (previewFrame !== null) return;
     previewFrame = root.requestAnimationFrame(() => { previewFrame = null; document.dispatchEvent(new root.CustomEvent('crm:google-preview')); });
   }
-  async function fetchDetails(id, { refresh = false } = {}) {
+  async function fetchDetails(id, { refresh = false, basic = false } = {}) {
     if (details.has(id) && !refresh) return places.get(id);
-    if (detailLoads.has(id)) return detailLoads.get(id);
+    if (basic && places.has(id)) return places.get(id);
+    if (detailLoads.has(id)) {
+      const result = await detailLoads.get(id);
+      if (!basic && !details.has(id)) return fetchDetails(id, { refresh });
+      return result;
+    }
     const task = (async () => {
       const place = new library.Place({ id, requestedLanguage: root.I18n.language() });
-      const fetch = () => place.fetchFields({ fields: ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
+      const fetch = () => place.fetchFields({ fields: basic ? ['id','displayName','location','formattedAddress'] : ['id','displayName','location','nationalPhoneNumber','websiteURI','formattedAddress'] });
       if (root.Network) await root.Network.withTimeout(fetch); else await fetch();
       const entity = M.fromGoogle(place);
-      places.set(id, entity); details.add(id); contactErrors.delete(id);
-      await root.CRM.savePlaceDetails?.(entity, { refresh }); return entity;
+      entity.contactLoaded = !basic;
+      if (basic) { entity.phone = ''; entity.website = ''; }
+      places.set(id, entity); contactErrors.delete(id);
+      if (!basic) { details.add(id); await root.CRM.savePlaceDetails?.(entity, { refresh }); }
+      return entity;
     })();
     detailLoads.set(id, task);
     try { return await task; }
@@ -90,12 +102,18 @@
       draw(); return true;
     } finally { refreshingPlaces.delete(id); contactsChanged(); }
   }
+  async function requestContact(id) {
+    const apiKey = savedKey() || (forgottenKey ? '' : key);
+    if (!/^[A-Za-z0-9_-]{20,200}$/.test(apiKey)) { waitingContact = id; settings(); return; }
+    try { await ensurePlaces(apiKey); await fetchDetails(id); draw(); }
+    catch (error) { status(error.message); }
+  }
   function visibleContacts() {
     return (root.CRM.visibleRecords?.() || []).filter(row => row.Google_place_id && !M.storedDetails(row) &&
       (!row.Telefon || !C.safeURL(row.Strona) || !row.Firma || row.Firma === 'Do weryfikacji — ' + row.Google_place_id));
   }
   async function loadVisibleContacts() {
-    if (hydrating || document.hidden || !visibleContacts().some(row => !details.has(row.Google_place_id))) return;
+    if (economy || hydrating || document.hidden || !visibleContacts().some(row => !details.has(row.Google_place_id))) return;
     const apiKey = savedKey() || (forgottenKey ? '' : key);
     if (!/^[A-Za-z0-9_-]{20,200}$/.test(apiKey)) return;
     const eligible = () => visibleContacts().find(row => !details.has(row.Google_place_id) && !detailLoads.has(row.Google_place_id) && !(contactErrors.get(row.Google_place_id)?.retryAt > Date.now()));
@@ -104,7 +122,7 @@
     try {
       await ensurePlaces(apiKey, true);
       const worker = async () => {
-        while (!document.hidden) {
+        while (!economy && !document.hidden) {
           const row = eligible(); if (!row) break;
           const operation = fetchDetails(row.Google_place_id); contactsChanged();
           try { await operation; } catch { /* Each failed row retains a retry button; other contacts continue. */ }
@@ -169,10 +187,12 @@
       }
       markerSignatures.set(entity.id, signature);
     }
-    if (selected && details.has(selected)) showCard(places.get(selected));
+    if (selected && places.has(selected)) showCard(places.get(selected));
   }
   function showCard(entity) {
     const current = record(entity), state = M.state(current);
+    const stored = M.storedDetails(current);
+    entity = { ...entity, phone: entity.phone || stored?.phone || '', website: entity.website || stored?.website || '', address: entity.address || stored?.address || '' };
     const signature = JSON.stringify([entity, current, pending, root.I18n.language()]);
     if (cardId === entity.id && cardSignature === signature && !$('mapPlace').hidden) return;
     cardSignature = signature;
@@ -185,6 +205,7 @@
       <p data-content>${esc(entity.address || '')}</p>
       ${entity.phone ? `<p><a href="tel:${esc(entity.phone.replace(/[^+\d]/g,''))}">${esc(entity.phone)}</a></p>` : `<p class="muted">${esc(t('Brak numeru telefonu'))}</p>`}
       ${entity.website ? `<p><a href="${esc(entity.website)}" target="_blank" rel="noopener noreferrer">${esc(t('Otwórz stronę'))} ↗</a></p>` : ''}
+      ${economy && !details.has(entity.id) && !stored ? `<p><button type="button" class="button" data-map-contact>${esc(t('Pobierz telefon i stronę'))}</button><small class="small-copy">${esc(t('Dodatkowe pobranie z Google tylko po kliknięciu.'))}</small></p>` : ''}
       <p><a href="${esc(M.placeURL(entity.id))}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a></p>
       <p class="small-copy">${esc(t('Dane z Google Maps — niepotwierdzone w innym źródle'))}</p>
       ${state !== 'wykreslona' && current?.Etap === 'Odrzucony' ? `<p class="map-declined">${esc(t('Odrzucony — odmowa klienta'))}</p>` : ''}
@@ -205,7 +226,7 @@
     try {
       if (!details.has(id)) {
         status('Pobieranie danych firmy z Google…');
-        await fetchDetails(id);
+        await fetchDetails(id, { basic: economy });
         if (version !== selectionVersion) return;
       }
       if (version !== selectionVersion) return;
@@ -220,21 +241,32 @@
     try {
       status('Szukanie firm…');
       const fields = ['id','displayName','location','formattedAddress','types'];
+      const centerPoint = map.getCenter(), edgePoint = map.getBounds().getNorthEast();
+      const cacheKey = JSON.stringify([text.trim().toLowerCase(), root.I18n.language(), centerPoint.lat(), centerPoint.lng(), edgePoint.lat(), edgePoint.lng()]);
+      const cached = economy && searchCache.get(cacheKey);
       let result;
-      if (text.trim()) result = await deadline(() => library.Place.searchByText({ textQuery: text.trim(), language: root.I18n.language(), fields, maxResultCount: 20, locationBias: map.getBounds() }));
+      if (cached && Date.now() - cached.at < 300000) result = cached.result;
+      else if (text.trim()) result = await deadline(() => library.Place.searchByText({ textQuery: text.trim(), language: root.I18n.language(), fields, maxResultCount: 20, locationBias: map.getBounds() }));
       else {
         const center = map.getCenter(), edge = map.getBounds().getNorthEast();
         const distance = Math.max(Math.abs(center.lat() - edge.lat()) * 111000, Math.abs(center.lng() - edge.lng()) * 111000 * Math.cos(center.lat() * Math.PI / 180));
         if (distance > 5000) throw new Error('Przybliż mapę, aby przeszukać mniejszy obszar.');
         result = await deadline(() => library.Place.searchNearby({ fields, language: root.I18n.language(), maxResultCount: 20, locationRestriction: { center, radius: Math.max(100, Math.min(50000, distance * 1.42)) }, rankPreference: library.SearchNearbyRankPreference.DISTANCE }));
       }
-      for (const place of result.places || []) { const entity = M.fromGoogle(place); if (!details.has(entity.id)) places.set(entity.id, entity); }
+      if (economy && result !== cached?.result) {
+        searchCache.delete(cacheKey); searchCache.set(cacheKey, { at: Date.now(), result });
+        if (searchCache.size > 8) searchCache.delete(searchCache.keys().next().value);
+      }
+      for (const place of result.places || []) {
+        const entity = { ...M.fromGoogle(place), phone: '', website: '', contactLoaded: false };
+        if (!details.has(entity.id)) places.set(entity.id, entity);
+      }
       document.dispatchEvent(new root.CustomEvent('crm:google-preview'));
       draw();
       if (text.trim() && result.places?.length) map.panTo(result.places[0].location);
       status('Wyniki Google: ' + (result.places?.length || 0) + '/20. To nie jest pełna lista firm w okolicy.');
     } catch (error) { status(error.message); }
-    finally { pending = false; $('mapSearchArea').disabled = false; $('mapSearchText').disabled = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
+    finally { pending = false; $('mapSearchArea').disabled = false; $('mapSearchText').disabled = false; if (selected && places.has(selected)) showCard(places.get(selected)); }
   }
   async function loadSaved() {
     if (!map) { await ensureMap(); if (!map) return; }
@@ -243,12 +275,12 @@
     const candidates = root.CRM.records().filter(r => r.Google_place_id && !loadedSaved.has(r.Google_place_id));
     let loaded = 0, cursor = 0, failures = 0;
     try {
-      const batch = candidates.slice(0, 50);
+      const batch = candidates.slice(0, economy ? 10 : 50);
       const worker = async () => {
-        while (cursor < batch.length) {
+        while (cursor < batch.length && (!economy || cursor < 10)) {
           const row = batch[cursor++];
           try {
-            if (!details.has(row.Google_place_id)) await fetchDetails(row.Google_place_id);
+            if (!details.has(row.Google_place_id)) await fetchDetails(row.Google_place_id, { basic: economy });
             loadedSaved.add(row.Google_place_id); loaded++;
           } catch { failures++; }
           status('Wczytano oznaczenia: ' + loaded + '. Pozostało: ' + Math.max(0, candidates.length - loaded) + '.');
@@ -272,6 +304,7 @@
       key = candidate; await ensurePlaces(key); rememberKey(key);
       contactErrors.clear(); $('googleKey').value = ''; $('googleDialog').close();
       if (waitingRefresh) { const id = waitingRefresh; waitingRefresh = null; await refreshPlace(id); }
+      else if (waitingContact) { const id = waitingContact; waitingContact = null; await requestContact(id); }
       else if (!$('mapPanel').hidden || waitingPlace) await initialize(key);
       else void loadVisibleContacts();
     }
@@ -287,6 +320,14 @@
     } catch { $('googleError').textContent = t('Nie udało się usunąć zapisanego klucza. Sprawdź ustawienia przeglądarki.'); $('googleError').hidden = false; }
   };
   $('mapSettings').onclick = settings;
+  $('googleEconomy').checked = economy;
+  $('googleEconomy').addEventListener('change', () => {
+    economy = $('googleEconomy').checked;
+    try { root.localStorage.setItem(ECONOMY_STORE, String(economy)); }
+    catch { root.CRM.notify?.('Ustawienie działa teraz, ale przeglądarka nie pozwoliła zapamiętać go na później.', true); }
+    cardSignature = ''; draw();
+    if (!economy) void loadVisibleContacts();
+  });
   $('mapSearchArea').onclick = () => search();
   $('mapSearchText').onclick = () => search($('mapQuery').value);
   $('mapQuery').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search($('mapQuery').value); } });
@@ -296,6 +337,7 @@
     if (event.target.closest('[data-map-close]')) { selected = null; selectionVersion++; $('mapPlace').hidden = true; return; }
     if (!selected || pending) return;
     const entity = places.get(selected); if (!entity) return;
+    if (event.target.closest('[data-map-contact]')) { await requestContact(selected); return; }
     if (event.target.closest('[data-map-open]')) { const row = record(entity); if (row) await root.CRM.open(row.Id); return; }
     if (event.target.closest('[data-map-delete]')) { const row = record(entity); if (row) await root.CRM.remove(row.Id); draw(); return; }
     if (event.target.closest('[data-map-exclude]')) { $('mapExcludeFields').hidden = false; $('mapExcludeReason').focus(); return; }
@@ -308,7 +350,7 @@
       if (add) await root.CRM.open(row.Id);
       draw();
     } catch (error) { status(error.message); }
-    finally { pending = false; if (selected && details.has(selected)) showCard(places.get(selected)); }
+    finally { pending = false; if (selected && places.has(selected)) showCard(places.get(selected)); }
   });
   root.GoogleMapSession = {
     ensureMap,
@@ -316,11 +358,13 @@
     closeCard: () => { selected = null; selectionVersion++; $('mapPlace').hidden = true; },
     refresh: refreshPlace,
     isRefreshing: id => refreshingPlaces.has(id),
-    get: id => places.has(id) ? { ...places.get(id) } : M.storedDetails(placeRecord(id)),
+    get: id => {
+      const stored = M.storedDetails(placeRecord(id)), entity = places.get(id);
+      return entity ? { ...entity, phone: entity.phone || stored?.phone || '', website: entity.website || stored?.website || '', address: entity.address || stored?.address || '' } : stored;
+    },
     contactState: id => details.has(id) || M.storedDetails(placeRecord(id)) ? 'ready' : detailLoads.has(id) ? 'loading' : contactErrors.has(id) ? 'failed' : !savedKey() && (!key || forgottenKey) ? 'key' : hydrating ? 'loading' : 'pending',
     loadContact: id => {
-      if (!savedKey() && (!key || forgottenKey)) { settings(); return; }
-      contactErrors.delete(id); void loadVisibleContacts();
+      contactErrors.delete(id); return requestContact(id);
     },
     open: async id => {
       if (!await root.PanelUI.showTab('map')) return;

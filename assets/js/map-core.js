@@ -11,7 +11,7 @@
   }
   function detailsPatch(entity, at = new Date().toISOString()) {
     return { Google_nazwa: String(entity.name || ''), Google_telefon: String(entity.phone || ''),
-      Google_strona: C.safeURL(entity.website), Google_adres: String(entity.address || ''), Google_pobrano: at };
+      Google_strona: C.safeURL(entity.website), Google_adres: String(entity.address || ''), Google_pobrano: entity.contactLoaded === false ? '' : at };
   }
   function coordinates(value) {
     const lat = value.lat ?? value.Lat, lon = value.lon ?? value.Lon;

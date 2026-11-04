@@ -311,7 +311,8 @@
     catch { throw new Error('Nieprawidłowa historia aktywności. Zachowaj kopię przed naprawą.'); }
     if (!Array.isArray(events) || events.some(event => !event || typeof event.id !== 'string' || !event.id ||
         typeof event.at !== 'string' || !Number.isFinite(Date.parse(event.at)) || typeof event.by !== 'string' || !event.by ||
-        !activityTypes.includes(event.type) || event.fields !== undefined && (!Array.isArray(event.fields) || event.fields.length > 60 || event.fields.some(field => typeof field !== 'string')))) {
+        !activityTypes.includes(event.type) || event.map !== undefined && typeof event.map !== 'boolean' ||
+        event.fields !== undefined && (!Array.isArray(event.fields) || event.fields.length > 60 || event.fields.some(field => typeof field !== 'string')))) {
       throw new Error('Historia aktywności ma nieprawidłowy format.');
     }
     return unionActivity([], events);
@@ -321,7 +322,7 @@
     for (const event of [...left, ...right]) {
       const existing = events.get(event.id);
       const fields = value => JSON.stringify([...new Set(value.fields || [])].sort());
-      if (existing && (existing.at !== event.at || existing.by !== event.by || existing.type !== event.type || fields(existing) !== fields(event))) {
+      if (existing && (existing.at !== event.at || existing.by !== event.by || existing.type !== event.type || existing.map !== event.map || fields(existing) !== fields(event))) {
         throw new Error('Historia aktywności zawiera sprzeczne zdarzenia z tym samym identyfikatorem.');
       }
       if (!existing) events.set(event.id, event);
@@ -332,8 +333,8 @@
     const events = unionActivity(activityHistory(left), activityHistory(right));
     return events.length ? JSON.stringify(events) : '';
   }
-  function activityPatch(record, type, by, at = new Date().toISOString(), id = uid(), fields = []) {
-    const event = { id, at, by, type, ...(fields.length ? { fields: [...new Set(fields)].sort() } : {}) };
+  function activityPatch(record, type, by, at = new Date().toISOString(), id = uid(), fields = [], map) {
+    const event = { id, at, by, type, ...(fields.length ? { fields: [...new Set(fields)].sort() } : {}), ...(map !== undefined ? { map } : {}) };
     return { Historia_aktywnosci: mergedActivityText(record, { Historia_aktywnosci: JSON.stringify([event]) }) };
   }
   function legacyMapActivity(record) {
@@ -359,8 +360,10 @@
     let type = newRecord ? 'added' : 'edited';
     if (source.Mapa_status && (!original || source.Mapa_status !== original.Mapa_status || source.Mapa_status === 'przejrzana' && !original.Mapa_potwierdzono && source.Mapa_potwierdzono)) {
       type = source.Mapa_status === 'wykreslona' ? 'excluded' : source.Mapa_status === 'przejrzana' ? 'reviewed'
-        : original?.Mapa_status === 'wykreslona' ? 'restored' : !newRecord && !original?.Mapa_status ? 'edited' : 'added';
+        : original?.Mapa_status === 'wykreslona' ? 'restored' : 'added';
     }
+    const mapChange = ['Mapa_status', 'Mapa_potwierdzono', 'Powod_wykreslenia'].some(key => fields.includes(key));
+    if (type === 'edited' && !mapChange) return {};
     let previous = original || newRecord || {};
     if (original && (!original.Mapa_status || original.Mapa_status === 'dodana') &&
         !activityHistory(original).some(event => event.type === 'added' || event.type === 'restored') &&
@@ -373,7 +376,12 @@
     if (legacy && ['T', 'K'].includes(legacy.by) && Number.isFinite(Date.parse(legacy.at))) {
       previous = { ...previous, ...activityPatch(previous, legacy.type, legacy.by, legacy.at, legacy.id) };
     }
-    return activityPatch(previous, type, by, source.Mapa_edytowano || at, undefined, type === 'edited' ? fields : []);
+    // Keep known older facts when metadata changes, but restoration and
+    // editing themselves are not work credit or new activity entries.
+    if (type === 'edited' || type === 'restored') return previous.Historia_aktywnosci && previous.Historia_aktywnosci !== original?.Historia_aktywnosci
+      ? { Historia_aktywnosci: previous.Historia_aktywnosci } : {};
+    return activityPatch(previous, type, by, source.Mapa_edytowano || at, undefined, [],
+      !!(source.Google_place_id || original?.Google_place_id));
   }
   function fileMeta(records) {
     let at = '', by = '';

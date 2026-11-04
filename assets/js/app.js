@@ -678,7 +678,7 @@
     const ownURL = C.safeURL(record.Strona), previewURL = C.safeURL(preview?.website);
     return {
       phone: record.Telefon || preview?.phone || '', email: record.Email || '',
-      url: ownURL || previewURL, address: record.Adres || preview?.address || '',
+      url: ownURL || previewURL, address: record.Adres || preview?.address || record.Google_adres || '',
       google: !!((!record.Telefon && preview?.phone) || (!ownURL && previewURL))
     };
   }
