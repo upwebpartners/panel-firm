@@ -1280,7 +1280,7 @@ dialog::backdrop {
 .advanced-fields > summary { padding: 12px 18px; color: var(--muted); font-size: 13px; }
 
 .profile-control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.appearance-controls .profile-control select { width: 76px; color: var(--text); }
+.appearance-controls .profile-control select { width: 110px; max-width:160px; color: var(--text); text-overflow:ellipsis; }
 .call-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
 .call-actions, .phone-numbers, .phone-number { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .phone-contact { min-width: 0; }
@@ -1377,4 +1377,56 @@ dialog::backdrop {
   .appearance-controls .profile-control select { width:42px; }
   .appearance-controls .language-toggle { min-width:30px; padding:3px 4px; }
   .appearance-controls .icon-button { width:28px; }
+}
+
+.stats-panel { height:100%; overflow:auto; padding:24px; }
+.stats-panel[hidden] { display:none; }
+.stats-heading h1 { margin:0 0 5px; font-size:24px; }
+.stats-heading p { margin:0 0 20px; color:var(--muted); }
+.stats-filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 20px; margin-bottom:12px; }
+.stats-filters label { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); }
+.stats-filters select { min-width:165px; color:var(--text); }
+.stats-filters .stats-ai { flex-direction:row; align-items:center; min-height:34px; color:var(--text); }
+.stats-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.stats-total { padding:16px; border:1px solid var(--border); border-radius:5px; background:var(--panel); box-shadow:var(--shadow); }
+.stats-total span { color:var(--muted); font-size:12px; }
+.stats-total strong { display:block; margin-top:4px; font-size:30px; font-variant-numeric:tabular-nums; }
+.stats-section { margin:24px 0; }
+.stats-section h2 { margin:0 0 12px; font-size:17px; }
+.stats-table-wrap { overflow:auto; border:1px solid var(--border); border-radius:4px; background:var(--panel); }
+.stats-table { width:100%; border-collapse:collapse; font-size:13px; }
+.stats-table th,.stats-table td { padding:12px; border-bottom:1px solid var(--border); text-align:right; font-variant-numeric:tabular-nums; }
+.stats-table th { font-weight:600; }
+.stats-table thead { background:var(--subtle); }
+.stats-table th:first-child { text-align:left; min-width:130px; overflow-wrap:anywhere; }
+.stats-table tbody tr:last-child>* { border-bottom:0; }
+.stats-person.ai,.stats-person.unknown { color:var(--muted); background:var(--subtle); }
+.stats-rank { display:inline-block; min-width:24px; margin-right:8px; color:var(--muted); }
+.stats-bars { display:grid; gap:12px; max-width:880px; }
+.stats-bar-row { display:grid; grid-template-columns:minmax(90px,160px) minmax(60px,1fr) 60px; gap:12px; align-items:center; }
+.stats-bar-row>span:first-child { overflow-wrap:anywhere; }
+.stats-bar-row strong { text-align:right; font-variant-numeric:tabular-nums; }
+.stats-bar-track { height:9px; background:var(--border); border-radius:4px; overflow:hidden; }
+.stats-bar-track>span { display:block; height:100%; background:var(--accent); border-radius:4px; }
+.stats-outcomes { min-width:900px; }
+.stats-empty { padding:16px; border:1px solid var(--border); background:var(--panel); }
+.stats-footnote { max-width:950px; margin-top:24px; }
+@media(max-width:600px) {
+  :root { --header:88px; }
+  .topbar { flex-wrap:wrap; gap:0; padding:0 8px; }
+  .main-nav { height:40px; width:100%; }
+  .main-tab { flex:1; padding:0 10px; }
+  .appearance-controls { height:47px; width:100%; justify-content:flex-end; }
+  .database-controls { margin-right:auto; }
+  .appearance-controls .profile-control select { width:100px; }
+  .database-status { width:128px; }
+  .stats-panel { padding:16px 10px; }
+  .stats-summary { gap:6px; }
+  .stats-total { padding:10px; }
+  .stats-total strong { font-size:24px; }
+  .stats-table th,.stats-table td { padding:10px; }
+}
+@media(max-width:420px) {
+  .database-status { width:104px; }
+  .appearance-controls .profile-control select { width:80px; }
 }

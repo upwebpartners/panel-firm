@@ -10,7 +10,7 @@
     if (!object(snapshot) || !object(snapshot.patches) || !Object.values(snapshot.patches).every(stringFields) ||
         !rows(snapshot.added) || !removals(snapshot.removed) || !(snapshot.imported == null || rows(snapshot.imported)) ||
         !(snapshot.meta == null || stringFields(snapshot.meta)) || !(snapshot.info == null || object(snapshot.info)) ||
-        !(snapshot.sync == null || object(snapshot.sync) && object(snapshot.sync.target) && ['owner','repo','branch','path'].every(key => typeof snapshot.sync.target[key] === 'string') && ['T','K'].includes(snapshot.sync.author)) ||
+        !(snapshot.sync == null || object(snapshot.sync) && object(snapshot.sync.target) && ['owner','repo','branch','path'].every(key => typeof snapshot.sync.target[key] === 'string') && C.isHumanAuthor(snapshot.sync.author)) ||
         !(snapshot.headers == null || Array.isArray(snapshot.headers) && snapshot.headers.every(header => typeof header === 'string'))) {
       throw new Error('Zapisana kopia ma nieprawidłowy format. Nie nadpisano jej. Zachowaj kopię przed naprawą.');
     }
@@ -20,7 +20,7 @@
     }
     const batch = snapshot.sync?.inflight;
     if (batch != null) {
-      if (!object(batch) || !rows(batch.base) || !rows(batch.added) || !removals(batch.removed) || !object(batch.patches) || !Object.values(batch.patches).every(stringFields) || !['T','K'].includes(batch.author)) throw new Error('Nieprawidłowy zapis oczekujących zmian. Nie nadpisano kopii.');
+      if (!object(batch) || !rows(batch.base) || !rows(batch.added) || !removals(batch.removed) || !object(batch.patches) || !Object.values(batch.patches).every(stringFields) || !C.isHumanAuthor(batch.author)) throw new Error('Nieprawidłowy zapis oczekujących zmian. Nie nadpisano kopii.');
       [...batch.base, ...batch.added, ...Object.values(batch.patches)].forEach(C.callHistory);
       Object.values(batch.removed || {}).flat().forEach(C.callHistory);
     }

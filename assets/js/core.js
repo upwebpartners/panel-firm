@@ -22,6 +22,23 @@
       ? previewName || record.Google_nazwa || 'Firma z mapy' : name;
   }
   const priorities = [{ value: 'wysoki', label: 'LVL 1', description: 'Najważniejszy' }, { value: 'średni', label: 'LVL 2', description: 'Średni priorytet' }, { value: 'niski', label: 'LVL 3', description: 'Najmniej ważny' }];
+  const profileName = value => typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/g, ' ') : '';
+  const profileKey = value => profileName(value).toLocaleLowerCase('pl');
+  function isHumanAuthor(value) {
+    const name = profileName(value);
+    return value === name && /^[\p{L}\p{N}][\p{L}\p{N} ._'’\-]{0,39}$/u.test(name) &&
+      !['ai', 'nie podano autora', 'nie zapisano', 'brak autora', 'profil'].includes(profileKey(name));
+  }
+  function teamProfiles(records, extras = []) {
+    const names = new Map([['t', 'T'], ['k', 'K']]);
+    const add = value => { if (isHumanAuthor(value) && !names.has(profileKey(value))) names.set(profileKey(value), value); };
+    for (const row of records) {
+      for (const key of ['Dodal', 'Edytowal', 'Dzwonil', 'Mapa_edytowal']) add(row[key]);
+      for (const call of callHistory(row)) add(call.by);
+    }
+    extras.forEach(add);
+    return ['T', 'K', ...[...names.values()].filter(name => !['T', 'K'].includes(name)).sort((a,b) => a.localeCompare(b, 'pl'))];
+  }
   function parseCSV(text) {
     text = String(text).replace(/^\uFEFF/, '');
     let headerQuoted = false, commas = 0, semicolons = 0;
@@ -300,5 +317,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { profileName, profileKey, isHumanAuthor, teamProfiles, recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

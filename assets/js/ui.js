@@ -25,7 +25,7 @@
   async function showTab(value, focus = false) {
     const version = ++navigationVersion, guards = [], commits = [];
     const cancelled = () => { if (version === navigationVersion) { try { history.replaceState(null, '', '#' + mainTab); } catch {} } return false; };
-    const next = value === 'map' ? 'map' : 'companies';
+    const next = ['map', 'companies', 'stats'].includes(value) ? value : 'companies';
     const event = new CustomEvent('crm:beforetab', { detail: { tab: next, guard: callback => guards.push(callback), commit: callback => commits.push(callback) }, cancelable: true });
     if (!document.dispatchEvent(event)) return cancelled();
     for (const guard of guards) if (!await guard() || version !== navigationVersion) return cancelled();
@@ -34,6 +34,7 @@
     for (const commit of commits) commit();
     mainTab = next;
     $('companiesPanel').hidden = mainTab !== 'companies'; $('mapPanel').hidden = mainTab !== 'map';
+    $('statsPanel').hidden = mainTab !== 'stats';
     document.querySelectorAll('[data-main-tab]').forEach(button => {
       const active = button.dataset.mainTab === mainTab;
       button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
@@ -70,11 +71,13 @@
     button.addEventListener('click', () => showTab(button.dataset.mainTab));
     button.addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault(); return showTab(event.key === 'Home' ? 'map' : event.key === 'End' ? 'companies' : mainTab === 'companies' ? 'map' : 'companies', true);
+      event.preventDefault();
+      const tabs = [...document.querySelectorAll('[data-main-tab]')].map(item => item.dataset.mainTab), index = tabs.indexOf(button.dataset.mainTab);
+      return showTab(event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : tabs[(index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length], true);
     });
   });
   document.addEventListener('crm:language', appearance);
-  root.addEventListener('hashchange', () => showTab(root.location.hash === '#map' ? 'map' : 'companies'));
+  root.addEventListener('hashchange', () => showTab(root.location.hash.slice(1)));
   root.PanelUI = { showTab, closeMenus };
-  appearance(); showTab(root.location.hash === '#map' ? 'map' : 'companies');
+  appearance(); showTab(root.location.hash.slice(1));
 })(globalThis);

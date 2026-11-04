@@ -10,6 +10,9 @@
   // Existing storage keys also contain user notes and must remain stable.
   const STORE = 'pracownia.crm.v1';
   const RECOVERY_STORE = 'pracownia.crm.recovery.v1';
+  const PROFILES_STORE = 'pracownia.profiles.v1';
+  let savedProfiles = [];
+  try { const saved = JSON.parse(localStorage.getItem(PROFILES_STORE) || '[]'); if (Array.isArray(saved)) savedProfiles = saved.filter(C.isHumanAuthor); } catch {}
   const SORT_STORE = 'pracownia.sort';
   const HIDE_REJECTED_STORE = 'pracownia.hide-rejected';
   const HIDDEN_STAGES_STORE = 'pracownia.hidden-stages';
@@ -51,7 +54,7 @@
   let localWriteChain = Promise.resolve();
   let placeDetailsChain = Promise.resolve();
   let authorName = '';
-  try { const saved = localStorage.getItem('pracownia.author'); if (['T', 'K'].includes(saved)) authorName = saved; } catch {}
+  try { const saved = localStorage.getItem('pracownia.author'); if (C.isHumanAuthor(saved)) authorName = saved; } catch {}
   let draftId = null;
   const pendingCalls = new Map();
   const callsInProgress = new Set();
@@ -100,8 +103,9 @@
       busy = true;
       try {
         const desired = new Map(merged.records.map(record => [record.Id, record]));
+        const batchAuthor = Object.keys(local.removed || {}).length && !['T', 'K'].includes(author) ? local.sync.author : author;
         const next = { ...local, patches: { ...local.patches }, added: [...local.added, ...added], imported: base,
-          meta: { at, by: author }, sync: { ...local.sync, target: { ...target }, author } };
+          meta: { at, by: author }, sync: { ...local.sync, target: { ...target }, author: batchAuthor } };
         for (const [id, patch] of Object.entries(patches)) {
           const values = Object.fromEntries(Object.keys(patch).map(key => [key, desired.get(id)?.[key] ?? patch[key]]));
           next.patches = { ...next.patches, [id]: { ...(next.patches[id] || {}), ...values } };
@@ -157,7 +161,7 @@
             const nextBase = result.records.map(record => ({ ...record }));
             const nextHeaders = [...new Set([...result.headers, ...headers])];
             const next = { ...local, patches: remaining, added, removed, imported: nextBase, headers: nextHeaders,
-              sync: pending ? { ...local.sync, inflight: null } : null, meta: pending ? local.meta : C.fileMeta(nextBase),
+              sync: pending ? { ...local.sync, author: !Object.keys(removed).length && C.isHumanAuthor(local.meta?.by) ? local.meta.by : local.sync.author, inflight: null } : null, meta: pending ? local.meta : C.fileMeta(nextBase),
               info: { ...local.info, name: session.config.path, modifiedAt: result.at || '', by: result.by || '', sha: result.sha || null } };
             await persist(next, true);
             base = nextBase; headers = nextHeaders; local = next;
@@ -201,13 +205,13 @@
   function dateTime(value) { const date = new Date(value); return value && Number.isFinite(+date) ? date.toLocaleString(I18n.locale(), { dateStyle: 'short', timeStyle: 'short' }) : t('brak informacji'); }
   function displayCallHistory(record) { try { return C.callHistory(record); } catch { return []; } }
   function requireProfile() {
-    if (['T', 'K'].includes(authorName)) return true;
+    if (C.isHumanAuthor(authorName)) return true;
     $('profileSelect').focus();
-    toast('Wybierz T lub K w nagłówku, aby zapisać zmianę.', true);
+    toast('Wybierz swój profil w nagłówku, aby zapisać zmianę.', true);
     return false;
   }
   async function ensureAuthor() {
-    if (!requireProfile()) throw new Error('Wybierz T lub K w nagłówku, aby zapisać zmianę.');
+    if (!requireProfile()) throw new Error('Wybierz swój profil w nagłówku, aby zapisać zmianę.');
     return authorName;
   }
   function updateFileInfo() {
@@ -452,6 +456,9 @@
     $('callNotes').readOnly = callSaving || !!pending;
     $('callAutoStatus').disabled = callSaving || !!pending;
     for (const id of ['saveCall', 'closeCall', 'cancelCall']) $(id).disabled = callSaving;
+    $('callAutoStatusHint').textContent = t(['T', 'K'].includes(authorName)
+      ? 'Zainteresowany → Rozmowa. Nie zainteresowany → Odrzucony. Pozostałe wyniki nie zmieniają statusu. Wybór jest zapamiętany w tej przeglądarce.'
+      : 'Zainteresowany → Rozmowa. Odmowę zapisujemy jako wynik rozmowy; zmianę na Odrzucony zatwierdza T lub K.');
   }
   function registerPhone(id) {
     const record = byId(id); if (!record || busy || callSaving || !requireProfile()) return;
@@ -493,7 +500,7 @@
       const operation = pending || { original: callOriginal, eventId: C.uid(), details, autoStatus };
       if (!pending) {
         operation.patch = C.callPatch(callOriginal, author, new Date().toISOString(), operation.eventId, details);
-        const stage = autoStatus ? { 'Zainteresowany': 'Rozmowa', 'Brak zainteresowania': 'Odrzucony' }[details.outcome] : null;
+        const stage = autoStatus ? { 'Zainteresowany': 'Rozmowa', ...(['T', 'K'].includes(author) ? { 'Brak zainteresowania': 'Odrzucony' } : {}) }[details.outcome] : null;
         if (stage && stage !== callOriginal.Etap) operation.patch.Etap = stage;
       }
       pendingCalls.set(id, operation);
@@ -634,6 +641,7 @@
     $('sortDirection').value = sorting.direction;
   }
   function render() {
+    renderProfiles();
     renderSorting(); connectionUI();
     renderHiddenStages();
     const visible = filteredRecords();
@@ -866,7 +874,7 @@
           <span>${index + 1} / ${browseIds.length}</span>
           <button class="button" data-navigate="1" ${index >= browseIds.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Następna firma'))}">→</button>
           <button class="button primary" data-edit-client>${esc(t('Edytuj'))}</button>
-          <button type="button" class="button delete-company" data-delete-client="${esc(record.Id)}">${esc(t('Usuń firmę'))}</button>
+          ${['T', 'K'].includes(authorName) ? `<button type="button" class="button delete-company" data-delete-client="${esc(record.Id)}">${esc(t('Usuń firmę'))}</button>` : ''}
         </div>
       </div>
       <div class="call-bar">
@@ -962,8 +970,9 @@
     const index = browseIds.indexOf(selected), id = browseIds[index + direction]; if (id && byId(id)) openClient(id, true);
   }
   const stageDescriptions = { Nowy: 'Nowa firma w bazie', 'Do sprawdzenia': 'Dane wymagają sprawdzenia', Rozmowa: 'Kontakt z firmą w toku', 'W realizacji': 'Trwa realizacja', 'Współpraca': 'Współpracujemy z firmą', Odrzucony: 'Firma odrzuciła współpracę', Archiwum: 'Ukryj z głównej listy' };
+  const allowedStages = record => C.stages.filter(stage => stage !== 'Odrzucony' || record?.Etap === stage || ['T', 'K'].includes(authorName));
   function renderStatusOptions(record) {
-    $('statusOptions').innerHTML = C.stages.map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
+    $('statusOptions').innerHTML = allowedStages(record).map(stage => '<label class="status-option"><input type="radio" name="stage" value="' + esc(stage) + '"' + (stage === record.Etap ? ' checked' : '') + '><span><strong>' + esc(t(stage)) + '</strong><small>' + esc(t(stageDescriptions[stage])) + '</small></span></label>').join('');
     I18n.bindUI($('statusDialog'));
   }
   function openStatus(id) {
@@ -1020,7 +1029,7 @@
       if (googleValue && !value) placeholder = googleValue;
       if (type === 'stage' || type === 'priority') {
         const selectedValue = type === 'priority' ? (record ? C.priorityValue(record) : '') : value;
-        const options = type === 'stage' ? C.stages.map(stage => ({ value: stage, label: stage })) : [...C.priorities, { value: '', label: 'Nie ustawiono' }];
+        const options = type === 'stage' ? allowedStages(record).map(stage => ({ value: stage, label: stage })) : [...C.priorities, { value: '', label: 'Nie ustawiono' }];
         return '<fieldset class="form-field full form-choice-field" id="f-' + key + '"><legend>' + esc(t(label)) + '</legend><div class="form-choices">' + options.map((item, index) => '<label class="form-choice" for="f-' + key + '-' + index + '"' + (item.description ? ' title="' + esc(t(item.description)) + '"' : '') + '><input type="radio" id="f-' + key + '-' + index + '" name="' + key + '" value="' + esc(item.value) + '"' + (item.value === selectedValue ? ' checked' : '') + '><span>' + esc(t(item.label)) + '</span></label>').join('') + '</div></fieldset>';
       }
       let input;
@@ -1068,6 +1077,7 @@
     if (!newRecord && !Object.keys(patch).length) return;
     const author = await ensureAuthor(), at = new Date().toISOString();
     const stage = newRecord?.Etap || patch.Etap;
+    if (stage === 'Odrzucony' && original?.Etap !== 'Odrzucony' && !['T', 'K'].includes(author)) throw new Error('Odrzucenie firmy zatwierdza T lub K. Wynik rozmowy możesz zapisać bez zmiany statusu.');
     const selection = stage === 'Odrzucony' && original?.Etap !== 'Odrzucony' ? { Odrzucono: at } : {};
     const update = { ...selection, ...patch, Modyfikacja: at, Edytowal: author };
     if (update.Etap) update.Status = 'Etap: ' + update.Etap + ' — ustawiono przez ' + author;
@@ -1076,6 +1086,7 @@
   }
   async function deleteCompany(id) {
     if (!requireProfile() || deletionsInProgress.has(id)) return;
+    if (!['T', 'K'].includes(authorName)) { toast('Tylko profil T lub K może usunąć firmę.', true); return; }
     if (typeof C.retainedMapDecision !== 'function' || github && github.removalVersion !== 1) { toast('Odśwież panel przez Ctrl+Shift+R przed usuwaniem firmy.', true); return; }
     if (busy || changingSource || fileBusy) { toast('Poczekaj na zakończenie poprzedniego zapisu.', true); return; }
     const record = byId(id); if (!record) return;
@@ -1325,6 +1336,8 @@
     refreshConnection: connectionUI,
     notify: toast,
     records: () => records.map(record => ({ ...record })), profile: () => authorName,
+    profiles: () => C.teamProfiles(records, [...savedProfiles, authorName]),
+    pending: hasQueued,
     findPlace: entity => { const row = M.matchRecord(entity, records, recordIndex()); return row ? { ...row } : null; },
     placeRecord: id => { const row = recordIndex().places.get(id); return row ? { ...row } : null; },
     visibleRecords: () => $('companiesPanel').hidden ? [] : (selected && !$('drawer').hidden ? [byId(selected)].filter(Boolean) : filteredRecords()).map(record => ({ ...record })),
@@ -1333,7 +1346,7 @@
     savePlaceDetails: (entity, { refresh = false } = {}) => {
       const task = placeDetailsChain.then(async () => {
         const original = records.find(record => record.Google_place_id === entity.id);
-        if (!original || C.isMapDecisionOnly(original) || !['T','K'].includes(authorName) || !refresh && M.storedDetails(original)) return;
+        if (!original || C.isMapDecisionOnly(original) || !C.isHumanAuthor(authorName) || !refresh && M.storedDetails(original)) return;
         await saveChange(original.Id, M.detailsPatch(entity), { ...original });
       });
       placeDetailsChain = task.catch(error => { connectionError = I18n.message(error.message); connectionUI(); });
@@ -1586,13 +1599,43 @@
       download('kopia-lokalna-' + today() + '.csv', backup.csv);
     } catch (error) { toast(error.message, true); }
   };
-  $('profileSelect').value = authorName;
+  function renderProfiles() {
+    const names = C.teamProfiles(records, [...savedProfiles, authorName]);
+    const markup = '<option value="">' + esc(t('Profil')) + '</option>' + names.map(name => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('') + '<option value="__add__">' + esc(t('Dodaj osobę…')) + '</option>';
+    if ($('profileSelect').innerHTML !== markup) $('profileSelect').innerHTML = markup;
+    authorName = names.find(name => C.profileKey(name) === C.profileKey(authorName)) || '';
+    $('profileSelect').value = authorName;
+    $('profileSelect').title = authorName || t('Kto pracuje?');
+  }
+  renderProfiles();
   $('profileSelect').addEventListener('change', () => {
     if (busy || changingSource || callsInProgress.size || priorityInProgress.size) { $('profileSelect').value = authorName; return; }
-    authorName = ['T', 'K'].includes($('profileSelect').value) ? $('profileSelect').value : '';
+    if ($('profileSelect').value === '__add__') {
+      $('profileSelect').value = authorName; $('profileName').value = ''; $('profileError').hidden = true;
+      $('profileDialog').showModal(); $('profileName').focus(); return;
+    }
+    authorName = C.teamProfiles(records, [...savedProfiles, authorName]).find(name => name === $('profileSelect').value) || '';
     try { localStorage.setItem('pracownia.author', authorName); } catch {}
     document.dispatchEvent(new CustomEvent('crm:profile'));
   });
+  $('profileForm').addEventListener('submit', event => {
+    event.preventDefault();
+    if (busy || changingSource || callsInProgress.size || priorityInProgress.size) return;
+    try {
+      const input = C.profileName($('profileName').value);
+      if (!C.isHumanAuthor(input)) throw new Error('Wpisz imię lub podpis do 40 znaków: litery, cyfry, spacje, kropka, myślnik lub podkreślenie. Podpis AI jest zarezerwowany.');
+      const name = C.teamProfiles(records, savedProfiles).find(value => C.profileKey(value) === C.profileKey(input)) || input;
+      const names = [...new Set([...savedProfiles, name])];
+      try {
+        localStorage.setItem(PROFILES_STORE, JSON.stringify(names));
+        localStorage.setItem('pracownia.author', name);
+      } catch { throw new Error('Nie udało się zapamiętać osoby. Sprawdź miejsce w przeglądarce i spróbuj ponownie.'); }
+      savedProfiles = names; authorName = name; renderProfiles(); $('profileDialog').close();
+      document.dispatchEvent(new CustomEvent('crm:profile'));
+    } catch (error) { $('profileError').textContent = I18n.message(error.message); $('profileError').hidden = false; }
+  });
+  for (const id of ['closeProfile', 'cancelProfile']) $(id).onclick = () => $('profileDialog').close();
+  $('profileDialog').addEventListener('close', () => $('profileSelect').focus());
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable;
     if (window.PanelDialogs.isOpen()) return;
