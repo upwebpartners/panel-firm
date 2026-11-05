@@ -204,6 +204,17 @@
     return { records, conflicts };
   }
   function norm(value) { return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase(); }
+  function searchMatcher(query) {
+    const normalize = value => norm(String(value ?? '').normalize('NFKC')).replace(/\p{Cf}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const terms = normalize(query).split(/\s+/).filter(Boolean);
+    if (!String(query ?? '').trim()) return () => true;
+    if (!terms.length) return () => false;
+    return values => {
+      // Keep fields separate so joining them cannot create a spurious name or phone number.
+      const fields = values.map(normalize).filter(Boolean).map(text => ({ text, compact: text.replace(/ /g, '') }));
+      return terms.every(term => fields.some(field => field.text.includes(term) || field.compact.includes(term)));
+    };
+  }
   function recordIndex(records) {
     const ids = new Map(), places = new Map(), names = new Map();
     for (const record of records) {
@@ -413,5 +424,5 @@
     }
     return { patches, added };
   }
-  root.CRMCore = { legacyMapActivity, activityHistory, activityPatch, activityForChange, profileName, profileKey, isHumanAuthor, teamProfiles, recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
+  root.CRMCore = { legacyMapActivity, activityHistory, activityPatch, activityForChange, profileName, profileKey, isHumanAuthor, teamProfiles, recordIndex, fields, stages, normalizeStage, companyName, callOutcomes, cleanHeaders, cleanRecord, priorities, priority, priorityValue, isPinned, rejectionClock, parseCSV, csvText, overlay, sharedConnectionPlan, sameCompany, retainedMapDecision, isMapDecisionOnly, merge, norm, searchMatcher, safeURL, industry, sortFields, sortRecords, stableId, uid, callHistory, callPatch, fileMeta, stampFile, importPlan, extraColumns };
 })(globalThis);

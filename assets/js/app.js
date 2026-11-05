@@ -614,8 +614,14 @@
     const reviewed = $('stageFilter').value === '__reviewed';
     return records.filter(record => record.Mapa_status !== 'wykreslona' && (record.Mapa_status === 'przejrzana') === reviewed);
   }
+  function companySearchValues(record) {
+    const contact = companyContact(record);
+    return [companyTitle(record).name, record.Firma, record.Google_nazwa, record.Branza, record.Miejscowosc,
+      contact.phone, contact.email, contact.url, contact.address, record.Google_telefon, record.Google_strona, record.Google_adres,
+      record.Notatki, record['Sprawdzony problem'], record['Nastepny krok'], t(C.industry(record))];
+  }
   function filteredRecords() {
-    const query = C.norm($('search').value.trim()), stage = $('stageFilter').value;
+    const query = $('search').value.trim(), matches = C.searchMatcher(query), stage = $('stageFilter').value;
     const visible = directoryRecords().filter(r => {
       if (hiddenStages.has(r.Etap)) return false;
       if (stage === 'Odrzucony' && r.Etap !== 'Odrzucony') return false;
@@ -624,8 +630,7 @@
       if ($('priorityFilter').value && C.priorityValue(r) !== ($('priorityFilter').value === 'none' ? '' : $('priorityFilter').value)) return false;
       if ($('pinFilter').value === 'pinned' && !C.isPinned(r) || $('pinFilter').value === 'unpinned' && C.isPinned(r)) return false;
       if (!query) return true;
-      const contact = companyContact(r);
-      return C.norm([companyTitle(r).name, r.Branza, r.Miejscowosc, contact.phone, contact.email, contact.url, contact.address, r.Notatki, r['Sprawdzony problem'], r['Nastepny krok'], t(C.industry(r))].join(' ')).includes(query);
+      return matches(companySearchValues(r));
     });
     // Sort by the visible names, then return the unchanged canonical records.
     const originals = new Map(visible.map(record => [record.Id, record]));
@@ -649,8 +654,15 @@
     $('resultsLabel').textContent = I18n.message('Wyświetlono ' + visible.length + ' z ' + total + ($('stageFilter').value === '__reviewed' ? ' przejrzanych miejsc' : ' firm'));
     if (!visible.length) {
       const hasData = records.length > 0;
-      showClients('<div class="empty-state"><p>' + esc(t(hasData ? 'Brak firm dla tych filtrów.' : 'Połącz wspólną bazę, aby rozpocząć pracę.')) + '</p>' +
-        (hasData ? '<button class="button primary" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' :
+      const query = $('search').value.trim(), matches = C.searchMatcher(query);
+      const filteredMatches = query && directoryRecords().some(record => matches(companySearchValues(record)));
+      const reviewedMatches = query && $('stageFilter').value !== '__reviewed' && records.some(record => record.Mapa_status === 'przejrzana' && matches(companySearchValues(record)));
+      const message = !hasData ? 'Połącz wspólną bazę, aby rozpocząć pracę.' : filteredMatches ? 'Pasujące firmy są ukryte przez filtry.' :
+        reviewedMatches ? 'Pasujące miejsca są w przejrzanych na mapie.' : 'Brak firm dla tych filtrów.';
+      showClients('<div class="empty-state"><p>' + esc(t(message)) + '</p>' +
+        (filteredMatches ? '<button class="button primary" data-show-search-results>' + esc(t('Pokaż pasujące firmy')) + '</button>' :
+          reviewedMatches ? '<button class="button primary" data-search-reviewed>' + esc(t('Pokaż przejrzane')) + '</button>' :
+          hasData ? '<button class="button primary" data-clear-filters>' + esc(t('Wyczyść filtry')) + '</button>' :
           '<button class="button primary" data-connect-base>' + esc(t('Wspólna baza GitHub')) + '</button><button class="button" data-add-company>' + esc(t('Dodaj firmę')) + '</button>') + '</div>');
     } else renderTable(visible);
     const changed = renderedRows !== records;
@@ -1379,12 +1391,14 @@
     else hiddenStages.delete(stage);
     rememberHiddenStages(); render();
   });
-  function clearFilters() {
-    for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = '';
+  function clearFilters({ keepSearch = false, stage = '' } = {}) {
+    for (const id of ['stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).value = '';
+    if (!keepSearch) $('search').value = '';
+    $('stageFilter').value = stage;
     hiddenStages.clear(); rememberHiddenStages(); render();
   }
-  $('clearFilters').onclick = clearFilters;
-  $('clearFiltersQuick').onclick = clearFilters;
+  $('clearFilters').onclick = () => clearFilters();
+  $('clearFiltersQuick').onclick = () => clearFilters();
   $('showAllStages').onclick = () => { hiddenStages.clear(); rememberHiddenStages(); render(); };
   for (const id of ['search', 'stageFilter', 'callFilter', 'priorityFilter', 'pinFilter']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
     if (id === 'stageFilter' && hiddenStages.delete($('stageFilter').value)) rememberHiddenStages();
@@ -1416,6 +1430,8 @@
     if (event.target.closest('[data-connect-base]')) openConnection();
     if (event.target.closest('[data-add-company]')) openForm();
     if (event.target.closest('[data-clear-filters]')) clearFilters();
+    if (event.target.closest('[data-show-search-results]')) clearFilters({ keepSearch: true, stage: $('stageFilter').value === '__reviewed' ? '__reviewed' : '' });
+    if (event.target.closest('[data-search-reviewed]')) clearFilters({ keepSearch: true, stage: '__reviewed' });
   });
   let menuCompanyId = null, menuCompanyRow = null;
   function closeCompanyMenu(restoreFocus = false) {

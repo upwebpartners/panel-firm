@@ -1,4 +1,9 @@
 globalThis.CRM_MESSAGES = {
+  "Pasujące firmy są ukryte przez filtry.": "Matching companies are hidden by filters.",
+  "Pasujące miejsca są w przejrzanych na mapie.": "Matching places are in reviewed map places.",
+  "Pokaż pasujące firmy": "Show matching companies",
+  "Pokaż przejrzane": "Show reviewed places",
+  "Wpisz część nazwy lub kilka słów w dowolnej kolejności.": "Enter part of a name or several words in any order.",
   "Filtry": "Filters",
   "Sortowanie": "Sorting",
   "Dane": "Data",
